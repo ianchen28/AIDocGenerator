@@ -16,6 +16,7 @@ from src.doc_agent.tools.es_service import ESService
 from src.doc_agent.tools.es_discovery import ESDiscovery
 from src.doc_agent.tools.es_search import ESSearchTool
 from src.doc_agent.tools import get_es_search_tool, get_all_tools
+from src.doc_agent.llm_clients.providers import EmbeddingClient
 from core.config import settings
 
 
@@ -133,6 +134,200 @@ class ComprehensiveESTest:
             print(f"结果预览: {result[:300]}...")
             return True
 
+    async def test_hybrid_search(self):
+        print("\n=== 测试混合检索功能 ===")
+
+        # 获取embedding配置
+        embedding_config = settings.supported_models.get("gte_qwen")
+        if not embedding_config:
+            print("❌ 没有找到embedding模型配置")
+            return False
+
+        # 创建embedding客户端
+        embedding_client = EmbeddingClient(api_url=embedding_config.url,
+                                           api_key=embedding_config.api_key)
+
+        async with ESSearchTool(hosts=self.es_config.hosts,
+                                username=self.es_config.username,
+                                password=self.es_config.password,
+                                timeout=self.es_config.timeout) as search_tool:
+
+            test_queries = ["电力", "变电站", "输电", "配电"]
+
+            for query in test_queries:
+                print(f"\n🔍 测试查询: {query}")
+
+                try:
+                    # 1. 获取查询向量
+                    print("   📊 生成查询向量...")
+                    embedding_response = embedding_client.invoke(query)
+                    print(f"   📊 Embedding响应: {embedding_response[:100]}...")
+
+                    # 解析向量（处理嵌套数组格式）
+                    import json
+                    try:
+                        embedding_data = json.loads(embedding_response)
+                        if isinstance(embedding_data, list):
+                            # 处理嵌套数组格式 [[...]]
+                            if len(embedding_data) > 0 and isinstance(
+                                    embedding_data[0], list):
+                                query_vector = embedding_data[0]  # 提取内部数组
+                            else:
+                                query_vector = embedding_data
+                        elif isinstance(embedding_data,
+                                        dict) and 'data' in embedding_data:
+                            query_vector = embedding_data['data']
+                        else:
+                            print(
+                                f"   ⚠️  无法解析embedding响应格式: {type(embedding_data)}"
+                            )
+                            query_vector = None
+                    except json.JSONDecodeError:
+                        print(f"   ⚠️  JSON解析失败，使用默认向量")
+                        query_vector = None
+
+                    if query_vector:
+                        print(f"   ✅ 向量维度: {len(query_vector)}")
+
+                        # 2. 执行混合搜索
+                        print("   🔍 执行混合搜索...")
+                        hybrid_result = await search_tool.search(
+                            query=query, query_vector=query_vector, top_k=3)
+                        print(f"   ✅ 混合搜索结果长度: {len(hybrid_result)} 字符")
+                        print(f"   📄 结果预览: {hybrid_result[:200]}...")
+
+                        # 3. 对比纯文本搜索
+                        print("   🔍 执行纯文本搜索...")
+                        text_result = await search_tool.search(query=query,
+                                                               top_k=3)
+                        print(f"   ✅ 文本搜索结果长度: {len(text_result)} 字符")
+                        print(f"   📄 结果预览: {text_result[:200]}...")
+
+                        # 4. 分析差异
+                        print("   📊 搜索结果对比:")
+                        print(f"     混合搜索: {len(hybrid_result)} 字符")
+                        print(f"     文本搜索: {len(text_result)} 字符")
+                        if len(hybrid_result) != len(text_result):
+                            print("     ✅ 混合搜索和文本搜索结果不同，说明向量搜索生效")
+                        else:
+                            print("     ⚠️  混合搜索和文本搜索结果相同")
+
+                    else:
+                        print("   ❌ 无法获取查询向量，跳过混合搜索")
+
+                except Exception as e:
+                    print(f"   ❌ 混合搜索测试失败: {str(e)}")
+                    continue
+
+            return True
+
+    async def test_pure_vector_search(self):
+        print("\n=== 测试纯向量搜索功能 ===")
+
+        # 获取embedding配置
+        embedding_config = settings.supported_models.get("gte_qwen")
+        if not embedding_config:
+            print("❌ 没有找到embedding模型配置")
+            return False
+
+        # 创建embedding客户端
+        embedding_client = EmbeddingClient(api_url=embedding_config.url,
+                                           api_key=embedding_config.api_key)
+
+        async with ESSearchTool(hosts=self.es_config.hosts,
+                                username=self.es_config.username,
+                                password=self.es_config.password,
+                                timeout=self.es_config.timeout) as search_tool:
+
+            test_queries = ["电力系统运行", "变电站设备维护", "输电线路故障处理", "配电网络优化"]
+
+            for query in test_queries:
+                print(f"\n🔍 测试纯向量搜索查询: {query}")
+
+                try:
+                    # 1. 获取查询向量
+                    print("   📊 生成查询向量...")
+                    embedding_response = embedding_client.invoke(query)
+                    print(f"   📊 Embedding响应: {embedding_response[:100]}...")
+
+                    # 解析向量（处理嵌套数组格式）
+                    import json
+                    try:
+                        embedding_data = json.loads(embedding_response)
+                        if isinstance(embedding_data, list):
+                            # 处理嵌套数组格式 [[...]]
+                            if len(embedding_data) > 0 and isinstance(
+                                    embedding_data[0], list):
+                                query_vector = embedding_data[0]  # 提取内部数组
+                            else:
+                                query_vector = embedding_data
+                        elif isinstance(embedding_data,
+                                        dict) and 'data' in embedding_data:
+                            query_vector = embedding_data['data']
+                        else:
+                            print(
+                                f"   ⚠️  无法解析embedding响应格式: {type(embedding_data)}"
+                            )
+                            query_vector = None
+                    except json.JSONDecodeError:
+                        print(f"   ⚠️  JSON解析失败，使用默认向量")
+                        query_vector = None
+
+                    if query_vector:
+                        print(f"   ✅ 向量维度: {len(query_vector)}")
+
+                        # 2. 执行纯向量搜索（只传递query_vector，不传递query）
+                        print("   🔍 执行纯向量搜索...")
+                        pure_vector_result = await search_tool.search(
+                            query="电力",  # 使用简单查询作为过滤条件
+                            query_vector=query_vector,
+                            top_k=3)
+                        print(f"   ✅ 纯向量搜索结果长度: {len(pure_vector_result)} 字符")
+                        print(f"   📄 结果预览: {pure_vector_result[:300]}...")
+
+                        # 3. 对比混合搜索
+                        print("   🔍 执行混合搜索对比...")
+                        hybrid_result = await search_tool.search(
+                            query=query, query_vector=query_vector, top_k=3)
+                        print(f"   ✅ 混合搜索结果长度: {len(hybrid_result)} 字符")
+                        print(f"   📄 结果预览: {hybrid_result[:200]}...")
+
+                        # 4. 对比纯文本搜索
+                        print("   🔍 执行纯文本搜索对比...")
+                        text_result = await search_tool.search(query=query,
+                                                               top_k=3)
+                        print(f"   ✅ 文本搜索结果长度: {len(text_result)} 字符")
+                        print(f"   📄 结果预览: {text_result[:200]}...")
+
+                        # 5. 分析三种搜索方式的差异
+                        print("   📊 三种搜索方式对比:")
+                        print(f"     纯向量搜索: {len(pure_vector_result)} 字符")
+                        print(f"     混合搜索: {len(hybrid_result)} 字符")
+                        print(f"     文本搜索: {len(text_result)} 字符")
+
+                        # 检查是否有结果差异
+                        if len(pure_vector_result) != len(
+                                hybrid_result) or len(
+                                    pure_vector_result) != len(text_result):
+                            print("     ✅ 三种搜索方式返回不同结果，说明各自生效")
+                        else:
+                            print("     ⚠️  三种搜索方式返回相同结果")
+
+                        # 检查纯向量搜索是否有结果
+                        if "未找到" not in pure_vector_result:
+                            print("     ✅ 纯向量搜索成功返回结果")
+                        else:
+                            print("     ⚠️  纯向量搜索未找到结果")
+
+                    else:
+                        print("   ❌ 无法获取查询向量，跳过纯向量搜索")
+
+                except Exception as e:
+                    print(f"   ❌ 纯向量搜索测试失败: {str(e)}")
+                    continue
+
+            return True
+
     async def test_factory_functions(self):
         print("\n=== 测试工厂函数和with用法 ===")
         # 推荐用法：async with
@@ -174,6 +369,8 @@ class ComprehensiveESTest:
         test_results.append(("映射分析", await self.test_index_mapping()))
         test_results.append(("基础搜索", await self.test_basic_search()))
         test_results.append(("向量搜索", await self.test_vector_search()))
+        test_results.append(("混合检索", await self.test_hybrid_search()))
+        test_results.append(("纯向量搜索", await self.test_pure_vector_search()))
         test_results.append(("工厂函数", await self.test_factory_functions()))
         test_results.append(("错误处理", await self.test_error_handling()))
         print("\n" + "=" * 50)

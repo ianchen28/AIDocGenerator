@@ -3,8 +3,9 @@
 """
 
 import sys
+import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Tuple, List
 
 
 def setup_import_paths():
@@ -75,3 +76,90 @@ def safe_import(module_path: str, default: Any = None):
         return module
     except (ImportError, AttributeError):
         return default
+
+
+def parse_llm_json_response(response: str,
+                            required_fields: List[str] = None) -> dict:
+    """
+    解析 LLM 的 JSON 响应
+    
+    Args:
+        response: LLM 的原始响应
+        required_fields: 必需的字段列表
+        
+    Returns:
+        dict: 解析后的 JSON 数据
+        
+    Raises:
+        ValueError: 当 JSON 解析失败或缺少必需字段时
+    """
+    try:
+        # 清理响应，尝试提取 JSON 部分
+        response = response.strip()
+
+        # 如果响应以 ```json 开头，提取其中的内容
+        if response.startswith("```json"):
+            response = response[7:]  # 移除 ```json
+        if response.endswith("```"):
+            response = response[:-3]  # 移除结尾的 ```
+
+        # 尝试直接解析 JSON
+        data = json.loads(response)
+
+        # 验证必需的字段
+        if required_fields:
+            for field in required_fields:
+                if field not in data:
+                    raise ValueError(f"Missing required field: {field}")
+
+        return data
+
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error: {e}")
+        print(f"Response content: {response[:200]}...")
+        raise ValueError(f"Failed to parse JSON response: {e}")
+    except Exception as e:
+        print(f"Response parsing error: {e}")
+        print(f"Response content: {response[:200]}...")
+        raise ValueError(f"Failed to parse response: {e}")
+
+
+def parse_planner_response(response: str) -> Tuple[str, List[str]]:
+    """
+    解析规划器的响应，提取研究计划和搜索查询
+    
+    Args:
+        response: LLM 的原始响应
+        
+    Returns:
+        tuple: (研究计划, 搜索查询列表)
+        
+    Raises:
+        ValueError: 当 JSON 解析失败时
+    """
+    try:
+        # 使用通用 JSON 解析函数
+        data = parse_llm_json_response(response,
+                                       ["research_plan", "search_queries"])
+
+        research_plan = data["research_plan"]
+        search_queries = data["search_queries"]
+
+        # 验证数据类型
+        if not isinstance(research_plan, str):
+            raise ValueError("research_plan must be a string")
+        if not isinstance(search_queries, list):
+            raise ValueError("search_queries must be a list")
+
+        # 验证搜索查询列表
+        if not search_queries:
+            raise ValueError("search_queries cannot be empty")
+
+        # 确保所有搜索查询都是字符串
+        search_queries = [str(query) for query in search_queries]
+
+        return research_plan, search_queries
+
+    except Exception as e:
+        print(f"Planner response parsing error: {e}")
+        raise ValueError(f"Failed to parse planner response: {e}")

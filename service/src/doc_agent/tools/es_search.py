@@ -122,12 +122,12 @@ class ESSearchTool:
             result += f"   评分: {doc.score:.3f}\n"
 
             # 显示原始内容（如果存在）
-            if doc.content:
-                result += f"   原始内容: {doc.content[:300]}...\n"
+            if doc.original_content:
+                result += f"   原始内容: {doc.original_content[:300]}...\n"
 
             # 显示切分后的内容（如果存在且与原始内容不同）
-            if doc.content_view and doc.content_view != doc.content:
-                result += f"   切分内容: {doc.content_view[:200]}...\n"
+            if doc.div_content and doc.div_content != doc.original_content:
+                result += f"   切分内容: {doc.div_content[:200]}...\n"
 
             result += "\n"
 

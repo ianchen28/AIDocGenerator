@@ -61,6 +61,8 @@ def run_all_tests():
         "test_tools_factory.py",
         "test_es_comprehensive.py",
         "test_web_search_comprehensive.py",
+        "test_code_execute.py",
+        "test_planner_node.py",
     ]
 
     # 过滤掉不存在的文件
