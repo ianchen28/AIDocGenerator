@@ -1,6 +1,5 @@
 # 架构
 
-```mermaid
 my_document_agent/
 ├── service/
 │   ├── src/
@@ -49,4 +48,3 @@ my_document_agent/
 │   └── requirements.txt
 │
 └── README.md
-```

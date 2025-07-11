@@ -1,18 +1,74 @@
 # service/src/doc_agent/llm_clients/__init__.py
 
 from .base import LLMClient
-from .providers import OpenAIClient, InternalClient
-from ....core.config import settings  # <--- 导入配置实例
+from .providers import (InternalLLMClient, GeminiClient, DeepSeekClient,
+                        RerankerClient, EmbeddingClient)
+
+# 动态导入配置，避免相对导入问题
+import sys
+import os
+from pathlib import Path
+
+# 添加service目录到路径
+service_dir = Path(__file__).parent.parent.parent.parent
+if str(service_dir) not in sys.path:
+    sys.path.insert(0, str(service_dir))
+
+from core.config import settings
 
 
-def get_llm_client(provider: str = "openai") -> LLMClient:
-    """工厂函数，根据配置创建并返回一个LLM客户端实例"""
-    if provider == "openai":
-        # 从 settings 对象中安全地获取配置
-        return OpenAIClient(api_key=settings.openai.api_key,
-                            model=settings.openai.model)
-    elif provider == "internal":
-        return InternalClient(api_url=settings.internal_llm.api_url,
-                              api_key=settings.internal_llm.api_key)
+def get_llm_client(model_key: str = None) -> LLMClient:
+    """
+    工厂函数，根据配置创建并返回一个LLM客户端实例
+    
+    Args:
+        model_key: 模型键名，从config.yaml的supported_models中获取
+        
+    Returns:
+        LLMClient: 相应的客户端实例
+    """
+    model_config = settings.get_model_config(model_key)
+    if not model_config:
+        raise ValueError(f"Model {model_key} not found in configuration")
+
+    # 根据模型类型创建相应的客户端
+    if model_config.type == "enterprise_generate":
+        # 企业内网模型
+        return InternalLLMClient(api_url=model_config.url,
+                                 api_key=model_config.api_key,
+                                 model=model_config.model_id)
+    elif model_config.type == "external_generate":
+        # 外部模型
+        if "gemini" in model_config.model_id.lower():
+            return GeminiClient(
+                api_key=model_config.api_key,
+                model=model_config.model_id,
+                base_url=model_config.url  # 使用配置中的URL
+            )
+        elif "deepseek" in model_config.model_id.lower():
+            return DeepSeekClient(api_key=model_config.api_key,
+                                  model=model_config.model_id)
+        else:
+            raise ValueError(f"Unknown model type: {model_config.type}")
     else:
-        raise ValueError(f"Unknown LLM provider: {provider}")
+        raise ValueError(f"Unknown model type: {model_config.type}")
+
+
+def get_reranker_client() -> RerankerClient:
+    """获取Reranker客户端"""
+    reranker_config = settings.get_model_config("reranker")
+    if reranker_config:
+        return RerankerClient(api_url=reranker_config.url,
+                              api_key=reranker_config.api_key)
+    else:
+        raise ValueError("Reranker model not found in configuration")
+
+
+def get_embedding_client() -> EmbeddingClient:
+    """获取Embedding客户端"""
+    embedding_config = settings.get_model_config("gte_qwen")
+    if embedding_config:
+        return EmbeddingClient(api_url=embedding_config.url,
+                               api_key=embedding_config.api_key)
+    else:
+        raise ValueError("Embedding model not found in configuration")

@@ -3,12 +3,10 @@
 测试配置系统
 """
 
-import os
-import sys
-from pathlib import Path
+from test_base import TestBase, setup_paths
 
-# 添加src目录到Python路径
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# 设置测试环境
+setup_paths()
 
 from core.config import settings
 
