@@ -1,14 +1,38 @@
 # service/src/doc_agent/llm_clients/providers.py
+import re
 import httpx
 from .base import LLMClient
+from .base import BaseOutputParser
+
+
+class ReasoningParser(BaseOutputParser):
+    """
+    推理输出解析器
+    去除模型响应中的推理过程，只保留最终答案
+    """
+
+    def __init__(self, reasoning: bool = False):
+        self.reasoning = reasoning
+
+    def parse(self, response: str) -> str:
+        if self.reasoning:
+            # 用正则表达式去除 <think> 和 </think> 之间的内容
+            response = re.sub(r'<think>.*?</think>',
+                              '',
+                              response,
+                              flags=re.DOTALL)
+            return response.strip()
+        else:
+            return response.strip()
 
 
 class GeminiClient(LLMClient):
 
     def __init__(self,
-                 api_key: str,
-                 model: str = "gemini-1.5-pro-latest",
-                 base_url: str = None):
+                 base_url: str,
+                 model_name: str = "gemini-1.5-pro-latest",
+                 api_key: str = None,
+                 reasoning: bool = False):
         """
         初始化Gemini客户端
         
@@ -18,7 +42,9 @@ class GeminiClient(LLMClient):
             base_url: API基础URL，如果为None则使用默认URL
         """
         self.api_key = api_key
-        self.model = model
+        self.model_name = model_name
+        self.reasoning = reasoning
+        self.parser = ReasoningParser(reasoning=reasoning)
         # 如果提供了base_url，使用它；否则使用默认URL
         if base_url:
             self.base_url = base_url.rstrip('/')
@@ -62,7 +88,7 @@ class GeminiClient(LLMClient):
                 headers = {"Authorization": f"Bearer {self.api_key}"}
                 # 使用 OpenAI 兼容格式
                 data = {
-                    "model": self.model,
+                    "model": self.model_name,
                     "messages": [{
                         "role": "user",
                         "content": prompt
@@ -72,7 +98,7 @@ class GeminiClient(LLMClient):
                 }
             else:
                 # 标准 Gemini API 格式
-                url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
+                url = f"{self.base_url}/{self.model_name}:generateContent?key={self.api_key}"
                 headers = {}
                 # 使用 Gemini 格式
                 data = {
@@ -98,7 +124,10 @@ class GeminiClient(LLMClient):
                     # ChatAI API 返回 OpenAI 兼容格式
                     if "choices" in result and len(result["choices"]) > 0:
                         content = result["choices"][0]["message"]["content"]
-                        return content
+                        print(f"🔍 ChatAI原始响应: '{content}'")
+                        parsed_content = self.parser.parse(content)
+                        print(f"🔍 ChatAI解析后: '{parsed_content}'")
+                        return parsed_content
                     else:
                         raise ValueError(
                             "No response content received from ChatAI API")
@@ -108,7 +137,10 @@ class GeminiClient(LLMClient):
                             result["candidates"]) > 0:
                         content = result["candidates"][0]["content"]["parts"][
                             0]["text"]
-                        return content
+                        print(f"🔍 Gemini原始响应: '{content}'")
+                        parsed_content = self.parser.parse(content)
+                        print(f"🔍 Gemini解析后: '{parsed_content}'")
+                        return parsed_content
                     else:
                         raise ValueError(
                             "No response content received from Gemini API")
@@ -119,7 +151,11 @@ class GeminiClient(LLMClient):
 
 class DeepSeekClient(LLMClient):
 
-    def __init__(self, api_key: str, model: str = "deepseek-chat"):
+    def __init__(self,
+                 base_url: str,
+                 api_key: str,
+                 model_name: str,
+                 reasoning: bool = False):
         """
         初始化DeepSeek客户端
         
@@ -128,8 +164,10 @@ class DeepSeekClient(LLMClient):
             model: 模型名称，默认为deepseek-chat
         """
         self.api_key = api_key
-        self.model = model
-        self.base_url = "https://api.deepseek.com/v1"
+        self.model_name = model_name
+        self.reasoning = reasoning
+        self.parser = ReasoningParser(reasoning=reasoning)
+        self.base_url = base_url.rstrip('/')
 
     def invoke(self, prompt: str, **kwargs) -> str:
         """
@@ -149,7 +187,7 @@ class DeepSeekClient(LLMClient):
 
             # 构建请求数据
             data = {
-                "model": self.model,
+                "model": self.model_name,
                 "messages": [{
                     "role": "user",
                     "content": prompt
@@ -171,7 +209,7 @@ class DeepSeekClient(LLMClient):
                 # 提取响应内容
                 if "choices" in result and len(result["choices"]) > 0:
                     content = result["choices"][0]["message"]["content"]
-                    return content
+                    return self.parser.parse(content)
                 else:
                     raise ValueError(
                         "No response content received from DeepSeek API")
@@ -183,20 +221,23 @@ class DeepSeekClient(LLMClient):
 class InternalLLMClient(LLMClient):
 
     def __init__(self,
-                 api_url: str,
+                 base_url: str,
                  api_key: str,
-                 model: str = "qwen-2.5-72b"):
+                 model_name: str,
+                 reasoning: bool = False):
         """
         初始化内部模型客户端
         
         Args:
-            api_url: 内部API地址
+            base_url: 内部API地址
             api_key: API密钥
             model: 模型名称
         """
-        self.api_url = api_url.rstrip('/')
+        self.base_url = base_url.rstrip('/')
         self.api_key = api_key
-        self.model = model
+        self.model_name = model_name
+        self.reasoning = reasoning
+        self.parser = ReasoningParser(reasoning=reasoning)
 
     def invoke(self, prompt: str, **kwargs) -> str:
         """
@@ -216,7 +257,7 @@ class InternalLLMClient(LLMClient):
 
             # 构建请求数据
             data = {
-                "model": self.model,
+                "model": self.model_name,
                 "messages": [{
                     "role": "user",
                     "content": prompt
@@ -226,7 +267,7 @@ class InternalLLMClient(LLMClient):
             }
 
             # 发送请求
-            url = f"{self.api_url}/chat/completions"
+            url = f"{self.base_url}/chat/completions"
             headers = {
                 "Authorization": f"Bearer {self.api_key}"
             } if self.api_key != "EMPTY" else {}
@@ -240,7 +281,7 @@ class InternalLLMClient(LLMClient):
                 # 提取响应内容
                 if "choices" in result and len(result["choices"]) > 0:
                     content = result["choices"][0]["message"]["content"]
-                    return content
+                    return self.parser.parse(content)
                 else:
                     raise ValueError(
                         "No response content received from Internal API")
@@ -251,15 +292,15 @@ class InternalLLMClient(LLMClient):
 
 class RerankerClient(LLMClient):
 
-    def __init__(self, api_url: str, api_key: str):
+    def __init__(self, base_url: str, api_key: str):
         """
         初始化Reranker客户端
         
         Args:
-            api_url: Reranker API地址
+            base_url: Reranker API地址
             api_key: API密钥
         """
-        self.api_url = api_url.rstrip('/')
+        self.base_url = base_url.rstrip('/')
         self.api_key = api_key
 
     def invoke(self, prompt: str, **kwargs) -> dict:
@@ -276,7 +317,7 @@ class RerankerClient(LLMClient):
             doc_objs = [{"text": doc} for doc in documents]
             size = kwargs.get("size", len(doc_objs))
             data = {"query": prompt, "doc_list": doc_objs, "size": size}
-            url = f"{self.api_url}"
+            url = f"{self.base_url}"
             headers = {
                 "Authorization": f"Bearer {self.api_key}"
             } if self.api_key != "EMPTY" else {}
@@ -291,15 +332,15 @@ class RerankerClient(LLMClient):
 
 class EmbeddingClient(LLMClient):
 
-    def __init__(self, api_url: str, api_key: str):
+    def __init__(self, base_url: str, api_key: str):
         """
         初始化Embedding客户端
         
         Args:
-            api_url: Embedding API地址
+            base_url: Embedding API地址
             api_key: API密钥
         """
-        self.api_url = api_url.rstrip('/')
+        self.base_url = base_url.rstrip('/')
         self.api_key = api_key
 
     def invoke(self, prompt: str, **kwargs) -> str:
@@ -318,7 +359,7 @@ class EmbeddingClient(LLMClient):
             data = {"inputs": prompt, "model": kwargs.get("model", "gte-qwen")}
 
             # 发送请求 - 直接使用根端点，因为测试显示它工作正常
-            url = f"{self.api_url}"
+            url = f"{self.base_url}"
             headers = {
                 "Authorization": f"Bearer {self.api_key}"
             } if self.api_key != "EMPTY" else {}

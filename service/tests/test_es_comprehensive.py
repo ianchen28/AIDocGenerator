@@ -144,7 +144,7 @@ class ComprehensiveESTest:
             return False
 
         # 创建embedding客户端
-        embedding_client = EmbeddingClient(api_url=embedding_config.url,
+        embedding_client = EmbeddingClient(base_url=embedding_config.url,
                                            api_key=embedding_config.api_key)
 
         async with ESSearchTool(hosts=self.es_config.hosts,
@@ -231,7 +231,7 @@ class ComprehensiveESTest:
             return False
 
         # 创建embedding客户端
-        embedding_client = EmbeddingClient(api_url=embedding_config.url,
+        embedding_client = EmbeddingClient(base_url=embedding_config.url,
                                            api_key=embedding_config.api_key)
 
         async with ESSearchTool(hosts=self.es_config.hosts,

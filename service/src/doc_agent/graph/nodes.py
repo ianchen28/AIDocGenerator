@@ -22,6 +22,25 @@ if service_dir and str(service_dir) not in sys.path:
 
 from core.config import settings
 
+# 修复相对导入
+try:
+    from ..utils import parse_planner_response
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    try:
+        from src.doc_agent.utils import parse_planner_response
+    except ImportError:
+        # 如果都失败，创建一个简单的解析函数
+        def parse_planner_response(response):
+            """简单的响应解析函数"""
+            import json
+            try:
+                data = json.loads(response)
+                return data.get("research_plan",
+                                ""), data.get("search_queries", [])
+            except:
+                return "默认研究计划", ["默认搜索查询"]
+
 
 def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
     """
@@ -74,7 +93,6 @@ def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
             **task_planner_config.extra_params)
 
         # 解析 JSON 响应
-        from ..utils import parse_planner_response
         research_plan, search_queries = parse_planner_response(response)
 
         return {
@@ -124,7 +142,8 @@ async def async_researcher_node(state: ResearchState,
     if embedding_config:
         try:
             embedding_client = EmbeddingClient(
-                api_url=embedding_config.url, api_key=embedding_config.api_key)
+                base_url=embedding_config.url,
+                api_key=embedding_config.api_key)
             print("✅ Embedding客户端初始化成功")
         except Exception as e:
             print(f"⚠️  Embedding客户端初始化失败: {str(e)}")

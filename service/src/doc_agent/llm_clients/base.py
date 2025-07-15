@@ -25,3 +25,16 @@ class LLMClient(ABC):
             Exception: 当API调用失败时抛出异常
         """
         pass
+
+
+class BaseOutputParser(ABC):
+    """
+    输出解析器的抽象基类
+    定义了所有输出解析器必须实现的方法
+    """
+
+    @abstractmethod
+    def parse(self, response: str) -> str:
+        """
+        解析模型响应
+        """

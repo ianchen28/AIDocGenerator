@@ -15,6 +15,7 @@ class ModelConfig(BaseSettings):
     url: str
     api_key: str
     description: str
+    reasoning: bool = False
 
 
 class ElasticsearchConfig(BaseSettings):
@@ -72,17 +73,17 @@ class OpenAISettings(BaseSettings):
 
 
 class InternalLLMSettings(BaseSettings):
-    api_url: str = Field("", alias="INTERNAL_LLM_API_URL")
+    base_url: str = Field("", alias="INTERNAL_LLM_BASE_URL")
     api_key: str = Field("", alias="INTERNAL_LLM_API_KEY")
 
 
 class RerankerSettings(BaseSettings):
-    api_url: str = Field("", alias="RERANKER_API_URL")
+    base_url: str = Field("", alias="RERANKER_BASE_URL")
     api_key: str = Field("", alias="RERANKER_API_KEY")
 
 
 class EmbeddingSettings(BaseSettings):
-    api_url: str = Field("", alias="EMBEDDING_API_URL")
+    base_url: str = Field("", alias="EMBEDDING_BASE_URL")
     api_key: str = Field("", alias="EMBEDDING_API_KEY")
 
 
@@ -101,7 +102,6 @@ class AppSettings(BaseSettings):
                                       env_file_encoding='utf-8',
                                       extra='ignore')
 
-    # 保持原有接口
     openai: OpenAISettings = OpenAISettings()
     internal_llm: InternalLLMSettings = InternalLLMSettings()
     tavily: TavilySettings = TavilySettings()

@@ -19,15 +19,15 @@ OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-4o
 
 # 内部LLM配置
-INTERNAL_LLM_API_URL=http://localhost:8000/v1
+INTERNAL_LLM_BASE_URL=http://localhost:8000/v1
 INTERNAL_LLM_API_KEY=your_internal_api_key_here
 
 # Reranker配置
-RERANKER_API_URL=http://localhost:39939/reranker
+RERANKER_BASE_URL=http://localhost:39939/reranker
 RERANKER_API_KEY=your_reranker_api_key_here
 
 # Embedding配置
-EMBEDDING_API_URL=http://localhost:13031/embed
+EMBEDDING_BASE_URL=http://localhost:13031/embed
 EMBEDDING_API_KEY=your_embedding_api_key_here
 
 # Tavily搜索配置

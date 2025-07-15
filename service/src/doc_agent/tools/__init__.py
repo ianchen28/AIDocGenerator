@@ -5,7 +5,35 @@ from typing import Set, Optional
 from .web_search import WebSearchTool
 from .es_search import ESSearchTool
 from .code_execute import CodeExecuteTool
-from ..utils import get_settings
+
+# 修复相对导入
+try:
+    from ..utils import get_settings
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    try:
+        from src.doc_agent.utils import get_settings
+    except ImportError:
+        # 如果都失败，创建一个简单的设置函数
+        def get_settings():
+            """简单的设置获取函数"""
+            import sys
+            from pathlib import Path
+
+            # 添加项目根目录到Python路径
+            current_file = Path(__file__)
+            service_dir = None
+            for parent in current_file.parents:
+                if parent.name == 'service':
+                    service_dir = parent
+                    break
+
+            if service_dir and str(service_dir) not in sys.path:
+                sys.path.insert(0, str(service_dir))
+
+            from core.config import settings
+            return settings
+
 
 # 全局工具注册表，用于跟踪需要关闭的ES工具
 _es_tools_registry: Set[ESSearchTool] = set()

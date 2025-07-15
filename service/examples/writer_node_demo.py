@@ -74,9 +74,9 @@ def test_writer_node():
     print(f"✅ 使用模型: {llm_config.model_id}")
     print(f"✅ API地址: {llm_config.url}")
 
-    llm_client = InternalLLMClient(api_url=llm_config.url,
+    llm_client = InternalLLMClient(base_url=llm_config.url,
                                    api_key=llm_config.api_key,
-                                   model=llm_config.model_id)
+                                   model_name=llm_config.model_id)
 
     print(f"📝 测试主题: {state['topic']}")
     print(f"📊 研究计划长度: {len(state['research_plan'])} 字符")

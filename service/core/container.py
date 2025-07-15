@@ -1,7 +1,18 @@
 # service/core/container.py
-from ..doc_agent.llm_clients import get_llm_client
-from ..doc_agent.tools import get_web_search_tool, get_all_tools
-from ..doc_agent.graph.builder import build_graph
+import sys
+from pathlib import Path
+from functools import partial
+
+# 添加项目根目录到Python路径
+current_file = Path(__file__)
+service_dir = current_file.parent
+if str(service_dir) not in sys.path:
+    sys.path.insert(0, str(service_dir))
+
+from src.doc_agent.llm_clients import get_llm_client
+from src.doc_agent.tools import get_web_search_tool, get_all_tools
+from src.doc_agent.graph import nodes, router
+from src.doc_agent.graph.builder import build_graph
 
 
 class Container:
@@ -11,20 +22,19 @@ class Container:
         # 实例化所有单例服务
         self.llm_client = get_llm_client()
         self.search_tool = get_web_search_tool()
-
-        # 获取所有工具
         self.tools = get_all_tools()
 
-        # 编译图，并注入依赖
-        # LangGraph的 .compile() 返回一个可运行对象 (Runnable)
-        # 我们可以使用 .with_config() 在运行时注入固定的依赖
-        self.graph = build_graph().with_config({
-            "configurable": {
-                "llm_client": self.llm_client,
-                "search_tool": self.search_tool,
-                "tools": self.tools,
-            }
-        })
+        # 用partial绑定依赖
+        planner_node = partial(nodes.planner_node, llm_client=self.llm_client)
+        researcher_node = partial(nodes.async_researcher_node,
+                                  web_search_tool=self.search_tool)
+        writer_node = partial(nodes.writer_node, llm_client=self.llm_client)
+        supervisor_router_func = partial(router.supervisor_router,
+                                         llm_client=self.llm_client)
+
+        # 编译图
+        self.graph = build_graph(planner_node, researcher_node, writer_node,
+                                 supervisor_router_func)
 
 
 # 创建一个全局容器实例供应用使用

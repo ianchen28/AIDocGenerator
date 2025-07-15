@@ -56,10 +56,10 @@ class LLMClientsTest(TestBase):
                     print(f"     类型: {type(client).__name__}")
 
                     # 检查URL配置
-                    if hasattr(client, 'api_url'):
-                        print(f"     API URL: {client.api_url}")
-                    elif hasattr(client, 'base_url'):
+                    if hasattr(client, 'base_url'):
                         print(f"     Base URL: {client.base_url}")
+                    elif hasattr(client, 'api_key'):
+                        print(f"     API Key: {client.api_key}")
 
                     success_count += 1
 
@@ -84,7 +84,7 @@ class LLMClientsTest(TestBase):
                 reranker_client = get_reranker_client()
                 print(f"  ✅ Reranker: 客户端创建成功")
                 print(f"     类型: {type(reranker_client).__name__}")
-                print(f"     API URL: {reranker_client.api_url}")
+                print(f"     Base URL: {reranker_client.base_url}")
                 success_count += 1
             except Exception as e:
                 print(f"  ❌ Reranker: {str(e)}")
@@ -94,7 +94,7 @@ class LLMClientsTest(TestBase):
                 embedding_client = get_embedding_client()
                 print(f"  ✅ Embedding: 客户端创建成功")
                 print(f"     类型: {type(embedding_client).__name__}")
-                print(f"     API URL: {embedding_client.api_url}")
+                print(f"     Base URL: {embedding_client.base_url}")
                 success_count += 1
             except Exception as e:
                 print(f"  ❌ Embedding: {str(e)}")

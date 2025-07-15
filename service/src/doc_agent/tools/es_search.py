@@ -72,7 +72,7 @@ class ESSearchTool:
             query_vector: 查询向量（可选）
             top_k: 返回结果数量
             filters: 过滤条件
-            
+
         Returns:
             str: 搜索结果
         """

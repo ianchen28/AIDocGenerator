@@ -1,7 +1,22 @@
 # service/workers/tasks.py
 # 假设使用 Celery
 # from celery_app import app
-from ..core.container import container
+
+# 修复相对导入
+try:
+    from ..core.container import container
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    import sys
+    from pathlib import Path
+
+    # 添加项目根目录到Python路径
+    current_file = Path(__file__)
+    service_dir = current_file.parent
+    if str(service_dir) not in sys.path:
+        sys.path.insert(0, str(service_dir))
+
+    from core.container import container
 
 
 # @app.task
