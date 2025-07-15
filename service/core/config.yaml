@@ -120,6 +120,16 @@ supported_models:
     reasoning: "True"
     description: "DeepSeek Reasoner - 推理模型"
 
+  # Moonshot 系列
+  moonshot_k2_0711_preview:
+    name: "Moonshot K2 0711 Preview"
+    type: "external_generate"
+    model_id: "moonshot-v1-8k"
+    url: "${MOONSHOT_BASE_URL}"
+    api_key: "${MOONSHOT_API_KEY}"
+    reasoning: "True"
+    description: "Moonshot K2 0711 Preview - 高性能推理模型"
+
 
 # ================================================
 # 检索服务配置

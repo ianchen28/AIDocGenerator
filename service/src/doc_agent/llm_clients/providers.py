@@ -218,6 +218,85 @@ class DeepSeekClient(LLMClient):
             raise Exception(f"DeepSeek API调用失败: {str(e)}")
 
 
+class MoonshotClient(LLMClient):
+
+    def __init__(self,
+                 base_url: str,
+                 api_key: str,
+                 model_name: str,
+                 reasoning: bool = False):
+        """
+        初始化Moonshot客户端
+        
+        Args:
+            base_url: Moonshot API地址
+            api_key: API密钥
+            model: 模型名称
+        """
+        self.base_url = base_url.rstrip('/')
+        self.api_key = api_key
+        self.model_name = model_name
+        self.reasoning = reasoning
+        self.parser = ReasoningParser(reasoning=reasoning)
+
+    def invoke(self, prompt: str, **kwargs) -> str:
+        """
+        调用Moonshot API
+        
+        Args:
+            prompt: 输入提示
+            **kwargs: 其他参数，如temperature, max_tokens等
+            
+        Returns:
+            str: 模型响应的内容
+        """
+        try:
+            # 获取可选参数
+            temperature = kwargs.get("temperature", 0.7)
+            max_tokens = kwargs.get("max_tokens", 1000)
+
+            # 构建请求数据 - 使用OpenAI兼容格式
+            data = {
+                "model": self.model_name,
+                "messages": [{
+                    "role": "user",
+                    "content": prompt
+                }],
+                "temperature": temperature,
+                "max_tokens": max_tokens
+            }
+
+            # 发送请求
+            url = f"{self.base_url}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            # 创建自定义的httpx客户端，避免proxies参数问题
+            http_client = httpx.Client(timeout=60.0)
+
+            with http_client as client:
+                response = client.post(url, json=data, headers=headers)
+                response.raise_for_status()
+
+                result = response.json()
+
+                # 提取响应内容
+                if "choices" in result and len(result["choices"]) > 0:
+                    content = result["choices"][0]["message"]["content"]
+                    print(f"🔍 Moonshot原始响应: '{content}'")
+                    parsed_content = self.parser.parse(content)
+                    print(f"🔍 Moonshot解析后: '{parsed_content}'")
+                    return parsed_content
+                else:
+                    raise ValueError(
+                        "No response content received from Moonshot API")
+
+        except Exception as e:
+            raise Exception(f"Moonshot API调用失败: {str(e)}")
+
+
 class InternalLLMClient(LLMClient):
 
     def __init__(self,

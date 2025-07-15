@@ -46,6 +46,7 @@ class LLMClientsTest(TestBase):
                 "qwen_2_5_235b_a22b",  # 企业模型
                 "gemini_1_5_pro",  # Gemini模型
                 "deepseek_v3",  # DeepSeek模型
+                "moonshot_k2_0711_preview",  # Moonshot模型
             ]
 
             success_count = 0
@@ -140,7 +141,23 @@ class LLMClientsTest(TestBase):
         except Exception as e:
             print(f"  ❌ Gemini invoke 异常: {e}")
             total += 1
-        # 3. Reranker
+        # 3. Moonshot Client
+        try:
+            moonshot_client = get_llm_client(
+                model_key="moonshot_k2_0711_preview")
+            response = moonshot_client.invoke("你好，介绍一下你自己。",
+                                              temperature=0.7,
+                                              max_tokens=100)
+            print(f"  ✅ Moonshot invoke 返回: {str(response)[:60]}...")
+            if isinstance(response, str) and len(response.strip()) > 0:
+                success_count += 1
+            else:
+                print("  ❌ Moonshot invoke 返回内容异常")
+            total += 1
+        except Exception as e:
+            print(f"  ❌ Moonshot invoke 异常: {e}")
+            total += 1
+        # 4. Reranker
         try:
             reranker = get_reranker_client()
             test_docs = [
@@ -167,7 +184,7 @@ class LLMClientsTest(TestBase):
         except Exception as e:
             print(f"  ❌ Reranker invoke 异常: {e}")
             total += 1
-        # 4. Embedding
+        # 5. Embedding
         try:
             embedding = get_embedding_client()
             vector = embedding.invoke("文本内容")
@@ -184,6 +201,33 @@ class LLMClientsTest(TestBase):
         print(f"\n实际调用通过: {success_count}/{total}")
         return success_count == total
 
+    def test_moonshot_specific(self):
+        """专门测试 Moonshot 客户端"""
+        print("=== 专门测试 Moonshot 客户端 ===")
+
+        try:
+            # 创建 Moonshot 客户端
+            moonshot_client = get_llm_client(
+                model_key="moonshot_k2_0711_preview")
+            print(f"  ✅ Moonshot 客户端创建成功")
+            print(f"     类型: {type(moonshot_client).__name__}")
+
+            # 测试简单调用
+            response = moonshot_client.invoke("请用一句话介绍人工智能")
+            print(f"  ✅ Moonshot 简单调用成功: {str(response)[:50]}...")
+
+            # 测试带参数的调用
+            response_with_params = moonshot_client.invoke("请生成一个关于机器学习的短段落",
+                                                          temperature=0.8,
+                                                          max_tokens=200)
+            print(f"  ✅ Moonshot 带参数调用成功: {str(response_with_params)[:50]}...")
+
+            return True
+
+        except Exception as e:
+            print(f"  ❌ Moonshot 测试失败: {str(e)}")
+            return False
+
     def run_all_tests(self):
         """运行所有测试"""
         print("🚀 开始LLM客户端测试...")
@@ -195,6 +239,7 @@ class LLMClientsTest(TestBase):
         test_results.append(("客户端创建", self.test_client_creation()))
         test_results.append(("专门客户端", self.test_specialized_clients()))
         test_results.append(("实际调用", self.test_client_invoke()))
+        test_results.append(("Moonshot专门测试", self.test_moonshot_specific()))
 
         # 显示测试结果
         print("\n" + "=" * 50)
@@ -225,6 +270,10 @@ response = client.invoke("你好", temperature=0.7, max_tokens=1000)
 # 使用Gemini（URL从配置获取）
 gemini_client = get_llm_client(model_key="gemini_1_5_pro")
 response = gemini_client.invoke("你好", temperature=0.7, max_tokens=1000)
+
+# 使用Moonshot（URL从配置获取）
+moonshot_client = get_llm_client(model_key="kimi")
+response = moonshot_client.invoke("你好", temperature=0.7, max_tokens=1000)
 
 # 使用Reranker
 reranker = get_reranker_client()

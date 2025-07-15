@@ -2,7 +2,7 @@
 
 from .base import LLMClient
 from .providers import (InternalLLMClient, GeminiClient, DeepSeekClient,
-                        RerankerClient, EmbeddingClient)
+                        MoonshotClient, RerankerClient, EmbeddingClient)
 
 # 动态导入配置，避免相对导入问题
 import sys
@@ -21,7 +21,8 @@ def get_llm_client(model_key: str = "qwen_2_5_235b_a22b") -> LLMClient:
     工厂函数，根据配置创建并返回一个LLM客户端实例
     
     Args:
-        model_key: 模型键名，从config.yaml的supported_models中获取，默认为qwen_2_5_235b_a22b
+        model_key: 模型键名，从config.yaml的supported_models中获取，
+            默认为qwen_2_5_235b_a22b
         
     Returns:
         LLMClient: 相应的客户端实例
@@ -46,6 +47,12 @@ def get_llm_client(model_key: str = "qwen_2_5_235b_a22b") -> LLMClient:
                                 reasoning=model_config.reasoning)
         elif "deepseek" in model_config.model_id.lower():
             return DeepSeekClient(base_url=model_config.url,
+                                  api_key=model_config.api_key,
+                                  model_name=model_config.model_id,
+                                  reasoning=model_config.reasoning)
+        elif ("moonshot" in model_config.model_id.lower()
+              or "kimi" in model_config.name.lower()):
+            return MoonshotClient(base_url=model_config.url,
                                   api_key=model_config.api_key,
                                   model_name=model_config.model_id,
                                   reasoning=model_config.reasoning)
