@@ -81,7 +81,8 @@ def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
 1. research_plan 应该是一个详细的步骤计划，包含具体的研究步骤和策略
 2. search_queries 应该包含3-5个具体的搜索查询，每个查询要针对性强且覆盖主题的不同方面
 3. 必须严格按照 JSON 格式输出，确保 JSON 格式正确
-4. 搜索查询应该包含相关的关键词和术语，能够有效收集到相关信息
+4. 搜索查询应该使用通用关键词，避免过于具体的术语，确保能在知识库中找到相关内容
+5. 搜索查询应该包含主题的核心词汇，比如"水电站"、"电力"、"能源"等通用术语
 """
 
     try:
@@ -121,7 +122,7 @@ async def async_researcher_node(state: ResearchState,
     异步节点2: 执行搜索研究
     
     从状态中获取 search_queries，使用搜索工具收集相关信息
-    支持文本搜索、向量搜索和混合检索
+    优先使用向量检索，如果失败则回退到文本搜索
     
     Args:
         state: 研究状态，包含 search_queries
@@ -148,6 +149,8 @@ async def async_researcher_node(state: ResearchState,
         except Exception as e:
             print(f"⚠️  Embedding客户端初始化失败: {str(e)}")
             embedding_client = None
+    else:
+        print("❌ 未找到 embedding 配置，将使用文本搜索")
 
     # 用配置初始化ES工具
     es_config = settings.elasticsearch_config
@@ -171,24 +174,20 @@ async def async_researcher_node(state: ResearchState,
                 print(f"网络搜索失败: {str(e)}")
                 web_results = ""
 
-            # ES搜索（支持向量搜索）
+            # ES搜索 - 优先向量检索，失败则回退到文本搜索
             es_results = ""
             try:
                 if embedding_client:
-                    # 尝试向量搜索
+                    # 尝试向量检索
                     try:
-                        # 生成查询向量
                         embedding_response = embedding_client.invoke(query)
-
-                        # 解析向量（处理嵌套数组格式）
                         import json
                         try:
                             embedding_data = json.loads(embedding_response)
                             if isinstance(embedding_data, list):
-                                # 处理嵌套数组格式 [[...]]
                                 if len(embedding_data) > 0 and isinstance(
                                         embedding_data[0], list):
-                                    query_vector = embedding_data[0]  # 提取内部数组
+                                    query_vector = embedding_data[0]
                                 else:
                                     query_vector = embedding_data
                             elif isinstance(embedding_data,
@@ -204,32 +203,40 @@ async def async_researcher_node(state: ResearchState,
                             query_vector = None
 
                         if query_vector and len(query_vector) == 1536:
-                            print(f"✅ 向量维度: {len(query_vector)}")
-
-                            # 执行混合搜索（文本+向量）
+                            print(
+                                f"✅ 向量维度: {len(query_vector)}，前5: {query_vector[:5]}"
+                            )
+                            # 使用新的 search 方法，传入正确的参数
+                            # 如果 query 为空，使用默认查询字符串
+                            search_query = query if query.strip() else "相关文档"
                             es_results = await es_search_tool.search(
-                                query=query,
+                                query=search_query,
                                 query_vector=query_vector,
-                                top_k=5)
-                            print("✅ 混合搜索执行成功")
+                                top_k=3)
+                            print(f"✅ 向量检索执行成功，结果长度: {len(es_results)}")
                         else:
-                            # 向量生成失败，使用纯文本搜索
-                            es_results = await es_search_tool.search(query,
-                                                                     top_k=5)
-                            print("✅ 文本搜索执行成功")
+                            print(f"❌ 向量生成失败，使用文本搜索")
+                            # 回退到文本搜索
+                            es_results = await es_search_tool.search(
+                                query=query, query_vector=None, top_k=3)
+                            print(f"✅ 文本搜索执行成功，结果长度: {len(es_results)}")
                     except Exception as e:
-                        print(f"⚠️  向量搜索失败，回退到文本搜索: {str(e)}")
-                        es_results = await es_search_tool.search(query,
-                                                                 top_k=5)
-                        print("✅ 文本搜索执行成功")
+                        print(f"❌ 向量检索异常: {str(e)}，使用文本搜索")
+                        # 回退到文本搜索
+                        es_results = await es_search_tool.search(
+                            query=query, query_vector=None, top_k=3)
+                        print(f"✅ 文本搜索执行成功，结果长度: {len(es_results)}")
                 else:
-                    # 没有embedding客户端，使用纯文本搜索
-                    es_results = await es_search_tool.search(query, top_k=5)
-                    print("✅ 文本搜索执行成功")
+                    # 没有embedding客户端，直接使用文本搜索
+                    print("📝 使用文本搜索")
+                    es_results = await es_search_tool.search(query=query,
+                                                             query_vector=None,
+                                                             top_k=3)
+                    print(f"✅ 文本搜索执行成功，结果长度: {len(es_results)}")
 
             except Exception as e:
-                print(f"ES搜索失败: {str(e)}")
-                es_results = ""
+                print(f"❌ ES搜索失败: {str(e)}")
+                es_results = f"ES搜索失败: {str(e)}"
 
             # 聚合结果
             query_results = f"=== 搜索查询 {i}: {query} ===\n\n"
@@ -241,7 +248,19 @@ async def async_researcher_node(state: ResearchState,
                 query_results += "未找到相关搜索结果\n\n"
             all_results.append(query_results)
 
-    gathered_data = "\n".join(all_results)
+    # 合并所有搜索结果
+    if all_results:
+        gathered_data = "\\n\\n".join(all_results)
+        print(f"✅ 收集到 {len(all_results)} 条搜索结果")
+        print(f"📊 总数据长度: {len(gathered_data)} 字符")
+        # 只显示前200字符作为预览，避免日志过长
+        preview = gathered_data[:200] + "..." if len(
+            gathered_data) > 200 else gathered_data
+        print(f"📝 数据预览: {preview}")
+    else:
+        gathered_data = "未收集到任何搜索结果"
+        print("❌ 未收集到任何搜索结果")
+
     return {"gathered_data": gathered_data}
 
 
@@ -318,6 +337,21 @@ Based *exclusively* on the provided "Raw Data & Research Findings", write a comp
 
 Begin writing the document now.
 """
+
+    # 限制 prompt 长度，避免超过模型输入限制
+    max_prompt_length = 25000  # 25K 字符限制，给 writer 更多空间
+    if len(prompt) > max_prompt_length:
+        print(
+            f"⚠️  Writer prompt 长度 {len(prompt)} 超过限制 {max_prompt_length}，进行截断"
+        )
+        # 保留开头和结尾的重要信息，截断中间的研究资料
+        header = prompt[:prompt.find("**Raw Data & Research Findings:**") +
+                        len("**Raw Data & Research Findings:**")]
+        footer = prompt[prompt.find("**Your Task:**"):]
+        # 从 gathered_data 中取前 15000 字符
+        gathered_data_preview = gathered_data[:15000] + "\n\n... (内容已截断，保留前15000字符)"
+        prompt = header + "\n\n" + gathered_data_preview + "\n\n" + footer
+        print(f"📝 截断后 writer prompt 长度: {len(prompt)} 字符")
 
     try:
         # 调用LLM生成文档

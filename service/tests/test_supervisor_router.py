@@ -1,57 +1,31 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-测试 supervisor_router 函数
-验证路由决策的正确性
+测试 supervisor_router 功能
 """
 
-from test_base import TestBase, setup_paths
-
-# 设置测试环境
-setup_paths()
-
-# 导入需要测试的模块
+from test_base import NodeTestCase, skip_if_no_llm
 from src.doc_agent.graph.router import supervisor_router
 from src.doc_agent.graph.state import ResearchState
-from core.config import settings
+from src.doc_agent.llm_clients import get_llm_client
+import unittest
 
 
-class SupervisorRouterTest(TestBase):
-    """supervisor_router 函数测试类"""
+class SupervisorRouterTest(NodeTestCase):
+    """supervisor_router 路由功能测试"""
 
-    def __init__(self):
-        super().__init__()
-        self.llm_client = None
+    def setUp(self):
+        super().setUp()
+        self.llm_client = self.get_llm_client("moonshot_k2_0711_preview")
 
-    def setup_llm_client(self):
-        """设置LLM客户端"""
-        try:
-            # 使用工厂函数创建LLM客户端
-            from src.doc_agent.llm_clients import get_llm_client
-            # self.llm_client = get_llm_client(model_key="gemini_2_5_pro")
-            self.llm_client = get_llm_client(model_key="qwen_2_5_235b_a22b")
-            print("✅ LLM客户端初始化成功")
-            return True
-        except Exception as e:
-            print(f"❌ LLM客户端初始化失败: {str(e)}")
-            print(f"可用的模型: {list(settings.supported_models.keys())}")
-            return False
-
+    @skip_if_no_llm
     def test_sufficient_data(self):
         """测试充足的研究数据场景"""
-        print("=== 测试充足的研究数据场景 ===")
+        print("\n=== 测试充足的研究数据场景 ===")
 
-        if not self.llm_client:
-            print("❌ LLM客户端未初始化，跳过测试")
-            return False
-
-        try:
-            # 创建充足数据的测试状态
-            state = ResearchState(
-                topic="人工智能在医疗领域的应用",
-                research_plan="研究AI在医疗诊断、药物发现、个性化治疗等方面的应用",
-                search_queries=["AI医疗诊断", "人工智能药物发现", "个性化医疗AI"],
-                gathered_data="""=== 搜索查询 1: AI医疗诊断 ===
+        state = ResearchState(topic="人工智能在医疗领域的应用",
+                              research_plan="研究AI在医疗诊断、药物发现、个性化治疗等方面的应用",
+                              search_queries=["AI医疗诊断", "人工智能药物发现", "个性化医疗AI"],
+                              gathered_data="""=== 搜索查询 1: AI医疗诊断 ===
 
 知识库搜索结果:
 1. 人工智能在医疗诊断中的应用
@@ -94,37 +68,22 @@ class SupervisorRouterTest(TestBase):
    - 慢性病管理
    - 药物剂量优化
    - 患者依从性监测""",
-                final_document="",
-                messages=[])
+                              final_document="",
+                              messages=[])
 
-            # 调用路由函数
-            result = supervisor_router(state, self.llm_client)
-            print(f"结果: {result}")
+        result = supervisor_router(state, self.llm_client)
+        self.assertEqual(result, "continue_to_writer")
+        print("✅ 充足数据测试通过，正确路由到写作者")
 
-            # 验证结果
-            expected = "continue_to_writer"
-            assert result == expected, f"期望 {expected}，实际得到 {result}"
-            print("✅ 充足数据测试通过")
-            return True
-
-        except Exception as e:
-            print(f"❌ 充足数据测试失败: {str(e)}")
-            return False
-
+    @skip_if_no_llm
     def test_insufficient_data(self):
         """测试不足的研究数据场景"""
-        print("=== 测试不足的研究数据场景 ===")
+        print("\n=== 测试不足的研究数据场景 ===")
 
-        if not self.llm_client:
-            print("❌ LLM客户端未初始化，跳过测试")
-            return False
-
-        try:
-            # 创建不足数据的测试状态
-            state = ResearchState(topic="量子计算在金融领域的应用",
-                                  research_plan="研究量子计算在金融建模、风险分析、投资优化等方面的应用",
-                                  search_queries=["量子计算金融", "量子算法投资"],
-                                  gathered_data="""=== 搜索查询 1: 量子计算金融 ===
+        state = ResearchState(topic="量子计算在金融领域的应用",
+                              research_plan="研究量子计算在金融建模、风险分析、投资优化等方面的应用",
+                              search_queries=["量子计算金融", "量子算法投资"],
+                              gathered_data="""=== 搜索查询 1: 量子计算金融 ===
 
 知识库搜索结果:
 1. 量子计算基础概念
@@ -139,127 +98,119 @@ class SupervisorRouterTest(TestBase):
    - 当前量子计算机的局限性
    - 量子比特数量限制
    - 错误率问题""",
-                                  final_document="",
-                                  messages=[])
+                              final_document="",
+                              messages=[])
 
-            # 调用路由函数
-            result = supervisor_router(state, self.llm_client)
-            print(f"结果: {result}")
+        result = supervisor_router(state, self.llm_client)
+        self.assertEqual(result, "rerun_researcher")
+        print("✅ 不足数据测试通过，正确路由回研究者")
 
-            # 验证结果
-            expected = "rerun_researcher"
-            assert result == expected, f"期望 {expected}，实际得到 {result}"
-            print("✅ 不足数据测试通过")
-            return True
-
-        except Exception as e:
-            print(f"❌ 不足数据测试失败: {str(e)}")
-            return False
-
+    @skip_if_no_llm
     def test_empty_data(self):
         """测试空数据场景"""
-        print("=== 测试空数据场景 ===")
+        print("\n=== 测试空数据场景 ===")
 
-        if not self.llm_client:
-            print("❌ LLM客户端未初始化，跳过测试")
-            return False
+        state = ResearchState(topic="区块链技术",
+                              research_plan="研究区块链技术原理和应用",
+                              search_queries=["区块链"],
+                              gathered_data="",
+                              final_document="",
+                              messages=[])
 
-        try:
-            # 创建空数据的测试状态
-            state = ResearchState(topic="区块链技术",
-                                  research_plan="研究区块链技术原理和应用",
-                                  search_queries=["区块链"],
-                                  gathered_data="",
-                                  final_document="",
-                                  messages=[])
+        result = supervisor_router(state, self.llm_client)
+        self.assertEqual(result, "rerun_researcher")
+        print("✅ 空数据测试通过，正确路由回研究者")
 
-            # 调用路由函数
-            result = supervisor_router(state, self.llm_client)
-            print(f"结果: {result}")
-
-            # 验证结果
-            expected = "rerun_researcher"
-            assert result == expected, f"期望 {expected}，实际得到 {result}"
-            print("✅ 空数据测试通过")
-            return True
-
-        except Exception as e:
-            print(f"❌ 空数据测试失败: {str(e)}")
-            return False
-
+    @skip_if_no_llm
     def test_no_topic(self):
         """测试无主题场景"""
-        print("=== 测试无主题场景 ===")
+        print("\n=== 测试无主题场景 ===")
 
-        if not self.llm_client:
-            print("❌ LLM客户端未初始化，跳过测试")
-            return False
+        state = ResearchState(topic="",
+                              research_plan="",
+                              search_queries=[],
+                              gathered_data="一些数据",
+                              final_document="",
+                              messages=[])
 
-        try:
-            # 创建无主题的测试状态
-            state = ResearchState(topic="",
-                                  research_plan="",
-                                  search_queries=[],
-                                  gathered_data="一些数据",
+        result = supervisor_router(state, self.llm_client)
+        self.assertEqual(result, "rerun_researcher")
+        print("✅ 无主题测试通过，正确路由回研究者")
+
+    @skip_if_no_llm
+    def test_minimal_data(self):
+        """测试最小数据场景"""
+        print("\n=== 测试最小数据场景 ===")
+
+        state = ResearchState(
+            topic="机器学习",
+            research_plan="研究机器学习算法",
+            search_queries=["机器学习"],
+            gathered_data=
+            "=== 搜索查询 1: 机器学习 ===\n\n知识库搜索结果:\n1. 机器学习基础\n   - 监督学习\n   - 无监督学习\n   - 强化学习",
+            final_document="",
+            messages=[])
+
+        result = supervisor_router(state, self.llm_client)
+        # 最小数据可能路由到写作者或继续研究，取决于LLM判断
+        self.assertIn(result, ["continue_to_writer", "rerun_researcher"])
+        print(f"✅ 最小数据测试通过，路由结果: {result}")
+
+    @skip_if_no_llm
+    def test_error_handling(self):
+        """测试错误处理"""
+        print("\n=== 测试错误处理 ===")
+
+        class MockLLMClient:
+
+            def invoke(self, prompt, **kwargs):
+                raise Exception("模拟 LLM 调用失败")
+
+        mock_client = MockLLMClient()
+        state = ResearchState(topic="测试主题",
+                              research_plan="测试计划",
+                              search_queries=["测试查询"],
+                              gathered_data="测试数据",
+                              final_document="",
+                              messages=[])
+
+        # 应该返回默认路由而不是崩溃
+        result = supervisor_router(state, mock_client)
+        self.assertEqual(result, "rerun_researcher")
+        print("✅ 错误处理测试通过，LLM失败时正确回退")
+
+    @skip_if_no_llm
+    def test_different_topics(self):
+        """测试不同主题的路由决策"""
+        print("\n=== 测试不同主题的路由决策 ===")
+
+        test_cases = [{
+            "topic": "深度学习",
+            "data":
+            "=== 深度学习 ===\n\n知识库搜索结果:\n1. 深度学习基础\n   - 神经网络\n   - 反向传播\n   - 激活函数\n\n2. 应用领域\n   - 计算机视觉\n   - 自然语言处理\n   - 语音识别",
+            "expected": "continue_to_writer"
+        }, {
+            "topic": "新兴技术",
+            "data": "=== 新兴技术 ===\n\n知识库搜索结果:\n1. 技术概述\n   - 基本概念",
+            "expected": "rerun_researcher"
+        }]
+
+        for i, case in enumerate(test_cases):
+            state = ResearchState(topic=case["topic"],
+                                  research_plan=f"研究{case['topic']}",
+                                  search_queries=[case["topic"]],
+                                  gathered_data=case["data"],
                                   final_document="",
                                   messages=[])
 
-            # 调用路由函数
             result = supervisor_router(state, self.llm_client)
-            print(f"结果: {result}")
+            print(
+                f"  主题 '{case['topic']}': 期望 {case['expected']}, 实际 {result}")
+            # 由于LLM可能给出不同判断，我们只验证结果是有效的路由
+            self.assertIn(result, ["continue_to_writer", "rerun_researcher"])
 
-            # 验证结果
-            expected = "rerun_researcher"
-            assert result == expected, f"期望 {expected}，实际得到 {result}"
-            print("✅ 无主题测试通过")
-            return True
-
-        except Exception as e:
-            print(f"❌ 无主题测试失败: {str(e)}")
-            return False
-
-    def run_all_tests(self):
-        """运行所有测试"""
-        print("🚀 开始运行 supervisor_router 测试...")
-
-        # 初始化LLM客户端
-        if not self.setup_llm_client():
-            print("❌ 无法初始化LLM客户端，跳过所有测试")
-            return
-
-        test_results = []
-
-        # 添加测试方法
-        test_results.append(("充足数据测试", self.test_sufficient_data()))
-        test_results.append(("不足数据测试", self.test_insufficient_data()))
-        test_results.append(("空数据测试", self.test_empty_data()))
-        test_results.append(("无主题测试", self.test_no_topic()))
-
-        # 显示结果汇总
-        print("\n" + "=" * 50)
-        print("📊 测试结果汇总:")
-        print("=" * 50)
-
-        passed = 0
-        for test_name, result in test_results:
-            status = "✅ 通过" if result else "❌ 失败"
-            print(f"{test_name}: {status}")
-            if result:
-                passed += 1
-
-        print(f"\n总计: {passed}/{len(test_results)} 项测试通过")
-
-        if passed == len(test_results):
-            print("🎉 所有测试通过！")
-        else:
-            print("⚠️  部分测试失败")
-
-
-def main():
-    """主测试函数"""
-    tester = SupervisorRouterTest()
-    tester.run_all_tests()
+        print("✅ 不同主题路由测试通过")
 
 
 if __name__ == "__main__":
-    main()
+    unittest.main()

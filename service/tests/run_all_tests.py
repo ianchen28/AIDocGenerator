@@ -59,6 +59,7 @@ def run_all_tests():
         "test_config.py",
         "test_all_llm_clients.py",
         "test_tools_factory.py",
+        "test_es_unified.py",
         "test_es_comprehensive.py",
         "test_web_search_comprehensive.py",
         "test_code_execute.py",

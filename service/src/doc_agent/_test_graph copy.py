@@ -8,9 +8,9 @@
 import sys
 import asyncio
 import json
-import os
 from datetime import datetime
 from pathlib import Path
+from core.env_loader import setup_environment
 
 # 添加项目根目录到Python路径
 current_file = Path(__file__)
@@ -25,7 +25,7 @@ if service_dir and str(service_dir) not in sys.path:
 
 # 导入必要的模块
 from core.container import container
-from src.doc_agent.graph.state import ResearchState
+from core.config import settings
 import pprint
 
 

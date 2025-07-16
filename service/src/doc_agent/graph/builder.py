@@ -13,7 +13,12 @@ def build_graph(planner_node, researcher_node, writer_node,
     # 注册节点
     workflow.add_node("planner", planner_node)
     workflow.add_node("researcher", researcher_node)
-    workflow.add_node("writer", writer_node)
+
+    def writer_with_log(*args, **kwargs):
+        print("🚩 已进入 writer 节点，准备终止流程（END）")
+        return writer_node(*args, **kwargs)
+
+    workflow.add_node("writer", writer_with_log)
 
     # 设置入口和固定边
     workflow.set_entry_point("planner")

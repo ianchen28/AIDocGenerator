@@ -19,8 +19,8 @@ class Container:
     """依赖注入容器"""
 
     def __init__(self):
-        # 实例化所有单例服务
-        self.llm_client = get_llm_client()
+        # 实例化所有单例服务 - 使用 Qwen235B 模型
+        self.llm_client = get_llm_client(model_key="qwen_2_5_235b_a22b")
         self.search_tool = get_web_search_tool()
         self.tools = get_all_tools()
 

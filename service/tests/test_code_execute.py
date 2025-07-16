@@ -1,14 +1,9 @@
 import pytest
-import sys
-import os
-
-# 添加项目根目录到Python路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
+from test_base import TestBase
 from src.doc_agent.tools.code_execute import CodeExecuteTool
 
 
-class TestCodeExecuteTool:
+class TestCodeExecuteTool(TestBase):
     """代码执行工具测试类"""
 
     def setup_method(self):

@@ -28,7 +28,7 @@ class WebSearchTool:
             str: 搜索结果（暂时返回模拟结果）
         """
         # TODO: 后续将实现实际的Tavily API调用
-        # 目前返回模拟结果
+        # 目前返回空结果
         return f"Search results for: {query}\n\n" \
                f"1. 相关网页标题1 - 这是一个模拟的搜索结果\n" \
                f"   摘要: 这是第一个搜索结果的摘要内容，包含了一些相关信息...\n\n" \

@@ -6,9 +6,22 @@
 
 ### 综合测试文件
 
-#### `test_es_comprehensive.py` - ES搜索综合测试
+#### `test_es_unified.py` - ES搜索统一测试
 
-- **功能**: 全面的Elasticsearch搜索功能测试
+- **功能**: 统一的Elasticsearch搜索功能测试（推荐使用）
+- **包含测试**:
+  - ES连接测试
+  - 索引发现和映射分析
+  - 文本搜索测试
+  - 向量搜索测试
+  - 混合搜索测试
+  - 综合搜索测试
+  - 错误处理测试
+- **运行方式**: `python tests/test_es_unified.py`
+
+#### `test_es_comprehensive.py` - ES搜索综合测试（旧版本）
+
+- **功能**: 全面的Elasticsearch搜索功能测试（保留兼容性）
 - **包含测试**:
   - ES连接测试
   - 索引发现和映射分析
@@ -62,6 +75,7 @@
 ```bash
 # 直接运行任何测试文件
 python tests/test_config.py
+python tests/test_es_unified.py
 python tests/test_es_comprehensive.py
 python tests/test_web_search_comprehensive.py
 python tests/test_all_llm_clients.py

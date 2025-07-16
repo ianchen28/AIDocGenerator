@@ -1,10 +1,17 @@
-# service/core/config.py
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+配置管理模块
+"""
 
 import os
 import yaml
 from typing import Dict, List, Optional, Any
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+
+# 统一环境变量加载
+from .env_loader import setup_environment
 
 
 class ModelConfig(BaseSettings):
@@ -98,7 +105,7 @@ class AgentSettings(BaseSettings):
 
 class AppSettings(BaseSettings):
     """应用的主配置类"""
-    model_config = SettingsConfigDict(env_file="../.env",
+    model_config = SettingsConfigDict(env_file=".env",
                                       env_file_encoding='utf-8',
                                       extra='ignore')
 
