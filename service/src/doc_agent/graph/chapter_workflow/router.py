@@ -1,7 +1,7 @@
 # service/src/doc_agent/graph/router.py
 from typing import Literal
-from .state import ResearchState
-from ..llm_clients.base import LLMClient
+from ..state import ResearchState
+from ...llm_clients.base import LLMClient
 
 
 def supervisor_router(
@@ -25,9 +25,22 @@ def supervisor_router(
     topic = state.get("topic", "")
     gathered_data = state.get("gathered_data", "")
 
+    # 计算数据质量指标
+    total_length = len(gathered_data)
+    data_preview = gathered_data[:200] if gathered_data else ""
+
+    # 简单的数据质量评估
+    has_content = bool(gathered_data and gathered_data.strip())
+    has_minimum_length = total_length > 100  # 至少100字符
+    has_keywords = any(keyword in gathered_data.lower()
+                       for keyword in ['人工智能', '电力', '技术', '应用', '政策', '发展'])
+
     print(f"📋 Topic: {topic}")
-    print(f"📊 Gathered data 长度: {len(gathered_data)} 字符")
-    print(f"📝 Gathered data 预览: {gathered_data[:500]}...")
+    print(f"📊 Gathered data 长度: {total_length} 字符")
+    print(f"📝 Gathered data 预览: {data_preview}...")
+    print(
+        f"🔍 数据质量评估: 有内容={has_content}, 长度足够={has_minimum_length}, 包含关键词={has_keywords}"
+    )
 
     if not topic:
         # 如果没有主题，默认需要重新研究
@@ -39,30 +52,38 @@ def supervisor_router(
         print("❌ 没有收集到数据，返回 rerun_researcher")
         return "rerun_researcher"
 
-    # 2. 构建高度特定和约束的提示（中文）
+    # 快速判断：如果数据明显不足，直接返回 CONTINUE
+    if not has_content or not has_minimum_length or not has_keywords:
+        print("⚠️  数据质量明显不足，直接返回 rerun_researcher")
+        print(f"   - 有内容: {has_content}")
+        print(f"   - 长度足够: {has_minimum_length}")
+        print(f"   - 包含关键词: {has_keywords}")
+        return "rerun_researcher"
+
+    # 2. 构建智能评估提示词
     prompt = f"""
-**角色：** 你是一位研究主管，需要判断下方资料是否足够撰写完整文档。
+**任务：** 评估收集的研究数据是否足够撰写关于「{topic}」的高质量文档。
 
-**主题：**「{topic}」
+**数据质量指标：**
+- 数据长度: {total_length} 字符
+- 有实际内容: {'是' if has_content else '否'}
+- 长度足够(>100字符): {'是' if has_minimum_length else '否'}
+- 包含相关关键词: {'是' if has_keywords else '否'}
 
-**已收集的研究资料：**
-{gathered_data}
+**数据预览：**
+{gathered_data[:1000] if gathered_data else '无数据'}
 
-**评判标准（宽松版）：**
-- 如果资料包含3条或以上详细检索结果，每条都有具体内容，且总字数超过500字，则视为"充足"
-- 如果只有1-2条检索，或内容过于简单（只有定义），则视为"不充足"
+**评估标准：**
+1. 数据必须包含实际内容（不是空字符串或错误信息）
+2. 数据长度应该超过100字符
+3. 数据应该包含与主题相关的关键词
+4. 数据内容应该与主题「{topic}」相关
 
-**重要提示：**
-- 只要资料内容丰富、有多个方面、有具体信息，就应该返回FINISH
-- 不要过于苛刻，资料不需要完美无缺
-- 重点看是否有足够的内容来写文档
+**决策规则：**
+- 如果数据质量良好（有内容、长度足够、包含关键词），返回 "FINISH"
+- 如果数据质量不足（无内容、长度不够、不包含关键词），返回 "CONTINUE"
 
-**你的决策：**
-请根据上述标准判断，当前资料能否用于撰写文档？只能回答一个单词：
-- "FINISH" = 资料充足，可以写文档
-- "CONTINUE" = 资料不足，需要更多研究
-
-请直接输出：FINISH 或 CONTINUE
+请根据上述标准严格判断，只能回答一个单词：FINISH 或 CONTINUE
 """
 
     try:

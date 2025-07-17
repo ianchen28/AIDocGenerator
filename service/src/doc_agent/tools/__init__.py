@@ -5,6 +5,7 @@ from typing import Set, Optional
 from .web_search import WebSearchTool
 from .es_search import ESSearchTool
 from .code_execute import CodeExecuteTool
+from .reranker import RerankerTool
 
 # 修复相对导入
 try:
@@ -97,6 +98,23 @@ def get_es_search_tool() -> ESSearchTool:
     # 注册到全局注册表
     register_es_tool(tool)
     return tool
+
+
+def get_reranker_tool() -> RerankerTool:
+    """
+    获取重排序工具实例
+    
+    Returns:
+        RerankerTool: 配置好的重排序工具
+    """
+    settings = get_settings()
+    # 从配置中获取reranker配置
+    reranker_config = settings.get_model_config("reranker")
+    if reranker_config:
+        return RerankerTool(base_url=reranker_config.url,
+                            api_key=reranker_config.api_key)
+    else:
+        raise ValueError("未找到reranker配置")
 
 
 def get_code_execute_tool() -> CodeExecuteTool:

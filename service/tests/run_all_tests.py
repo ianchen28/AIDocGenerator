@@ -64,6 +64,7 @@ def run_all_tests():
         "test_web_search_comprehensive.py",
         "test_code_execute.py",
         "test_planner_node.py",
+        "test_reranker_client.py",
     ]
 
     # 过滤掉不存在的文件

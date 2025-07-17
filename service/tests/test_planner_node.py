@@ -5,7 +5,7 @@
 
 from test_base import NodeTestCase, skip_if_no_llm
 from src.doc_agent.graph.nodes import planner_node
-from src.doc_agent.utils import parse_planner_response
+from doc_agent.common import parse_planner_response
 from src.doc_agent.graph.state import ResearchState
 from src.doc_agent.llm_clients import get_llm_client
 import unittest

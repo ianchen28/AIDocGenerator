@@ -6,6 +6,7 @@ import sys
 import json
 from pathlib import Path
 from typing import Any, Tuple, List
+import re
 
 
 def setup_import_paths():
@@ -82,38 +83,22 @@ def parse_llm_json_response(response: str,
                             required_fields: List[str] = None) -> dict:
     """
     解析 LLM 的 JSON 响应
-    
-    Args:
-        response: LLM 的原始响应
-        required_fields: 必需的字段列表
-        
-    Returns:
-        dict: 解析后的 JSON 数据
-        
-    Raises:
-        ValueError: 当 JSON 解析失败或缺少必需字段时
+    支持 markdown 代码块包裹、各种换行和空格
     """
     try:
-        # 清理响应，尝试提取 JSON 部分
         response = response.strip()
-
-        # 如果响应以 ```json 开头，提取其中的内容
-        if response.startswith("```json"):
-            response = response[7:]  # 移除 ```json
-        if response.endswith("```"):
-            response = response[:-3]  # 移除结尾的 ```
-
-        # 尝试直接解析 JSON
+        # 尝试用正则提取 markdown 代码块中的 JSON
+        code_block_match = re.search(r"```(?:json)?\s*([\s\S]+?)\s*```",
+                                     response, re.IGNORECASE)
+        if code_block_match:
+            response = code_block_match.group(1).strip()
+        # 再尝试直接解析 JSON
         data = json.loads(response)
-
-        # 验证必需的字段
         if required_fields:
             for field in required_fields:
                 if field not in data:
                     raise ValueError(f"Missing required field: {field}")
-
         return data
-
     except json.JSONDecodeError as e:
         print(f"JSON parsing error: {e}")
         print(f"Response content: {response[:200]}...")
@@ -144,6 +129,22 @@ def parse_planner_response(response: str) -> Tuple[str, List[str]]:
 
         research_plan = data["research_plan"]
         search_queries = data["search_queries"]
+
+        # 处理 research_plan，如果是复杂对象则转换为字符串
+        if isinstance(research_plan, dict):
+            # 将复杂对象转换为结构化的字符串描述
+            plan_parts = []
+            for key, value in research_plan.items():
+                if isinstance(value, list):
+                    plan_parts.append(f"{key}:")
+                    for item in value:
+                        plan_parts.append(f"  - {item}")
+                else:
+                    plan_parts.append(f"{key}: {value}")
+            research_plan = "\n".join(plan_parts)
+        elif not isinstance(research_plan, str):
+            # 如果不是字符串，转换为字符串
+            research_plan = str(research_plan)
 
         # 验证数据类型
         if not isinstance(research_plan, str):

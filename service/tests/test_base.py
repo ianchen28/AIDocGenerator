@@ -238,6 +238,17 @@ def skip_if_no_web_search(func):
     return wrapper
 
 
+def skip_if_no_reranker(func):
+    """如果 Reranker 不可用则跳过测试"""
+
+    def wrapper(self, *args, **kwargs):
+        if not hasattr(self, 'env') or not self.env.llm_available:
+            self.skipTest("Reranker 服务不可用")
+        return func(self, *args, **kwargs)
+
+    return wrapper
+
+
 # 异步测试支持
 def async_test(func):
     """异步测试装饰器"""

@@ -68,12 +68,13 @@ class ESSearchTool:
                 logger.error(f"ES搜索工具初始化失败: {str(e)}")
                 self._initialized = True  # 即使失败也标记为已初始化，避免重复尝试
 
-    async def search(self,
-                     query: str,
-                     query_vector: Optional[List[float]] = None,
-                     top_k: int = 10,
-                     filters: Optional[Dict[str, Any]] = None,
-                     use_multiple_indices: bool = True) -> str:
+    async def search(
+            self,
+            query: str,
+            query_vector: Optional[List[float]] = None,
+            top_k: int = 10,
+            filters: Optional[Dict[str, Any]] = None,
+            use_multiple_indices: bool = True) -> List[ESSearchResult]:
         """
         执行Elasticsearch搜索
         
@@ -85,15 +86,16 @@ class ESSearchTool:
             use_multiple_indices: 是否使用多索引搜索
 
         Returns:
-            str: 搜索结果
+            List[ESSearchResult]: 搜索结果列表
         """
         try:
             # 确保已初始化
             await self._ensure_initialized()
 
-            # 如果没有可用索引，返回降级响应
+            # 如果没有可用索引，返回空列表
             if not self._indices_list:
-                return self._get_fallback_response(query)
+                logger.warning("没有可用的知识库索引")
+                return []
 
             # 准备查询向量
             if query_vector is not None:
@@ -120,7 +122,8 @@ class ESSearchTool:
                 index_to_use = self._current_index or self._indices_list[
                     0] if self._indices_list else None
                 if not index_to_use:
-                    return self._get_fallback_response(query)
+                    logger.warning("没有可用的索引")
+                    return []
 
                 results = await self._es_service.search(
                     index=index_to_use,
@@ -129,68 +132,19 @@ class ESSearchTool:
                     query_vector=query_vector,
                     filters=filters)
 
-            # 格式化结果
-            return self._format_search_results(results, query)
+            logger.info(f"ES搜索完成，返回 {len(results)} 个结果")
+            return results
 
         except Exception as e:
             logger.error(f"ES搜索失败: {str(e)}")
-            return self._get_fallback_response(query)
-
-    def _format_search_results(self, results: List[ESSearchResult],
-                               query: str) -> str:
-        """格式化搜索结果"""
-        if not results:
-            return f"未找到与 '{query}' 相关的文档。"
-
-        result = f"搜索查询: {query}\n"
-        result += f"找到 {len(results)} 个相关文档:\n\n"
-
-        for i, doc in enumerate(results, 1):
-            # 显示来源索引（如果有多索引）
-            if doc.alias_name and len(self._indices_list) > 1:
-                result += f"{i}. [{doc.alias_name}] {doc.source or '未知来源'}\n"
-            else:
-                result += f"{i}. {doc.source or '未知来源'}\n"
-
-            result += f"   评分: {doc.score:.3f}\n"
-
-            # 显示原始内容（如果存在）
-            if doc.original_content:
-                content_preview = doc.original_content[:300]
-                result += f"   原始内容: {content_preview}"
-                if len(doc.original_content) > 300:
-                    result += "..."
-                result += "\n"
-
-            # 显示切分后的内容（如果存在且与原始内容不同）
-            if doc.div_content and doc.div_content != doc.original_content:
-                div_preview = doc.div_content[:200]
-                result += f"   切分内容: {div_preview}"
-                if len(doc.div_content) > 200:
-                    result += "..."
-                result += "\n"
-
-            result += "\n"
-
-        return result
-
-    def _get_fallback_response(self, query: str) -> str:
-        """获取降级响应（当ES不可用时）"""
-        return f"ES搜索服务暂时不可用，查询: {query}\n\n" \
-               f"1. 相关文档标题1 - 这是一个模拟的搜索结果\n" \
-               f"   摘要: 这是第一个搜索结果的摘要内容，包含了一些相关信息...\n\n" \
-               f"2. 相关文档标题2 - 另一个模拟的搜索结果\n" \
-               f"   摘要: 这是第二个搜索结果的摘要内容，提供了更多相关的信息...\n\n" \
-               f"3. 相关文档标题3 - 第三个模拟的搜索结果\n" \
-               f"   摘要: 这是第三个搜索结果的摘要内容，补充了额外的相关信息...\n\n" \
-               f"注意: 这是降级响应，实际ES服务不可用。"
+            return []
 
     async def search_with_hybrid(
             self,
             query: str,
             query_vector: Optional[List[float]] = None,
             top_k: int = 10,
-            filters: Optional[Dict[str, Any]] = None) -> str:
+            filters: Optional[Dict[str, Any]] = None) -> List[ESSearchResult]:
         """
         执行混合搜索（文本+向量）
         
@@ -201,7 +155,7 @@ class ESSearchTool:
             filters: 过滤条件
 
         Returns:
-            str: 搜索结果
+            List[ESSearchResult]: 搜索结果列表
         """
         if not query_vector:
             # 如果没有向量，回退到普通搜索
@@ -211,7 +165,8 @@ class ESSearchTool:
             await self._ensure_initialized()
 
             if not self._indices_list:
-                return self._get_fallback_response(query)
+                logger.warning("没有可用的知识库索引")
+                return []
 
             # 准备查询向量
             if len(query_vector) != self._vector_dims:
@@ -225,7 +180,8 @@ class ESSearchTool:
             index_to_use = self._current_index or self._indices_list[
                 0] if self._indices_list else None
             if not index_to_use:
-                return self._get_fallback_response(query)
+                logger.warning("没有可用的索引")
+                return []
 
             results = await self._es_service.search(index=index_to_use,
                                                     query=query,
@@ -233,11 +189,12 @@ class ESSearchTool:
                                                     query_vector=query_vector,
                                                     filters=filters)
 
-            return self._format_search_results(results, query)
+            logger.info(f"混合搜索完成，返回 {len(results)} 个结果")
+            return results
 
         except Exception as e:
             logger.error(f"混合搜索失败: {str(e)}")
-            return self._get_fallback_response(query)
+            return []
 
     async def get_available_indices(self) -> List[str]:
         """获取可用索引列表"""
