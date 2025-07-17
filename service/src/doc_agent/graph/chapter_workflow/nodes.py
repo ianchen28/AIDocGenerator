@@ -283,13 +283,22 @@ async def async_researcher_node(state: ResearchState,
                         )
                         # 使用新的搜索和重排序功能
                         search_query = query if query.strip() else "相关文档"
+
+                        # 获取配置参数
+                        doc_config = settings.get_document_config(
+                            fast_mode=False)
+                        initial_top_k = doc_config.get('vector_recall_size',
+                                                       10)
+                        final_top_k = doc_config.get('rerank_size', 5)
+
                         _, reranked_results, formatted_es_results = await search_and_rerank(
                             es_search_tool=es_search_tool,
                             query=search_query,
                             query_vector=query_vector,
                             reranker_tool=reranker_tool,
-                            initial_top_k=10,  # 初始搜索返回更多结果
-                            final_top_k=5  # 重排序后返回top5
+                            initial_top_k=initial_top_k,  # 使用配置的向量召回数量
+                            final_top_k=final_top_k,  # 使用配置的重排序数量
+                            config=doc_config  # 传递配置参数
                         )
                         es_results = formatted_es_results
                         print(
@@ -303,8 +312,9 @@ async def async_researcher_node(state: ResearchState,
                             query=query,
                             query_vector=None,
                             reranker_tool=reranker_tool,
-                            initial_top_k=10,
-                            final_top_k=5)
+                            initial_top_k=initial_top_k,
+                            final_top_k=final_top_k,
+                            config=doc_config)
                         es_results = formatted_es_results
                         print(
                             f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}"
@@ -317,20 +327,28 @@ async def async_researcher_node(state: ResearchState,
                         query=query,
                         query_vector=None,
                         reranker_tool=reranker_tool,
-                        initial_top_k=10,
-                        final_top_k=5)
+                        initial_top_k=initial_top_k,
+                        final_top_k=final_top_k,
+                        config=doc_config)
                     es_results = formatted_es_results
                     print(f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
             else:
                 # 没有embedding客户端，直接使用文本搜索
                 print("📝 使用文本搜索")
+
+                # 获取配置参数
+                doc_config = settings.get_document_config(fast_mode=False)
+                initial_top_k = doc_config.get('hybrid_recall_size', 10)
+                final_top_k = doc_config.get('rerank_size', 5)
+
                 _, reranked_results, formatted_es_results = await search_and_rerank(
                     es_search_tool=es_search_tool,
                     query=query,
                     query_vector=None,
                     reranker_tool=reranker_tool,
-                    initial_top_k=10,
-                    final_top_k=5)
+                    initial_top_k=initial_top_k,
+                    final_top_k=final_top_k,
+                    config=doc_config)
                 es_results = formatted_es_results
                 print(f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
 

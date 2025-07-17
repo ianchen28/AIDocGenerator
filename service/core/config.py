@@ -60,6 +60,40 @@ class AgentComponentConfig(BaseSettings):
     extra_params: Dict[str, Any] = Field(default_factory=dict)
 
 
+class ESSearchConfig(BaseSettings):
+    """ES检索配置"""
+    vector_recall_size: int = 20
+    hybrid_recall_size: int = 15
+    rerank_size: int = 8
+    min_score: float = 0.3
+
+
+class DocumentLengthConfig(BaseSettings):
+    """文档长度配置"""
+    total_target_words: int = 8000
+    chapter_target_words: int = 1600
+    chapter_count: int = 5
+    min_chapter_words: int = 800
+    max_chapter_words: int = 2500
+
+
+class FastTestModeConfig(BaseSettings):
+    """快速测试模式配置"""
+    enabled: bool = False
+    total_target_words: int = 3000
+    chapter_target_words: int = 600
+    vector_recall_size: int = 10
+    hybrid_recall_size: int = 8
+    rerank_size: int = 5
+
+
+class DocumentGenerationConfig(BaseSettings):
+    """文档生成配置"""
+    es_search: ESSearchConfig
+    document_length: DocumentLengthConfig
+    fast_test_mode: FastTestModeConfig
+
+
 class AgentConfig(BaseSettings):
     """Agent整体配置"""
     task_planner: AgentComponentConfig
@@ -121,6 +155,7 @@ class AppSettings(BaseSettings):
     _elasticsearch_config: Optional[ElasticsearchConfig] = None
     _tavily_config: Optional[TavilyConfig] = None
     _agent_config: Optional[AgentConfig] = None
+    _document_generation_config: Optional[DocumentGenerationConfig] = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -231,6 +266,49 @@ class AppSettings(BaseSettings):
             self, component_name: str) -> Optional[AgentComponentConfig]:
         """获取指定Agent组件的配置"""
         return getattr(self.agent_config, component_name, None)
+
+    @property
+    def document_generation_config(self) -> DocumentGenerationConfig:
+        """获取文档生成配置"""
+        if self._document_generation_config is None:
+            if self._yaml_config and 'document_generation' in self._yaml_config:
+                self._document_generation_config = DocumentGenerationConfig(
+                    **self._yaml_config['document_generation'])
+            else:
+                # 使用默认配置
+                self._document_generation_config = DocumentGenerationConfig(
+                    es_search=ESSearchConfig(),
+                    document_length=DocumentLengthConfig(),
+                    fast_test_mode=FastTestModeConfig())
+        return self._document_generation_config
+
+    def get_document_config(self, fast_mode: bool = False) -> Dict[str, Any]:
+        """获取文档配置，支持快速模式"""
+        config = self.document_generation_config
+
+        if fast_mode and config.fast_test_mode.enabled:
+            # 使用快速测试模式配置
+            return {
+                'total_target_words': config.fast_test_mode.total_target_words,
+                'chapter_target_words':
+                config.fast_test_mode.chapter_target_words,
+                'vector_recall_size': config.fast_test_mode.vector_recall_size,
+                'hybrid_recall_size': config.fast_test_mode.hybrid_recall_size,
+                'rerank_size': config.fast_test_mode.rerank_size,
+                'min_score': config.es_search.min_score
+            }
+        else:
+            # 使用正常模式配置
+            return {
+                'total_target_words':
+                config.document_length.total_target_words,
+                'chapter_target_words':
+                config.document_length.chapter_target_words,
+                'vector_recall_size': config.es_search.vector_recall_size,
+                'hybrid_recall_size': config.es_search.hybrid_recall_size,
+                'rerank_size': config.es_search.rerank_size,
+                'min_score': config.es_search.min_score
+            }
 
 
 # 创建全局settings实例

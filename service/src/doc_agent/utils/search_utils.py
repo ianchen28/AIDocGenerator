@@ -168,7 +168,8 @@ async def search_and_rerank(
     reranker_tool: Optional[RerankerTool] = None,
     initial_top_k: int = 10,
     final_top_k: int = 5,
-    filters: Optional[Dict[str, Any]] = None
+    filters: Optional[Dict[str, Any]] = None,
+    config: Optional[Dict[str, Any]] = None
 ) -> tuple[List[ESSearchResult], List[RerankedSearchResult], str]:
     """
     执行搜索并进行重排序
@@ -190,7 +191,8 @@ async def search_and_rerank(
     search_results = await es_search_tool.search(query=query,
                                                  query_vector=query_vector,
                                                  top_k=initial_top_k,
-                                                 filters=filters)
+                                                 filters=filters,
+                                                 config=config)
 
     logger.info(f"搜索完成，获得 {len(search_results)} 个原始结果")
 

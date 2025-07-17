@@ -157,6 +157,47 @@ tavily:
   max_results: 6
 
 # ================================================
+# 文档生成配置
+# ================================================
+document_generation:
+  # ES 检索配置
+  es_search:
+    # 向量检索召回数量
+    vector_recall_size: 20
+    # 混合检索召回数量  
+    hybrid_recall_size: 15
+    # 重排序后保留数量
+    rerank_size: 8
+    # 最小相关度分数阈值
+    min_score: 0.3
+  
+  # 文档长度配置
+  document_length:
+    # 总文档目标字数
+    total_target_words: 8000
+    # 每个章节目标字数（自动计算）
+    chapter_target_words: 1600
+    # 章节数量（自动计算）
+    chapter_count: 5
+    # 最小章节字数
+    min_chapter_words: 800
+    # 最大章节字数
+    max_chapter_words: 2500
+  
+  # 快速测试模式配置
+  fast_test_mode:
+    # 是否启用快速测试模式
+    enabled: true
+    # 快速模式下的总字数
+    total_target_words: 3000
+    # 快速模式下的章节字数
+    chapter_target_words: 600
+    # 快速模式下的检索数量
+    vector_recall_size: 10
+    hybrid_recall_size: 8
+    rerank_size: 5
+
+# ================================================
 # Agent 配置
 # ================================================
 agent_config:

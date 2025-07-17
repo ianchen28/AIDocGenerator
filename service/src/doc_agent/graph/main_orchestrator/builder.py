@@ -134,7 +134,7 @@ def finalize_document_node(state: ResearchState) -> dict:
     """
     文档最终化节点
     
-    将所有章节内容合并为最终文档
+    将所有章节内容合并为最终文档，并进行格式清理
     
     Args:
         state: 研究状态
@@ -171,9 +171,10 @@ def finalize_document_node(state: ResearchState) -> dict:
 
     final_document_parts.append("\n---\n")
 
-    # 添加所有章节内容
+    # 添加所有章节内容（进行格式清理）
     for chapter_content in completed_chapters_content:
-        final_document_parts.append(f"\n{chapter_content}\n")
+        cleaned_content = _clean_chapter_content(chapter_content)
+        final_document_parts.append(f"\n{cleaned_content}\n")
         final_document_parts.append("\n---\n")
 
     # 合并为最终文档
@@ -183,6 +184,64 @@ def finalize_document_node(state: ResearchState) -> dict:
     print(f"📊 包含 {len(completed_chapters_content)} 个章节")
 
     return {"final_document": final_document}
+
+
+def _clean_chapter_content(content: str) -> str:
+    """
+    清理章节内容格式
+    
+    Args:
+        content: 原始章节内容
+        
+    Returns:
+        str: 清理后的内容
+    """
+    if not content:
+        return content
+
+    # 1. 移除 markdown 代码块标记
+    # 移除开头的 ```markdown 或 ``` 标记
+    content = content.strip()
+    if content.startswith("```markdown"):
+        content = content[11:]  # 移除 ```markdown
+    elif content.startswith("```"):
+        content = content[3:]  # 移除 ```
+
+    # 移除结尾的 ``` 标记
+    if content.endswith("```"):
+        content = content[:-3]
+
+    # 2. 调整标题层级
+    lines = content.split('\n')
+    cleaned_lines = []
+
+    for line in lines:
+        # 将一级标题 (# 标题) 降级为二级标题 (## 标题)
+        if line.startswith('# ') and not line.startswith('## '):
+            # 这是一级标题，需要降级
+            line = '#' + line  # 添加一个 # 变成二级标题
+
+        # 将二级标题 (## 标题) 降级为三级标题 (### 标题)
+        elif line.startswith('## ') and not line.startswith('### '):
+            # 这是二级标题，需要降级
+            line = '#' + line  # 添加一个 # 变成三级标题
+
+        # 将三级标题 (### 标题) 降级为四级标题 (#### 标题)
+        elif line.startswith('### ') and not line.startswith('#### '):
+            # 这是三级标题，需要降级
+            line = '#' + line  # 添加一个 # 变成四级标题
+
+        cleaned_lines.append(line)
+
+    # 重新组合内容
+    cleaned_content = '\n'.join(cleaned_lines)
+
+    # 3. 移除多余的空行
+    # 将连续的空行压缩为最多两个空行
+    import re
+    cleaned_content = re.sub(r'\n{3,}', '\n\n', cleaned_content)
+
+    return cleaned_content.strip()
 
 
 def build_main_orchestrator_graph(initial_research_node,

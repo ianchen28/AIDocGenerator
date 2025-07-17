@@ -91,15 +91,8 @@ async def test_graph():
     try:
         # 创建初始状态
         initial_state = {
-            "topic":
-            "人工智能在中国电力行业的应用趋势和政策支持",
-            "search_queries": [
-                "人工智能 中国电力行业 应用趋势 政策支持",
-                "电力AI 技术发展 行业报告",
-                "深度学习 水电站 运维优化 研究进展",
-                "AI+能源管理 省级电力公司 实施效果",
-                "电力AI创业公司 技术突破 行业报告",
-            ]
+            "topic": "三峡工程和白鹤滩水电站工程的对比以及对未来水电站建设的启示",
+            "search_queries": []
         }
 
         topic = initial_state["topic"]

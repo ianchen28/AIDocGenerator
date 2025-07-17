@@ -74,7 +74,8 @@ class ESSearchTool:
             query_vector: Optional[List[float]] = None,
             top_k: int = 10,
             filters: Optional[Dict[str, Any]] = None,
-            use_multiple_indices: bool = True) -> List[ESSearchResult]:
+            use_multiple_indices: bool = True,
+            config: Optional[Dict[str, Any]] = None) -> List[ESSearchResult]:
         """
         执行Elasticsearch搜索
         
@@ -108,13 +109,21 @@ class ESSearchTool:
                             [0.0] * (self._vector_dims - len(query_vector)))
                     logger.info(f"调整向量维度到 {self._vector_dims}")
 
+            # 使用配置参数或默认值
+            if config:
+                vector_recall_size = config.get('vector_recall_size', top_k)
+                min_score = config.get('min_score', 0.3)
+            else:
+                vector_recall_size = top_k
+                min_score = 0.3
+
             # 执行搜索
             if use_multiple_indices and len(self._indices_list) > 1:
                 # 多索引搜索
                 results = await self._es_service.search_multiple_indices(
                     indices=self._indices_list,
                     query=query,
-                    top_k=top_k,
+                    top_k=vector_recall_size,
                     query_vector=query_vector,
                     filters=filters)
             else:
@@ -128,9 +137,14 @@ class ESSearchTool:
                 results = await self._es_service.search(
                     index=index_to_use,
                     query=query,
-                    top_k=top_k,
+                    top_k=vector_recall_size,
                     query_vector=query_vector,
                     filters=filters)
+
+            # 根据最小分数过滤结果
+            if min_score > 0:
+                results = [r for r in results if r.score >= min_score]
+                logger.info(f"根据最小分数 {min_score} 过滤后，剩余 {len(results)} 个结果")
 
             logger.info(f"ES搜索完成，返回 {len(results)} 个结果")
             return results
@@ -144,7 +158,8 @@ class ESSearchTool:
             query: str,
             query_vector: Optional[List[float]] = None,
             top_k: int = 10,
-            filters: Optional[Dict[str, Any]] = None) -> List[ESSearchResult]:
+            filters: Optional[Dict[str, Any]] = None,
+            config: Optional[Dict[str, Any]] = None) -> List[ESSearchResult]:
         """
         执行混合搜索（文本+向量）
         
@@ -159,7 +174,11 @@ class ESSearchTool:
         """
         if not query_vector:
             # 如果没有向量，回退到普通搜索
-            return await self.search(query, None, top_k, filters)
+            return await self.search(query,
+                                     None,
+                                     top_k,
+                                     filters,
+                                     config=config)
 
         try:
             await self._ensure_initialized()
@@ -176,6 +195,14 @@ class ESSearchTool:
                     query_vector.extend(
                         [0.0] * (self._vector_dims - len(query_vector)))
 
+            # 使用配置参数或默认值
+            if config:
+                hybrid_recall_size = config.get('hybrid_recall_size', top_k)
+                min_score = config.get('min_score', 0.3)
+            else:
+                hybrid_recall_size = top_k
+                min_score = 0.3
+
             # 执行混合搜索
             index_to_use = self._current_index or self._indices_list[
                 0] if self._indices_list else None
@@ -185,9 +212,14 @@ class ESSearchTool:
 
             results = await self._es_service.search(index=index_to_use,
                                                     query=query,
-                                                    top_k=top_k,
+                                                    top_k=hybrid_recall_size,
                                                     query_vector=query_vector,
                                                     filters=filters)
+
+            # 根据最小分数过滤结果
+            if min_score > 0:
+                results = [r for r in results if r.score >= min_score]
+                logger.info(f"根据最小分数 {min_score} 过滤后，剩余 {len(results)} 个结果")
 
             logger.info(f"混合搜索完成，返回 {len(results)} 个结果")
             return results
