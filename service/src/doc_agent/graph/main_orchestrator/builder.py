@@ -1,4 +1,6 @@
 # service/src/doc_agent/graph/main_orchestrator/builder.py
+from loguru import logger
+import pprint
 from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from ..state import ResearchState
@@ -43,7 +45,7 @@ def create_chapter_processing_node(chapter_workflow_graph):
         current_chapter = chapters_to_process[current_chapter_index]
         chapter_title = current_chapter.get("chapter_title", "")
 
-        print(
+        logger.info(
             f"\n📖 开始处理第 {current_chapter_index + 1}/{len(chapters_to_process)} 章: {chapter_title}"
         )
 
@@ -61,9 +63,13 @@ def create_chapter_processing_node(chapter_workflow_graph):
             "messages": []  # 新的消息历史
         }
 
+        logger.debug(
+            f"Chapter workflow input state:\n{pprint.pformat(chapter_workflow_input)}"
+        )
+
         try:
             # 调用章节工作流
-            print(f"🔄 调用章节工作流处理: {chapter_title}")
+            logger.info(f"🔄 调用章节工作流处理: {chapter_title}")
             chapter_result = await chapter_workflow_graph.ainvoke(
                 chapter_workflow_input)
 
@@ -72,10 +78,10 @@ def create_chapter_processing_node(chapter_workflow_graph):
             chapter_content = chapter_result.get("final_document", "")
 
             if not chapter_content:
-                print(f"⚠️  章节工作流未返回内容，使用默认内容")
+                logger.warning(f"⚠️  章节工作流未返回内容，使用默认内容")
                 chapter_content = f"## {chapter_title}\n\n章节内容生成失败。"
 
-            print(f"✅ 章节处理完成，内容长度: {len(chapter_content)} 字符")
+            logger.info(f"✅ 章节处理完成，内容长度: {len(chapter_content)} 字符")
 
             # 更新已完成章节列表
             updated_completed_chapters = completed_chapters_content.copy()
@@ -84,7 +90,7 @@ def create_chapter_processing_node(chapter_workflow_graph):
             # 更新章节索引
             updated_chapter_index = current_chapter_index + 1
 
-            print(
+            logger.info(
                 f"📊 进度: {updated_chapter_index}/{len(chapters_to_process)} 章节已完成"
             )
 
@@ -94,7 +100,7 @@ def create_chapter_processing_node(chapter_workflow_graph):
             }
 
         except Exception as e:
-            print(f"❌ 章节处理失败: {str(e)}")
+            logger.error(f"❌ 章节处理失败: {str(e)}")
             # 失败时仍然推进索引，避免无限循环
             return {
                 "completed_chapters_content":
@@ -120,13 +126,14 @@ def chapter_decision_function(state: ResearchState) -> str:
     current_chapter_index = state.get("current_chapter_index", 0)
     chapters_to_process = state.get("chapters_to_process", [])
 
-    print(f"\n🤔 章节处理决策: {current_chapter_index}/{len(chapters_to_process)}")
+    logger.info(
+        f"\n🤔 章节处理决策: {current_chapter_index}/{len(chapters_to_process)}")
 
     if current_chapter_index < len(chapters_to_process):
-        print(f"➡️  继续处理第 {current_chapter_index + 1} 章")
+        logger.info(f"➡️  继续处理第 {current_chapter_index + 1} 章")
         return "process_chapter"
     else:
-        print(f"✅ 所有章节已处理完成")
+        logger.info(f"✅ 所有章节已处理完成")
         return "finalize_document"
 
 
@@ -146,7 +153,7 @@ def finalize_document_node(state: ResearchState) -> dict:
     document_outline = state.get("document_outline", {})
     completed_chapters_content = state.get("completed_chapters_content", [])
 
-    print(f"\n📑 开始生成最终文档")
+    logger.info(f"\n📑 开始生成最终文档")
 
     # 获取文档标题和摘要
     doc_title = document_outline.get("title", topic)
@@ -180,8 +187,8 @@ def finalize_document_node(state: ResearchState) -> dict:
     # 合并为最终文档
     final_document = "\n".join(final_document_parts)
 
-    print(f"✅ 最终文档生成完成，总长度: {len(final_document)} 字符")
-    print(f"📊 包含 {len(completed_chapters_content)} 个章节")
+    logger.info(f"✅ 最终文档生成完成，总长度: {len(final_document)} 字符")
+    logger.info(f"📊 包含 {len(completed_chapters_content)} 个章节")
 
     return {"final_document": final_document}
 
@@ -312,5 +319,5 @@ def build_main_orchestrator_graph(initial_research_node,
     workflow.add_edge("finalize_document", END)
 
     # 编译并返回图
-    print("🏗️  主编排器图构建完成")
+    logger.info("🏗️  主编排器图构建完成")
     return workflow.compile()

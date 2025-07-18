@@ -7,12 +7,14 @@ import json
 from pathlib import Path
 from typing import Any, Tuple, List
 import re
+from loguru import logger
 
 
 def setup_import_paths():
     """
     设置导入路径，确保可以从任何目录运行代码
     """
+    logger.debug("开始设置导入路径")
     current_file = Path(__file__)
 
     # 查找service目录
@@ -24,6 +26,9 @@ def setup_import_paths():
 
     if service_dir and str(service_dir) not in sys.path:
         sys.path.insert(0, str(service_dir))
+        logger.debug(f"已添加service目录到Python路径: {service_dir}")
+    else:
+        logger.debug("service目录已在Python路径中或未找到")
 
     # 查找项目根目录（包含es_retrieval_core.py的目录）
     project_root = None
@@ -34,6 +39,9 @@ def setup_import_paths():
 
     if project_root and str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
+        logger.debug(f"已添加项目根目录到Python路径: {project_root}")
+    else:
+        logger.debug("项目根目录已在Python路径中或未找到")
 
 
 def get_settings():
@@ -46,12 +54,15 @@ def get_settings():
     Raises:
         ImportError: 如果无法找到配置模块
     """
+    logger.debug("获取settings配置")
     setup_import_paths()
 
     try:
         from core.config import settings
+        logger.debug("成功导入settings配置")
         return settings
     except ImportError as e:
+        logger.error(f"无法导入配置模块: {e}")
         raise ImportError(f"无法导入配置模块: {e}. 请确保在正确的目录中运行。")
 
 
@@ -66,6 +77,7 @@ def safe_import(module_path: str, default: Any = None):
     Returns:
         导入的对象或默认值
     """
+    logger.debug(f"安全导入模块: {module_path}")
     try:
         setup_import_paths()
         module_parts = module_path.split('.')
@@ -74,8 +86,10 @@ def safe_import(module_path: str, default: Any = None):
         for part in module_parts[1:]:
             module = getattr(module, part)
 
+        logger.debug(f"成功导入模块: {module_path}")
         return module
-    except (ImportError, AttributeError):
+    except (ImportError, AttributeError) as e:
+        logger.warning(f"导入模块失败: {module_path}, 错误: {e}")
         return default
 
 
@@ -85,6 +99,9 @@ def parse_llm_json_response(response: str,
     解析 LLM 的 JSON 响应
     支持 markdown 代码块包裹、各种换行和空格
     """
+    logger.debug("开始解析LLM JSON响应")
+    logger.debug(f"响应内容长度: {len(response)} 字符")
+
     try:
         response = response.strip()
         # 尝试用正则提取 markdown 代码块中的 JSON
@@ -92,20 +109,23 @@ def parse_llm_json_response(response: str,
                                      response, re.IGNORECASE)
         if code_block_match:
             response = code_block_match.group(1).strip()
+            logger.debug("从markdown代码块中提取JSON")
         # 再尝试直接解析 JSON
         data = json.loads(response)
         if required_fields:
             for field in required_fields:
                 if field not in data:
+                    logger.error(f"缺少必需字段: {field}")
                     raise ValueError(f"Missing required field: {field}")
+        logger.debug("JSON解析成功")
         return data
     except json.JSONDecodeError as e:
-        print(f"JSON parsing error: {e}")
-        print(f"Response content: {response[:200]}...")
+        logger.error(f"JSON解析错误: {e}")
+        logger.debug(f"响应内容: {response[:200]}...")
         raise ValueError(f"Failed to parse JSON response: {e}")
     except Exception as e:
-        print(f"Response parsing error: {e}")
-        print(f"Response content: {response[:200]}...")
+        logger.error(f"响应解析错误: {e}")
+        logger.debug(f"响应内容: {response[:200]}...")
         raise ValueError(f"Failed to parse response: {e}")
 
 
@@ -122,6 +142,9 @@ def parse_planner_response(response: str) -> Tuple[str, List[str]]:
     Raises:
         ValueError: 当 JSON 解析失败时
     """
+    logger.info("开始解析规划器响应")
+    logger.debug(f"响应内容长度: {len(response)} 字符")
+
     try:
         # 使用通用 JSON 解析函数
         data = parse_llm_json_response(response,
@@ -130,9 +153,13 @@ def parse_planner_response(response: str) -> Tuple[str, List[str]]:
         research_plan = data["research_plan"]
         search_queries = data["search_queries"]
 
+        logger.debug(f"提取的研究计划类型: {type(research_plan)}")
+        logger.debug(f"提取的搜索查询数量: {len(search_queries)}")
+
         # 处理 research_plan，如果是复杂对象则转换为字符串
         if isinstance(research_plan, dict):
             # 将复杂对象转换为结构化的字符串描述
+            logger.debug("将复杂的研究计划对象转换为字符串")
             plan_parts = []
             for key, value in research_plan.items():
                 if isinstance(value, list):
@@ -144,23 +171,30 @@ def parse_planner_response(response: str) -> Tuple[str, List[str]]:
             research_plan = "\n".join(plan_parts)
         elif not isinstance(research_plan, str):
             # 如果不是字符串，转换为字符串
+            logger.debug(f"将研究计划从 {type(research_plan)} 转换为字符串")
             research_plan = str(research_plan)
 
         # 验证数据类型
         if not isinstance(research_plan, str):
+            logger.error(f"研究计划必须是字符串，当前类型: {type(research_plan)}")
             raise ValueError("research_plan must be a string")
         if not isinstance(search_queries, list):
+            logger.error(f"搜索查询必须是列表，当前类型: {type(search_queries)}")
             raise ValueError("search_queries must be a list")
 
         # 验证搜索查询列表
         if not search_queries:
+            logger.error("搜索查询列表不能为空")
             raise ValueError("search_queries cannot be empty")
 
         # 确保所有搜索查询都是字符串
         search_queries = [str(query) for query in search_queries]
 
+        logger.info(
+            f"规划器响应解析成功，研究计划长度: {len(research_plan)}, 搜索查询数量: {len(search_queries)}"
+        )
         return research_plan, search_queries
 
     except Exception as e:
-        print(f"Planner response parsing error: {e}")
+        logger.error(f"规划器响应解析错误: {e}")
         raise ValueError(f"Failed to parse planner response: {e}")

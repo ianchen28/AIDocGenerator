@@ -3,14 +3,12 @@ RerankerTool 重排序工具
 接收 ESSearchResult 列表，调用 RerankerClient 进行重排序
 """
 
-import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from loguru import logger
 
 from .es_service import ESSearchResult
 from ..llm_clients.providers import RerankerClient
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -42,6 +40,7 @@ class RerankerTool:
         """
         self.reranker_client = RerankerClient(base_url=base_url,
                                               api_key=api_key)
+        logger.info("初始化重排序工具")
 
     def rerank_search_results(
             self,
@@ -59,6 +58,10 @@ class RerankerTool:
         Returns:
             List[RerankedSearchResult]: 重排序后的结果列表
         """
+        logger.info(
+            f"开始重排序，查询: '{query[:50]}...'，输入结果数量: {len(search_results)}")
+        logger.debug(f"重排序参数 - top_k: {top_k}")
+
         if not search_results:
             logger.warning("输入搜索结果为空，返回空列表")
             return []
@@ -78,10 +81,11 @@ class RerankerTool:
                 logger.warning("所有文档内容都为空，无法进行重排序")
                 return []
 
-            logger.info(f"开始重排序，查询: '{query}'，文档数量: {len(documents)}")
+            logger.info(f"准备重排序，文档数量: {len(documents)}")
 
             # 调用 RerankerClient 进行重排序
             size = top_k if top_k is not None else len(documents)
+            logger.debug(f"调用重排序客户端，size: {size}")
             rerank_result = self.reranker_client.invoke(prompt=query,
                                                         documents=documents,
                                                         size=size)
@@ -112,6 +116,7 @@ class RerankerTool:
         Returns:
             List[RerankedSearchResult]: 解析后的重排序结果
         """
+        logger.debug("开始解析重排序结果")
         reranked_results = []
 
         if not isinstance(rerank_result,
@@ -128,6 +133,8 @@ class RerankerTool:
             doc_text = result.div_content if result.div_content else result.original_content
             if doc_text:
                 original_doc_map[doc_text] = result
+
+        logger.debug(f"创建原始文档映射，包含 {len(original_doc_map)} 个文档")
 
         # 处理重排序结果
         for i, reranked_doc in enumerate(sorted_docs):
@@ -176,6 +183,7 @@ class RerankerTool:
         Returns:
             List[RerankedSearchResult]: 转换后的结果
         """
+        logger.info("回退到原始结果")
         fallback_results = []
         for result in original_results:
             fallback_result = RerankedSearchResult(
@@ -204,7 +212,10 @@ class RerankerTool:
         Returns:
             List[RerankedSearchResult]: 前 top_k 个结果
         """
+        logger.debug(f"获取前 {top_k} 个重排序结果")
+
         if not reranked_results:
+            logger.warning("重排序结果为空")
             return []
 
         # 按重排序评分降序排列
@@ -212,7 +223,9 @@ class RerankerTool:
                                 key=lambda x: x.rerank_score,
                                 reverse=True)
 
-        return sorted_results[:top_k]
+        top_results = sorted_results[:top_k]
+        logger.debug(f"返回前 {len(top_results)} 个结果")
+        return top_results
 
     def analyze_rerank_effectiveness(
             self, reranked_results: List[RerankedSearchResult],
@@ -227,7 +240,10 @@ class RerankerTool:
         Returns:
             Dict[str, Any]: 分析结果
         """
+        logger.info(f"分析重排序效果，结果数量: {len(reranked_results)}")
+
         if not reranked_results:
+            logger.warning("没有重排序结果可分析")
             return {
                 "total_results": 0,
                 "score_range": 0.0,
@@ -241,6 +257,10 @@ class RerankerTool:
         top_score = max(scores)
         bottom_score = min(scores)
         score_range = top_score - bottom_score
+
+        logger.debug(
+            f"评分统计 - 最高分: {top_score}, 最低分: {bottom_score}, 分数范围: {score_range}"
+        )
 
         # 分析效果
         if score_range > 5.0:
@@ -263,7 +283,10 @@ class RerankerTool:
         relevance_score = keyword_match_count / len(
             query_keywords) if query_keywords else 0.0
 
-        return {
+        logger.debug(
+            f"相关性分析 - 关键词匹配数: {keyword_match_count}, 相关性分数: {relevance_score}")
+
+        analysis_result = {
             "total_results": len(reranked_results),
             "score_range": score_range,
             "top_score": top_score,
@@ -272,3 +295,6 @@ class RerankerTool:
             "relevance_score": relevance_score,
             "keyword_match_count": keyword_match_count
         }
+
+        logger.info(f"重排序效果分析完成，效果等级: {effectiveness}")
+        return analysis_result

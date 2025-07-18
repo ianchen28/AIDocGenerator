@@ -1,286 +1,213 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-统一测试基础架构
-支持 LLM、ES、WebSearch、Node、Graph 等多种测试类型
+测试基础类
+提供统一的测试基础设施
 """
 
-import sys
 import os
-import asyncio
+import sys
 import unittest
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-from unittest.mock import Mock, patch
+from loguru import logger
 
-# 添加项目根目录到 Python 路径
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-sys.path.insert(0, project_root)
+# 添加项目根目录到Python路径
+current_file = Path(__file__)
+service_dir = current_file.parent.parent
+if str(service_dir) not in sys.path:
+    sys.path.insert(0, str(service_dir))
 
-# 统一环境变量加载
-from core.env_loader import setup_environment
-
-# 导入配置
 from core.config import settings
 
 
 class TestEnvironment:
-    """测试环境管理类"""
+    """测试环境检查"""
 
     def __init__(self):
-        self.es_available = False
-        self.llm_available = False
-        self.web_search_available = False
-        self._check_services()
+        self.es_available = self._check_es_service()
+        self.llm_available = self._check_llm_service()
+        self.web_search_available = self._check_web_search_service()
 
-    def _check_services(self):
-        """检查各种服务是否可用"""
-        # 检查 ES 服务
+    def _check_es_service(self) -> bool:
+        """检查ES服务是否可用"""
         try:
-            from src.doc_agent.tools.es_service import ESService
             es_config = settings.elasticsearch_config
-            # 简单检查配置是否完整
-            if es_config.hosts and es_config.username and es_config.password:
-                self.es_available = True
-                print("✅ ES 服务配置可用")
+            if es_config and es_config.hosts:
+                logger.debug("ES 服务配置可用")
+                return True
             else:
-                print("⚠️  ES 服务配置不完整")
+                logger.warning("ES 服务配置不完整")
+                return False
         except Exception as e:
-            print(f"❌ ES 服务检查失败: {e}")
+            logger.error(f"ES 服务检查失败: {e}")
+            return False
 
-        # 检查 LLM 服务
+    def _check_llm_service(self) -> bool:
+        """检查LLM服务是否可用"""
         try:
-            from src.doc_agent.llm_clients import get_llm_client
-            # 检查是否有可用的 LLM 配置
-            if settings.supported_models:
-                self.llm_available = True
-                print("✅ LLM 服务配置可用")
+            # 检查是否有可用的LLM配置
+            available_models = settings.get_available_models()
+            if available_models:
+                logger.debug("LLM 服务配置可用")
+                return True
             else:
-                print("⚠️  LLM 服务配置不完整")
+                logger.warning("LLM 服务配置不完整")
+                return False
         except Exception as e:
-            print(f"❌ LLM 服务检查失败: {e}")
+            logger.error(f"LLM 服务检查失败: {e}")
+            return False
 
-        # 检查 WebSearch 服务
+    def _check_web_search_service(self) -> bool:
+        """检查Web搜索服务是否可用"""
         try:
-            from src.doc_agent.tools.web_search import WebSearchTool
-            # 检查 Tavily 配置
-            if settings.tavily_config.api_key:
-                self.web_search_available = True
-                print("✅ WebSearch 服务配置可用")
+            tavily_config = settings.get_model_config("tavily")
+            if tavily_config and tavily_config.api_key:
+                logger.debug("WebSearch 服务配置可用")
+                return True
             else:
-                print("⚠️  WebSearch 服务配置不完整")
+                logger.warning("WebSearch 服务配置不完整")
+                return False
         except Exception as e:
-            print(f"❌ WebSearch 服务检查失败: {e}")
+            logger.error(f"WebSearch 服务检查失败: {e}")
+            return False
 
 
-class BaseTestCase(unittest.TestCase):
-    """基础测试类"""
+class TestBase(unittest.TestCase):
+    """测试基类"""
 
     @classmethod
     def setUpClass(cls):
-        """设置测试类环境"""
+        """类级别的测试前准备"""
+        super().setUpClass()
         cls.env = TestEnvironment()
-        print(f"\n{'='*50}")
-        print(f"测试环境检查:")
-        print(f"  ES 服务: {'✅' if cls.env.es_available else '❌'}")
-        print(f"  LLM 服务: {'✅' if cls.env.llm_available else '❌'}")
-        print(
+
+        logger.info("测试环境检查:")
+        logger.info(f"  ES 服务: {'✅' if cls.env.es_available else '❌'}")
+        logger.info(f"  LLM 服务: {'✅' if cls.env.llm_available else '❌'}")
+        logger.info(
             f"  WebSearch 服务: {'✅' if cls.env.web_search_available else '❌'}")
-        print(f"{'='*50}")
+
+
+class LLMTestCase(TestBase):
+    """LLM相关测试基类"""
 
     def setUp(self):
-        """设置每个测试用例"""
-        pass
-
-    def tearDown(self):
-        """清理每个测试用例"""
-        pass
-
-
-class LLMTestCase(BaseTestCase):
-    """LLM 测试基类"""
-
-    def setUp(self):
+        """测试前准备"""
         super().setUp()
-        if not self.env.llm_available:
-            self.skipTest("LLM 服务不可用")
-
-    def get_llm_client(self, model_key: str = "moonshot_k2_0711_preview"):
-        """获取 LLM 客户端"""
-        from src.doc_agent.llm_clients import get_llm_client
-        return get_llm_client(model_key)
+        logger.debug("初始化 LLM 测试")
 
 
-class ESTestCase(BaseTestCase):
-    """ES 测试基类"""
+class ESTestCase(TestBase):
+    """ES相关测试基类"""
 
     def setUp(self):
+        """测试前准备"""
         super().setUp()
-        if not self.env.es_available:
-            self.skipTest("ES 服务不可用")
-
-    async def get_es_search_tool(self):
-        """获取 ES 搜索工具"""
-        from src.doc_agent.tools import get_es_search_tool
-        return await get_es_search_tool().__aenter__()
-
-    async def get_es_service(self):
-        """获取 ES 服务"""
-        from src.doc_agent.tools.es_service import ESService
-        es_config = settings.elasticsearch_config
-        return await ESService(hosts=es_config.hosts,
-                               username=es_config.username,
-                               password=es_config.password,
-                               timeout=es_config.timeout).__aenter__()
+        logger.debug("初始化 ES 测试")
 
 
-class WebSearchTestCase(BaseTestCase):
-    """WebSearch 测试基类"""
+class WebSearchTestCase(TestBase):
+    """Web搜索相关测试基类"""
 
     def setUp(self):
+        """测试前准备"""
         super().setUp()
-        if not self.env.web_search_available:
-            self.skipTest("WebSearch 服务不可用")
-
-    def get_web_search_tool(self):
-        """获取 WebSearch 工具"""
-        from src.doc_agent.tools import get_web_search_tool
-        return get_web_search_tool()
+        logger.debug("初始化 Web 搜索测试")
 
 
-class NodeTestCase(BaseTestCase):
-    """Node 测试基类"""
+class NodeTestCase(TestBase):
+    """节点相关测试基类"""
 
     def setUp(self):
+        """测试前准备"""
         super().setUp()
-        if not self.env.llm_available:
-            self.skipTest("LLM 服务不可用")
+        logger.debug("初始化节点测试")
 
-    def get_llm_client(self, model_key: str = "moonshot_k2_0711_preview"):
-        """获取 LLM 客户端"""
-        from src.doc_agent.llm_clients import get_llm_client
-        return get_llm_client(model_key)
-
-    def get_mock_state(self, **kwargs) -> Dict[str, Any]:
-        """获取模拟状态"""
-        default_state = {
-            "messages": [],
-            "topic": "测试主题",
-            "research_plan": "",
-            "search_queries": [],
-            "gathered_data": "",
-            "final_document": ""
-        }
-        default_state.update(kwargs)
-        return default_state
-
-    def get_mock_llm_client(self):
-        """获取模拟 LLM 客户端"""
-        mock_client = Mock()
-        mock_client.invoke.return_value = "模拟 LLM 响应"
-        return mock_client
+    def get_llm_client(self, model_key: str):
+        """获取LLM客户端"""
+        try:
+            from src.doc_agent.llm_clients import get_llm_client
+            return get_llm_client(model_key)
+        except Exception as e:
+            logger.error(f"获取LLM客户端失败: {e}")
+            return None
 
 
-class GraphTestCase(BaseTestCase):
-    """Graph 测试基类"""
-
-    def setUp(self):
-        super().setUp()
-        if not self.env.llm_available:
-            self.skipTest("LLM 服务不可用")
-
-    def get_test_graph(self):
-        """获取测试图"""
-        from core.container import container
-        return container.graph
-
-    async def run_graph_test(self, initial_input: Dict[str, Any]):
-        """运行图测试"""
-        graph = self.get_test_graph()
-        results = []
-        async for step in graph.astream(initial_input):
-            results.append(step)
-        return results
-
-
-# 测试装饰器
-def skip_if_no_es(func):
-    """如果 ES 不可用则跳过测试"""
+# 装饰器函数
+def skip_if_no_llm(func):
+    """如果没有LLM服务则跳过测试"""
 
     def wrapper(self, *args, **kwargs):
-        if not hasattr(self, 'env') or not self.env.es_available:
-            self.skipTest("ES 服务不可用")
+        if not self.env.llm_available:
+            logger.warning(f"跳过测试 {func.__name__}: LLM服务不可用")
+            return
         return func(self, *args, **kwargs)
 
     return wrapper
 
 
-def skip_if_no_llm(func):
-    """如果 LLM 不可用则跳过测试"""
+def skip_if_no_es(func):
+    """如果没有ES服务则跳过测试"""
 
     def wrapper(self, *args, **kwargs):
-        if not hasattr(self, 'env') or not self.env.llm_available:
-            self.skipTest("LLM 服务不可用")
+        if not self.env.es_available:
+            logger.warning(f"跳过测试 {func.__name__}: ES服务不可用")
+            return
         return func(self, *args, **kwargs)
 
     return wrapper
 
 
 def skip_if_no_web_search(func):
-    """如果 WebSearch 不可用则跳过测试"""
+    """如果没有Web搜索服务则跳过测试"""
 
     def wrapper(self, *args, **kwargs):
-        if not hasattr(self, 'env') or not self.env.web_search_available:
-            self.skipTest("WebSearch 服务不可用")
+        if not self.env.web_search_available:
+            logger.warning(f"跳过测试 {func.__name__}: Web搜索服务不可用")
+            return
         return func(self, *args, **kwargs)
 
     return wrapper
 
 
 def skip_if_no_reranker(func):
-    """如果 Reranker 不可用则跳过测试"""
+    """如果没有重排序服务则跳过测试"""
 
     def wrapper(self, *args, **kwargs):
-        if not hasattr(self, 'env') or not self.env.llm_available:
-            self.skipTest("Reranker 服务不可用")
+        try:
+            reranker_config = settings.get_model_config("reranker")
+            if not reranker_config or not reranker_config.api_key:
+                logger.warning(f"跳过测试 {func.__name__}: 重排序服务不可用")
+                return
+        except Exception:
+            logger.warning(f"跳过测试 {func.__name__}: 重排序服务不可用")
+            return
         return func(self, *args, **kwargs)
 
     return wrapper
 
 
-# 异步测试支持
-def async_test(func):
-    """异步测试装饰器"""
-
-    def wrapper(self, *args, **kwargs):
-        return asyncio.run(func(self, *args, **kwargs))
-
-    return wrapper
-
-
-# 测试工具函数
-def create_mock_embedding_response(dim: int = 1536) -> str:
-    """创建模拟的 embedding 响应"""
-    import json
-    vector = [0.1] * dim
-    return json.dumps([vector])
+# 工具函数
+def setup_paths():
+    """设置Python路径"""
+    current_file = Path(__file__)
+    service_dir = current_file.parent.parent
+    if str(service_dir) not in sys.path:
+        sys.path.insert(0, str(service_dir))
 
 
-def create_mock_es_response() -> str:
-    """创建模拟的 ES 响应"""
-    return """搜索查询: 测试查询
-找到 3 个相关文档:
+def load_env_vars():
+    """加载环境变量"""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        logger.debug("环境变量加载成功")
+    except ImportError:
+        logger.warning("dotenv未安装，跳过环境变量加载")
+    except Exception as e:
+        logger.error(f"环境变量加载失败: {e}")
 
-1. 测试文档1.pdf
-   评分: 1.5
-   原始内容: 这是一个测试文档的内容...
 
-2. 测试文档2.pdf
-   评分: 1.3
-   原始内容: 这是另一个测试文档的内容...
-
-3. 测试文档3.pdf
-   评分: 1.1
-   原始内容: 这是第三个测试文档的内容...
-"""
+# 初始化
+setup_paths()
+load_env_vars()

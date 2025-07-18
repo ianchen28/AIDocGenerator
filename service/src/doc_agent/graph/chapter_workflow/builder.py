@@ -1,4 +1,6 @@
 # service/src/doc_agent/graph/builder.py
+from loguru import logger
+import pprint
 from langgraph.graph import StateGraph, END
 from ..state import ResearchState
 from . import nodes
@@ -15,7 +17,7 @@ def build_graph(planner_node, researcher_node, writer_node,
     workflow.add_node("researcher", researcher_node)
 
     def writer_with_log(*args, **kwargs):
-        print("🚩 已进入 writer 节点，准备终止流程（END）")
+        logger.info("🚩 已进入 writer 节点，准备终止流程（END）")
         return writer_node(*args, **kwargs)
 
     workflow.add_node("writer", writer_with_log)
@@ -68,7 +70,7 @@ def build_chapter_workflow_graph(
 
     # 为 writer 节点添加日志
     def writer_with_log(*args, **kwargs):
-        print("📝 进入章节 writer 节点，撰写当前章节内容")
+        logger.info("📝 进入章节 writer 节点，撰写当前章节内容")
         return writer_node(*args, **kwargs)
 
     workflow.add_node("writer", writer_with_log)

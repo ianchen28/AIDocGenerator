@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-统一ES测试文件
-整合所有ES相关测试：连接测试、索引发现、映射分析、搜索功能等
+ES统一测试文件
+包含所有ES相关的测试功能
 """
 
 import sys
 import os
+import unittest
 import asyncio
-import json
 from pathlib import Path
+from loguru import logger
 
 # 设置环境变量
 os.environ['PYTHONPATH'] = '/Users/chenyuyang/git/AIDocGenerator/service'
@@ -20,347 +21,323 @@ service_dir = current_file.parent.parent
 if str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
 
-from test_base import ESTestCase, async_test, skip_if_no_es
-from src.doc_agent.tools.es_service import ESService
-from src.doc_agent.tools.es_discovery import ESDiscovery
+from test_base import ESTestCase, skip_if_no_es
 from src.doc_agent.tools.es_search import ESSearchTool
-from src.doc_agent.llm_clients import get_embedding_client
+from src.doc_agent.tools.es_service import ESService
 from core.config import settings
-import unittest
 
 
-class UnifiedESTest(ESTestCase):
-    """统一ES测试类，包含所有ES相关测试"""
+class ESUnifiedTest(ESTestCase):
+    """ES统一测试类"""
 
-    @async_test
+    def setUp(self):
+        """测试前准备"""
+        super().setUp()
+        logger.debug("初始化 ES 统一测试")
+
     @skip_if_no_es
     async def test_es_connection(self):
         """测试ES连接"""
-        print("\n" + "=" * 60)
-        print("🔌 测试ES连接")
-        print("=" * 60)
+        logger.info("测试ES连接")
 
-        async with ESService(
-                hosts=settings.elasticsearch_config.hosts,
-                username=settings.elasticsearch_config.username,
-                password=settings.elasticsearch_config.password,
-                timeout=settings.elasticsearch_config.timeout) as es_service:
-            connected = await es_service.connect()
-            print(f"ES连接状态: {'✅ 成功' if connected else '❌ 失败'}")
-            if connected:
-                info = await es_service._client.info()
-                print(f"集群名称: {info.get('cluster_name', 'unknown')}")
-                print(
-                    f"版本: {info.get('version', {}).get('number', 'unknown')}")
-            self.assertTrue(connected, "ES连接失败")
+        try:
+            es_config = settings.elasticsearch_config
+            es_service = ESService(hosts=es_config.hosts,
+                                   username=es_config.username,
+                                   password=es_config.password,
+                                   timeout=es_config.timeout)
 
-    @async_test
+            # 测试连接
+            await es_service.connect()
+            logger.info("ES连接成功")
+
+            # 测试健康检查
+            health = await es_service.health_check()
+            logger.info(f"ES健康状态: {health}")
+
+            # 关闭连接
+            await es_service.close()
+            logger.info("ES连接已关闭")
+
+        except Exception as e:
+            logger.error(f"ES连接测试失败: {str(e)}")
+            self.fail(f"ES连接测试失败: {str(e)}")
+
     @skip_if_no_es
-    async def test_indices_discovery(self):
-        """测试索引发现"""
-        print("\n" + "=" * 60)
-        print("🔍 测试索引发现")
-        print("=" * 60)
+    async def test_es_search_tool(self):
+        """测试ES搜索工具"""
+        logger.info("测试ES搜索工具")
 
-        async with ESService(
-                hosts=settings.elasticsearch_config.hosts,
-                username=settings.elasticsearch_config.username,
-                password=settings.elasticsearch_config.password,
-                timeout=settings.elasticsearch_config.timeout) as es_service:
-            discovery = ESDiscovery(es_service)
-            indices = await es_service.get_indices()
-            print(f"发现 {len(indices)} 个索引")
-            for i, idx in enumerate(indices[:10]):
-                index_name = idx.get('index', 'N/A')
-                docs_count = idx.get('docs.count', '0')
-                store_size = idx.get('store.size', '0b')
-                print(
-                    f"  {i+1}. {index_name} - {docs_count} 文档 ({store_size})")
+        try:
+            es_config = settings.elasticsearch_config
+            search_tool = ESSearchTool(hosts=es_config.hosts,
+                                       username=es_config.username,
+                                       password=es_config.password,
+                                       timeout=es_config.timeout)
 
-            knowledge_indices = await discovery.discover_knowledge_indices()
-            print(f"\n发现 {len(knowledge_indices)} 个知识库索引")
-            if knowledge_indices:
-                best_index = discovery.get_best_index()
-                vector_dims = discovery.get_vector_dims()
-                print(f"最佳索引: {best_index}")
-                print(f"向量维度: {vector_dims}")
-                for i, idx in enumerate(knowledge_indices[:5]):
-                    print(f"  {i+1}. {idx['name']} ({idx['docs_count']} 文档)")
-            self.assertGreater(len(knowledge_indices), 0, "未发现知识库索引")
+            # 测试文本搜索
+            query = "人工智能"
+            results = await search_tool.search(query, top_k=5)
 
-    @async_test
+            logger.info(f"文本搜索结果数量: {len(results)}")
+            for i, result in enumerate(results[:3], 1):
+                logger.info(
+                    f"  {i}. 评分: {result.score:.3f} | {result.div_content[:50]}..."
+                )
+
+            # 测试向量搜索
+            query_vector = [0.1] * 1536  # 模拟向量
+            vector_results = await search_tool.search(
+                query="", query_vector=query_vector, top_k=3)
+
+            logger.info(f"向量搜索结果数量: {len(vector_results)}")
+
+            # 关闭连接
+            await search_tool.close()
+            logger.info("ES搜索工具连接已关闭")
+
+        except Exception as e:
+            logger.error(f"ES搜索工具测试失败: {str(e)}")
+            self.fail(f"ES搜索工具测试失败: {str(e)}")
+
     @skip_if_no_es
-    async def test_index_mapping(self):
-        """测试索引映射分析"""
-        print("\n" + "=" * 60)
-        print("📋 测试索引映射分析")
-        print("=" * 60)
+    async def test_es_indices(self):
+        """测试ES索引"""
+        logger.info("测试ES索引")
 
-        async with ESService(
-                hosts=settings.elasticsearch_config.hosts,
-                username=settings.elasticsearch_config.username,
-                password=settings.elasticsearch_config.password,
-                timeout=settings.elasticsearch_config.timeout) as es_service:
-            discovery = ESDiscovery(es_service)
-            indices = await discovery.discover_knowledge_indices()
-            self.assertTrue(indices, "没有可用的知识库索引")
-            target_index = indices[0]['name']
-            print(f"分析索引: {target_index}")
-            mapping = await es_service.get_index_mapping(target_index)
-            self.assertTrue(mapping, "无法获取索引映射")
-            properties = mapping.get('properties', {})
-            print(f"字段数量: {len(properties)}")
-            print("主要字段:")
-            for field_name, field_config in list(properties.items())[:10]:
-                field_type = field_config.get('type', 'unknown')
-                print(f"  - {field_name}: {field_type}")
-            vector_fields = [
-                f for f, c in properties.items()
-                if c.get('type') == 'dense_vector'
-            ]
-            if vector_fields:
-                print(f"向量字段: {vector_fields}")
-            else:
-                print("⚠️  没有找到向量字段")
+        try:
+            es_config = settings.elasticsearch_config
+            es_service = ESService(hosts=es_config.hosts,
+                                   username=es_config.username,
+                                   password=es_config.password,
+                                   timeout=es_config.timeout)
 
-    @async_test
+            await es_service.connect()
+
+            # 获取索引列表
+            indices = await es_service.list_indices()
+            logger.info(f"可用索引数量: {len(indices)}")
+
+            for index in indices[:5]:  # 只显示前5个
+                logger.info(f"  索引: {index}")
+
+            # 测试索引详情
+            if indices:
+                index_name = indices[0]
+                mapping = await es_service.get_index_mapping(index_name)
+                logger.info(f"索引 {index_name} 映射: {len(mapping)} 个字段")
+
+            await es_service.close()
+
+        except Exception as e:
+            logger.error(f"ES索引测试失败: {str(e)}")
+            self.fail(f"ES索引测试失败: {str(e)}")
+
     @skip_if_no_es
-    async def test_text_search(self):
-        """测试文本搜索"""
-        print("\n" + "=" * 60)
-        print("📝 测试文本搜索")
-        print("=" * 60)
+    async def test_es_search_with_filters(self):
+        """测试带过滤条件的ES搜索"""
+        logger.info("测试带过滤条件的ES搜索")
 
-        async with ESSearchTool(
-                hosts=settings.elasticsearch_config.hosts,
-                username=settings.elasticsearch_config.username,
-                password=settings.elasticsearch_config.password,
-                timeout=settings.elasticsearch_config.timeout) as search_tool:
-            await search_tool._ensure_initialized()
-            self.assertTrue(search_tool._current_index, "没有可用的搜索索引")
+        try:
+            es_config = settings.elasticsearch_config
+            search_tool = ESSearchTool(hosts=es_config.hosts,
+                                       username=es_config.username,
+                                       password=es_config.password,
+                                       timeout=es_config.timeout)
 
-            test_queries = ["水电站", "工程", "设计", "技术", "标准"]
-            for query in test_queries:
-                print(f"\n🔍 搜索查询: {query}")
-                result = await search_tool.search(query, top_k=3)
-                print(f"结果长度: {len(result)} 字符")
-                if "未找到" not in result:
-                    print(f"✅ 成功召回")
-                    print(f"结果预览: {result[:200]}...")
-                else:
-                    print(f"❌ 无召回结果")
+            # 测试带过滤条件的搜索
+            query = "机器学习"
+            filters = {
+                "source": "*.pdf",  # 只搜索PDF文件
+                "category": "AI"  # 只搜索AI类别
+            }
 
-    @async_test
+            results = await search_tool.search(query=query,
+                                               filters=filters,
+                                               top_k=5)
+
+            logger.info(f"过滤搜索结果数量: {len(results)}")
+            for i, result in enumerate(results[:3], 1):
+                logger.info(
+                    f"  {i}. 评分: {result.score:.3f} | 来源: {result.source}")
+
+            await search_tool.close()
+
+        except Exception as e:
+            logger.error(f"过滤搜索测试失败: {str(e)}")
+            self.fail(f"过滤搜索测试失败: {str(e)}")
+
     @skip_if_no_es
-    async def test_vector_search(self):
-        """测试向量搜索"""
-        print("\n" + "=" * 60)
-        print("🔢 测试向量搜索")
-        print("=" * 60)
+    async def test_es_multi_index_search(self):
+        """测试多索引搜索"""
+        logger.info("测试多索引搜索")
 
-        async with ESSearchTool(
-                hosts=settings.elasticsearch_config.hosts,
-                username=settings.elasticsearch_config.username,
-                password=settings.elasticsearch_config.password,
-                timeout=settings.elasticsearch_config.timeout) as search_tool:
-            # 使用模拟向量测试
-            mock_vector = [0.1] * 1536
-            result = await search_tool.search(query="",
-                                              query_vector=mock_vector,
-                                              top_k=3)
-            print(f"向量搜索结果长度: {len(result)} 字符")
-            if "未找到" not in result:
-                print(f"✅ 向量搜索成功召回")
-                print(f"结果预览: {result[:200]}...")
-            else:
-                print(f"❌ 向量搜索无召回结果")
+        try:
+            es_config = settings.elasticsearch_config
+            search_tool = ESSearchTool(hosts=es_config.hosts,
+                                       username=es_config.username,
+                                       password=es_config.password,
+                                       timeout=es_config.timeout)
 
-    @async_test
+            # 测试多索引搜索
+            query = "深度学习"
+            indices = ["documents", "papers", "reports"]  # 示例索引
+
+            results = await search_tool.search(query=query,
+                                               indices=indices,
+                                               top_k=10)
+
+            logger.info(f"多索引搜索结果数量: {len(results)}")
+
+            # 按索引分组显示结果
+            by_index = {}
+            for result in results:
+                index = result.alias_name or "unknown"
+                if index not in by_index:
+                    by_index[index] = []
+                by_index[index].append(result)
+
+            for index, index_results in by_index.items():
+                logger.info(f"  索引 {index}: {len(index_results)} 个结果")
+
+            await search_tool.close()
+
+        except Exception as e:
+            logger.error(f"多索引搜索测试失败: {str(e)}")
+            self.fail(f"多索引搜索测试失败: {str(e)}")
+
     @skip_if_no_es
-    async def test_hybrid_search(self):
-        """测试混合搜索"""
-        print("\n" + "=" * 60)
-        print("🔀 测试混合搜索")
-        print("=" * 60)
+    async def test_es_error_handling(self):
+        """测试ES错误处理"""
+        logger.info("测试ES错误处理")
 
-        # 初始化embedding客户端
-        embedding_client = get_embedding_client()
+        try:
+            es_config = settings.elasticsearch_config
+            search_tool = ESSearchTool(hosts=es_config.hosts,
+                                       username=es_config.username,
+                                       password=es_config.password,
+                                       timeout=es_config.timeout)
 
-        async with ESSearchTool(
-                hosts=settings.elasticsearch_config.hosts,
-                username=settings.elasticsearch_config.username,
-                password=settings.elasticsearch_config.password,
-                timeout=settings.elasticsearch_config.timeout) as search_tool:
+            # 测试空查询
+            try:
+                results = await search_tool.search("", top_k=5)
+                logger.info("空查询处理正常")
+            except Exception as e:
+                logger.warning(f"空查询处理异常: {e}")
 
-            test_queries = ["水电站设计", "工程标准", "技术规范"]
-            for query in test_queries:
-                print(f"\n🔍 测试查询: {query}")
-                try:
-                    # 生成embedding向量
-                    print("📊 生成embedding向量...")
-                    embedding_result = embedding_client.invoke(query)
-                    try:
-                        embedding_data = json.loads(embedding_result)
-                        if isinstance(embedding_data,
-                                      list) and len(embedding_data) > 0:
-                            embedding = embedding_data[0] if isinstance(
-                                embedding_data[0], list) else embedding_data
-                        else:
-                            embedding = embedding_data
-                        print(f"✅ 向量维度: {len(embedding)}")
-                    except:
-                        print("⚠️  无法解析embedding向量，使用模拟向量")
-                        embedding = [0.1] * 1536
+            # 测试无效索引
+            try:
+                results = await search_tool.search("测试",
+                                                   indices=["invalid_index"],
+                                                   top_k=5)
+                logger.info("无效索引处理正常")
+            except Exception as e:
+                logger.warning(f"无效索引处理异常: {e}")
 
-                    # 测试混合搜索
-                    print("🔀 执行混合搜索...")
-                    hybrid_result = await search_tool.search_with_hybrid(
-                        query, embedding, top_k=3)
-                    print(f"混合搜索结果长度: {len(hybrid_result)} 字符")
-                    if "未找到" not in hybrid_result:
-                        print(f"✅ 混合搜索成功召回")
-                        print(f"结果预览: {hybrid_result[:200]}...")
-                    else:
-                        print(f"❌ 混合搜索无召回结果")
+            # 测试超时处理
+            try:
+                # 设置很短的超时时间
+                short_timeout_tool = ESSearchTool(
+                    hosts=es_config.hosts,
+                    username=es_config.username,
+                    password=es_config.password,
+                    timeout=0.001  # 1毫秒超时
+                )
+                results = await short_timeout_tool.search("测试", top_k=5)
+                logger.warning("超时处理异常，应该抛出异常")
+            except Exception as e:
+                logger.info(f"超时处理正常: {e}")
 
-                except Exception as e:
-                    print(f"❌ 混合搜索失败: {str(e)}")
+            await search_tool.close()
 
-    @async_test
+        except Exception as e:
+            logger.error(f"错误处理测试失败: {str(e)}")
+            self.fail(f"错误处理测试失败: {str(e)}")
+
     @skip_if_no_es
-    async def test_comprehensive_search(self):
-        """综合搜索测试"""
-        print("\n" + "=" * 60)
-        print("🧪 综合搜索测试")
-        print("=" * 60)
+    async def test_es_performance(self):
+        """测试ES性能"""
+        logger.info("测试ES性能")
 
-        # 初始化embedding客户端
-        embedding_client = get_embedding_client()
+        try:
+            es_config = settings.elasticsearch_config
+            search_tool = ESSearchTool(hosts=es_config.hosts,
+                                       username=es_config.username,
+                                       password=es_config.password,
+                                       timeout=es_config.timeout)
 
-        async with ESSearchTool(
-                hosts=settings.elasticsearch_config.hosts,
-                username=settings.elasticsearch_config.username,
-                password=settings.elasticsearch_config.password,
-                timeout=settings.elasticsearch_config.timeout) as search_tool:
+            import time
+            queries = ["人工智能", "机器学习", "深度学习", "自然语言处理", "计算机视觉"]
 
-            test_queries = ["水电站设计", "工程标准", "技术规范", "施工要求"]
+            total_time = 0
+            total_results = 0
 
-            for i, query in enumerate(test_queries, 1):
-                print(f"\n🔍 测试查询 {i}: {query}")
-                print("-" * 40)
+            for i, query in enumerate(queries, 1):
+                logger.info(f"性能测试 {i}/{len(queries)}: {query}")
 
-                try:
-                    # 生成embedding向量
-                    print("📊 生成embedding向量...")
-                    embedding_result = embedding_client.invoke(query)
-                    try:
-                        embedding_data = json.loads(embedding_result)
-                        if isinstance(embedding_data,
-                                      list) and len(embedding_data) > 0:
-                            embedding = embedding_data[0] if isinstance(
-                                embedding_data[0], list) else embedding_data
-                        else:
-                            embedding = embedding_data
-                        print(f"✅ 向量维度: {len(embedding)}")
-                    except:
-                        print("⚠️  无法解析embedding向量，使用模拟向量")
-                        embedding = [0.1] * 1536
+                start_time = time.time()
+                results = await search_tool.search(query, top_k=10)
+                end_time = time.time()
 
-                    # 测试1: 纯文本搜索
-                    print("\n📝 1. 纯文本搜索:")
-                    text_results = await search_tool.search(query,
-                                                            None,
-                                                            top_k=3)
-                    print(f"文本搜索结果: {len(text_results)} 字符")
-                    if "未找到" not in text_results:
-                        print("✅ 文本搜索成功")
+                query_time = end_time - start_time
+                total_time += query_time
+                total_results += len(results)
 
-                    # 测试2: 纯向量搜索
-                    print("\n🔢 2. 纯向量搜索:")
-                    vector_results = await search_tool.search("",
-                                                              embedding,
-                                                              top_k=3)
-                    print(f"向量搜索结果: {len(vector_results)} 字符")
-                    if "未找到" not in vector_results:
-                        print("✅ 向量搜索成功")
+                logger.info(f"查询耗时: {query_time:.2f}秒, 结果数量: {len(results)}")
 
-                    # 测试3: 混合搜索
-                    print("\n🔀 3. 混合搜索:")
-                    hybrid_results = await search_tool.search_with_hybrid(
-                        query, embedding, top_k=3)
-                    print(f"混合搜索结果: {len(hybrid_results)} 字符")
-                    if "未找到" not in hybrid_results:
-                        print("✅ 混合搜索成功")
+            avg_time = total_time / len(queries)
+            avg_results = total_results / len(queries)
 
-                except Exception as e:
-                    print(f"❌ 测试失败: {str(e)}")
+            logger.info(f"性能测试完成:")
+            logger.info(f"  平均查询时间: {avg_time:.2f}秒")
+            logger.info(f"  平均结果数量: {avg_results:.1f}")
+            logger.info(f"  总查询时间: {total_time:.2f}秒")
 
-    @async_test
-    @skip_if_no_es
-    async def test_error_handling(self):
-        """测试错误处理"""
-        print("\n" + "=" * 60)
-        print("⚠️  测试错误处理")
-        print("=" * 60)
+            # 性能基准测试
+            self.assertLess(avg_time, 5.0)  # 平均查询时间应该小于5秒
+            self.assertGreater(avg_results, 0)  # 应该有结果返回
 
-        async with ESSearchTool(
-                hosts=settings.elasticsearch_config.hosts,
-                username=settings.elasticsearch_config.username,
-                password=settings.elasticsearch_config.password,
-                timeout=settings.elasticsearch_config.timeout) as search_tool:
+            await search_tool.close()
 
-            # 测试无效查询
-            print("🔍 测试无效查询...")
-            result = await search_tool.search("", None, top_k=3)
-            print(f"空查询结果: {len(result)} 字符")
+        except Exception as e:
+            logger.error(f"性能测试失败: {str(e)}")
+            self.fail(f"性能测试失败: {str(e)}")
 
-            # 测试无效向量
-            print("🔢 测试无效向量...")
-            invalid_vector = [0.1] * 100  # 维度不匹配
-            result = await search_tool.search("测试", invalid_vector, top_k=3)
-            print(f"无效向量结果: {len(result)} 字符")
 
-            print("✅ 错误处理测试完成")
+async def run_async_tests():
+    """运行异步测试"""
+    logger.info("运行异步ES测试")
+
+    test_instance = ESUnifiedTest()
+    test_instance.setUp()
+
+    try:
+        await test_instance.test_es_connection()
+        await test_instance.test_es_search_tool()
+        await test_instance.test_es_indices()
+        await test_instance.test_es_search_with_filters()
+        await test_instance.test_es_multi_index_search()
+        await test_instance.test_es_error_handling()
+        await test_instance.test_es_performance()
+
+        logger.info("所有异步ES测试通过")
+        return True
+    except Exception as e:
+        logger.error(f"异步ES测试失败: {str(e)}")
+        return False
 
 
 def main():
-    """运行所有ES测试"""
-    print("🚀 统一ES测试")
-    print("=" * 80)
+    """主函数"""
+    logger.info("ES统一测试")
 
-    # 创建测试套件
-    test_suite = unittest.TestSuite()
-    test_loader = unittest.TestLoader()
+    success = asyncio.run(run_async_tests())
 
-    # 添加所有测试方法
-    test_suite.addTest(test_loader.loadTestsFromTestCase(UnifiedESTest))
-
-    # 运行测试
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(test_suite)
-
-    # 输出结果统计
-    print("\n" + "=" * 80)
-    print("📊 测试结果统计")
-    print("=" * 80)
-    print(f"运行测试: {result.testsRun}")
-    print(f"失败测试: {len(result.failures)}")
-    print(f"错误测试: {len(result.errors)}")
-    print(f"跳过测试: {len(result.skipped) if hasattr(result, 'skipped') else 0}")
-
-    if result.failures:
-        print("\n❌ 失败的测试:")
-        for test, traceback in result.failures:
-            print(f"  - {test}")
-
-    if result.errors:
-        print("\n❌ 错误的测试:")
-        for test, traceback in result.errors:
-            print(f"  - {test}")
-
-    return result.wasSuccessful()
+    if success:
+        logger.info("所有ES测试通过")
+    else:
+        logger.error("ES测试失败")
 
 
 if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+    main()

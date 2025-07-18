@@ -3,12 +3,10 @@
 提供搜索结果格式化和重排序功能
 """
 
-import logging
 from typing import List, Dict, Any, Optional
+from loguru import logger
 from ..tools.es_service import ESSearchResult
 from ..tools.reranker import RerankerTool, RerankedSearchResult
-
-logger = logging.getLogger(__name__)
 
 
 def format_search_results(results: List[ESSearchResult],
@@ -25,7 +23,10 @@ def format_search_results(results: List[ESSearchResult],
     Returns:
         str: 格式化后的搜索结果字符串
     """
+    logger.debug(f"格式化搜索结果，结果数量: {len(results)}")
+
     if not results:
+        logger.warning(f"没有找到与 '{query}' 相关的文档")
         return f"未找到与 '{query}' 相关的文档。"
 
     result = f"搜索查询: {query}\n"
@@ -58,6 +59,7 @@ def format_search_results(results: List[ESSearchResult],
 
         result += "\n"
 
+    logger.debug(f"格式化完成，结果长度: {len(result)} 字符")
     return result
 
 
@@ -77,6 +79,9 @@ async def rerank_search_results(search_results: List[ESSearchResult],
     Returns:
         List[RerankedSearchResult]: 重排序后的结果列表
     """
+    logger.info(f"开始重排序搜索结果，查询: '{query[:50]}...'")
+    logger.debug(f"重排序参数 - 原始结果数量: {len(search_results)}, top_k: {top_k}")
+
     if not search_results:
         logger.warning("没有搜索结果需要重排序")
         return []
@@ -131,7 +136,10 @@ def format_reranked_results(reranked_results: List[RerankedSearchResult],
     Returns:
         str: 格式化后的重排序结果字符串
     """
+    logger.debug(f"格式化重排序结果，结果数量: {len(reranked_results)}")
+
     if not reranked_results:
+        logger.warning(f"没有找到与 '{query}' 相关的文档")
         return f"未找到与 '{query}' 相关的文档。"
 
     result = f"搜索查询: {query}\n"
@@ -158,6 +166,7 @@ def format_reranked_results(reranked_results: List[RerankedSearchResult],
 
         result += "\n"
 
+    logger.debug(f"重排序结果格式化完成，结果长度: {len(result)} 字符")
     return result
 
 
@@ -186,6 +195,16 @@ async def search_and_rerank(
     Returns:
         tuple: (原始搜索结果, 重排序结果, 格式化字符串)
     """
+    logger.info(f"开始搜索和重排序流程，查询: '{query[:50]}...'")
+    logger.debug(
+        f"搜索参数 - initial_top_k: {initial_top_k}, final_top_k: {final_top_k}")
+    if query_vector:
+        logger.debug(f"查询向量维度: {len(query_vector)}")
+    if filters:
+        logger.debug(f"过滤条件: {filters}")
+    if config:
+        logger.debug(f"配置参数: {config}")
+
     # 执行搜索
     logger.info(f"执行搜索: {query}")
     search_results = await es_search_tool.search(query=query,
@@ -198,6 +217,7 @@ async def search_and_rerank(
 
     # 如果没有搜索结果，返回空结果
     if not search_results:
+        logger.warning("搜索未返回任何结果")
         return [], [], f"未找到与 '{query}' 相关的文档。"
 
     # 如果没有重排序工具，直接格式化原始结果
@@ -208,11 +228,16 @@ async def search_and_rerank(
         return search_results, [], formatted_result
 
     # 执行重排序
+    logger.info("开始执行重排序")
     reranked_results = await rerank_search_results(search_results, query,
                                                    reranker_tool, final_top_k)
 
     # 格式化重排序结果
+    logger.info("格式化重排序结果")
     formatted_result = format_reranked_results(reranked_results, query,
                                                es_search_tool._indices_list)
 
+    logger.info(
+        f"搜索和重排序流程完成，原始结果: {len(search_results)}, 重排序结果: {len(reranked_results)}"
+    )
     return search_results, reranked_results, formatted_result

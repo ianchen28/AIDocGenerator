@@ -5,7 +5,7 @@ from functools import partial
 
 # 添加项目根目录到Python路径
 current_file = Path(__file__)
-service_dir = current_file.parent
+service_dir = current_file.parent.parent  # 获取 service 目录
 if str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
 
@@ -16,10 +16,29 @@ if str(src_dir) not in sys.path:
 
 # 确保环境变量已加载
 from core.env_loader import setup_environment
+from core.config import settings
+from core.logging_config import setup_logging
 
 setup_environment()
 
-from doc_agent.llm_clients import get_llm_client
+# 初始化日志系统
+setup_logging(settings)
+
+# 在设置路径后导入 doc_agent 模块
+try:
+    from doc_agent.llm_clients import get_llm_client
+    from doc_agent.tools import get_web_search_tool, get_es_search_tool, get_reranker_tool, get_all_tools
+
+    from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
+    from doc_agent.graph.chapter_workflow import router as chapter_router
+    from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
+
+    from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
+    from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
+except ImportError as e:
+    print(f"❌ 导入 doc_agent 模块失败: {e}")
+    print(f"当前 Python 路径: {sys.path[:3]}")
+    raise
 from doc_agent.tools import get_web_search_tool, get_es_search_tool, get_reranker_tool, get_all_tools
 
 from doc_agent.graph.chapter_workflow import nodes as chapter_nodes

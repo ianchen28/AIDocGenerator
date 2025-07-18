@@ -1,4 +1,6 @@
 # service/src/doc_agent/graph/nodes.py
+from loguru import logger
+import pprint
 from ..state import ResearchState
 from ...llm_clients.base import LLMClient
 from ...tools.web_search import WebSearchTool
@@ -97,8 +99,8 @@ def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
     chapter_description = current_chapter.get("description",
                                               "") if current_chapter else ""
 
-    print(f"📋 规划章节研究: {chapter_title}")
-    print(f"📝 章节描述: {chapter_description}")
+    logger.info(f"📋 规划章节研究: {chapter_title}")
+    logger.info(f"📝 章节描述: {chapter_description}")
 
     # 获取任务规划器配置
     task_planner_config = settings.get_agent_component_config("task_planner")
@@ -129,6 +131,8 @@ def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
 6. 搜索查询应该针对当前章节的具体内容，结合章节标题和描述
 """
 
+    logger.debug(f"Invoking LLM with prompt:\n{pprint.pformat(prompt)}")
+
     try:
         # 调用 LLM 生成研究计划
         response = llm_client.invoke(
@@ -137,41 +141,41 @@ def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
             max_tokens=task_planner_config.max_tokens,
             **task_planner_config.extra_params)
 
-        print(f"🔍 LLM原始响应: {repr(response)}")
-        print(f"📝 响应长度: {len(response)} 字符")
+        logger.debug(f"🔍 LLM原始响应: {repr(response)}")
+        logger.debug(f"📝 响应长度: {len(response)} 字符")
 
         # 解析 JSON 响应
         research_plan, search_queries = parse_planner_response(response)
 
-        print(f"✅ 生成研究计划: {len(search_queries)} 个搜索查询")
+        logger.info(f"✅ 生成研究计划: {len(search_queries)} 个搜索查询")
         for i, query in enumerate(search_queries, 1):
-            print(f"  {i}. {query}")
+            logger.debug(f"  {i}. {query}")
 
         # 返回完整的状态更新
         result = {
             "research_plan": research_plan,
             "search_queries": search_queries
         }
-        print(f"📤 Planner节点返回结果: {result}")
+        logger.debug(f"📤 Planner节点返回结果: {pprint.pformat(result)}")
         return result
 
     except Exception as e:
         # 如果 LLM 调用失败，返回默认计划
-        print(f"Planner node error: {str(e)}")
+        logger.error(f"Planner node error: {str(e)}")
         default_queries = [
             f"{topic} {chapter_title} 概述", f"{topic} {chapter_title} 主要内容",
             f"{topic} {chapter_title} 关键要点", f"{topic} {chapter_title} 最新发展",
             f"{topic} {chapter_title} 重要性"
         ]
-        print(f"⚠️  使用默认搜索查询: {len(default_queries)} 个")
+        logger.warning(f"⚠️  使用默认搜索查询: {len(default_queries)} 个")
         for i, query in enumerate(default_queries, 1):
-            print(f"  {i}. {query}")
+            logger.debug(f"  {i}. {query}")
 
         result = {
             "research_plan": f"研究计划：对章节 {chapter_title} 进行深入研究，收集相关信息并整理成文档。",
             "search_queries": default_queries
         }
-        print(f"📤 Planner节点返回默认结果: {result}")
+        logger.debug(f"📤 Planner节点返回默认结果: {pprint.pformat(result)}")
         return result
 
 
@@ -200,21 +204,25 @@ async def async_researcher_node(state: ResearchState,
     Returns:
         dict: 包含 gathered_data 的字典
     """
-    print(f"🔍 Researcher节点接收到的完整状态:")
-    print(f"  - topic: {state.get('topic', 'N/A')}")
-    print(
+    logger.info(f"🔍 Researcher节点接收到的完整状态:")
+    logger.debug(f"  - topic: {state.get('topic', 'N/A')}")
+    logger.debug(
         f"  - current_chapter_index: {state.get('current_chapter_index', 'N/A')}"
     )
-    print(f"  - research_plan: {state.get('research_plan', 'N/A')[:100]}...")
-    print(f"  - search_queries: {state.get('search_queries', [])}")
-    print(f"  - search_queries类型: {type(state.get('search_queries', []))}")
-    print(f"  - search_queries长度: {len(state.get('search_queries', []))}")
-    print(f"  - gathered_data: {state.get('gathered_data', 'N/A')[:50]}...")
+    logger.debug(
+        f"  - research_plan: {state.get('research_plan', 'N/A')[:100]}...")
+    logger.debug(f"  - search_queries: {state.get('search_queries', [])}")
+    logger.debug(
+        f"  - search_queries类型: {type(state.get('search_queries', []))}")
+    logger.debug(
+        f"  - search_queries长度: {len(state.get('search_queries', []))}")
+    logger.debug(
+        f"  - gathered_data: {state.get('gathered_data', 'N/A')[:50]}...")
 
     search_queries = state.get("search_queries", [])
 
     if not search_queries:
-        print("❌ 没有搜索查询，返回默认消息")
+        logger.warning("❌ 没有搜索查询，返回默认消息")
         return {"gathered_data": "没有搜索查询需要执行"}
 
     all_results = []
@@ -227,26 +235,26 @@ async def async_researcher_node(state: ResearchState,
             embedding_client = EmbeddingClient(
                 base_url=embedding_config.url,
                 api_key=embedding_config.api_key)
-            print("✅ Embedding客户端初始化成功")
+            logger.info("✅ Embedding客户端初始化成功")
         except Exception as e:
-            print(f"⚠️  Embedding客户端初始化失败: {str(e)}")
+            logger.warning(f"⚠️  Embedding客户端初始化失败: {str(e)}")
             embedding_client = None
     else:
-        print("❌ 未找到 embedding 配置，将使用文本搜索")
+        logger.warning("❌ 未找到 embedding 配置，将使用文本搜索")
 
     # 使用传入的ES工具，不再内部创建
     for i, query in enumerate(search_queries, 1):
-        print(f"执行搜索查询 {i}/{len(search_queries)}: {query}")
+        logger.info(f"执行搜索查询 {i}/{len(search_queries)}: {query}")
 
         # 网络搜索
         web_results = ""
         try:
             web_results = web_search_tool.search(query)
             if "模拟" in web_results or "mock" in web_results.lower():
-                print(f"网络搜索返回模拟结果，跳过: {query}")
+                logger.info(f"网络搜索返回模拟结果，跳过: {query}")
                 web_results = ""
         except Exception as e:
-            print(f"网络搜索失败: {str(e)}")
+            logger.error(f"网络搜索失败: {str(e)}")
             web_results = ""
 
         # ES搜索 - 使用新的搜索和重排序功能
@@ -269,16 +277,16 @@ async def async_researcher_node(state: ResearchState,
                                         dict) and 'data' in embedding_data:
                             query_vector = embedding_data['data']
                         else:
-                            print(
+                            logger.warning(
                                 f"⚠️  无法解析embedding响应格式: {type(embedding_data)}"
                             )
                             query_vector = None
                     except json.JSONDecodeError:
-                        print(f"⚠️  JSON解析失败，使用文本搜索")
+                        logger.warning(f"⚠️  JSON解析失败，使用文本搜索")
                         query_vector = None
 
                     if query_vector and len(query_vector) == 1536:
-                        print(
+                        logger.debug(
                             f"✅ 向量维度: {len(query_vector)}，前5: {query_vector[:5]}"
                         )
                         # 使用新的搜索和重排序功能
@@ -301,11 +309,11 @@ async def async_researcher_node(state: ResearchState,
                             config=doc_config  # 传递配置参数
                         )
                         es_results = formatted_es_results
-                        print(
+                        logger.info(
                             f"✅ 向量检索+重排序执行成功，结果长度: {len(formatted_es_results)}"
                         )
                     else:
-                        print(f"❌ 向量生成失败，使用文本搜索")
+                        logger.warning(f"❌ 向量生成失败，使用文本搜索")
                         # 回退到文本搜索
                         _, reranked_results, formatted_es_results = await search_and_rerank(
                             es_search_tool=es_search_tool,
@@ -316,11 +324,11 @@ async def async_researcher_node(state: ResearchState,
                             final_top_k=final_top_k,
                             config=doc_config)
                         es_results = formatted_es_results
-                        print(
+                        logger.info(
                             f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}"
                         )
                 except Exception as e:
-                    print(f"❌ 向量检索异常: {str(e)}，使用文本搜索")
+                    logger.error(f"❌ 向量检索异常: {str(e)}，使用文本搜索")
                     # 回退到文本搜索
                     _, reranked_results, formatted_es_results = await search_and_rerank(
                         es_search_tool=es_search_tool,
@@ -331,10 +339,11 @@ async def async_researcher_node(state: ResearchState,
                         final_top_k=final_top_k,
                         config=doc_config)
                     es_results = formatted_es_results
-                    print(f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
+                    logger.info(
+                        f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
             else:
                 # 没有embedding客户端，直接使用文本搜索
-                print("📝 使用文本搜索")
+                logger.info("📝 使用文本搜索")
 
                 # 获取配置参数
                 doc_config = settings.get_document_config(fast_mode=False)
@@ -350,10 +359,11 @@ async def async_researcher_node(state: ResearchState,
                     final_top_k=final_top_k,
                     config=doc_config)
                 es_results = formatted_es_results
-                print(f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
+                logger.info(
+                    f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
 
         except Exception as e:
-            print(f"❌ ES搜索失败: {str(e)}")
+            logger.error(f"❌ ES搜索失败: {str(e)}")
             es_results = f"ES搜索失败: {str(e)}"
 
         # 聚合结果
@@ -369,15 +379,15 @@ async def async_researcher_node(state: ResearchState,
     # 合并所有搜索结果
     if all_results:
         gathered_data = "\\n\\n".join(all_results)
-        print(f"✅ 收集到 {len(all_results)} 条搜索结果")
-        print(f"📊 总数据长度: {len(gathered_data)} 字符")
+        logger.info(f"✅ 收集到 {len(all_results)} 条搜索结果")
+        logger.info(f"📊 总数据长度: {len(gathered_data)} 字符")
         # 只显示前200字符作为预览，避免日志过长
         preview = gathered_data[:200] + "..." if len(
             gathered_data) > 200 else gathered_data
-        print(f"📝 数据预览: {preview}")
+        logger.debug(f"📝 数据预览: {preview}")
     else:
         gathered_data = "未收集到任何搜索结果"
-        print("❌ 未收集到任何搜索结果")
+        logger.warning("❌ 未收集到任何搜索结果")
 
     return {"gathered_data": gathered_data}
 
@@ -493,7 +503,7 @@ def writer_node(state: ResearchState, llm_client: LLMClient) -> dict:
     # 限制 prompt 长度
     max_prompt_length = 30000
     if len(prompt) > max_prompt_length:
-        print(
+        logger.warning(
             f"⚠️  Writer prompt 长度 {len(prompt)} 超过限制 {max_prompt_length}，进行截断"
         )
 
@@ -529,7 +539,9 @@ def writer_node(state: ResearchState, llm_client: LLMClient) -> dict:
 **写作任务:**
 基于研究数据撰写当前章节，确保与前面章节连贯，使用Markdown格式，以##开始章节标题。
 """
-        print(f"📝 截断后 writer prompt 长度: {len(prompt)} 字符")
+        logger.info(f"📝 截断后 writer prompt 长度: {len(prompt)} 字符")
+
+    logger.debug(f"Invoking LLM with writer prompt:\n{pprint.pformat(prompt)}")
 
     try:
         # 调用LLM生成章节内容
@@ -550,7 +562,7 @@ def writer_node(state: ResearchState, llm_client: LLMClient) -> dict:
 
     except Exception as e:
         # 如果LLM调用失败，返回错误信息
-        print(f"Writer node error: {str(e)}")
+        logger.error(f"Writer node error: {str(e)}")
         error_content = f"""## {chapter_title}
 
 ### 章节生成错误

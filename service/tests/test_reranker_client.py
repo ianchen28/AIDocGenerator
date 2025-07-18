@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RerankerClient 测试文件
-测试重排序客户端的功能、性能和错误处理
+重排序客户端测试
+测试 RerankerClient 的各种功能
 """
 
 import sys
 import os
-import json
 import unittest
 from pathlib import Path
+from loguru import logger
 
 # 设置环境变量
 os.environ['PYTHONPATH'] = '/Users/chenyuyang/git/AIDocGenerator/service'
@@ -26,11 +26,12 @@ from core.config import settings
 
 
 class RerankerClientTest(LLMTestCase):
-    """RerankerClient 测试类"""
+    """重排序客户端测试类"""
 
     def setUp(self):
         """测试前准备"""
         super().setUp()
+        logger.debug("初始化重排序客户端测试")
 
         # 获取reranker配置
         reranker_config = settings.get_model_config("reranker")
@@ -38,388 +39,403 @@ class RerankerClientTest(LLMTestCase):
             self.reranker_client = RerankerClient(
                 base_url=reranker_config.url, api_key=reranker_config.api_key)
             self.has_config = True
+            logger.debug("重排序配置可用")
         else:
             self.reranker_client = None
             self.has_config = False
-            print("⚠️  未找到reranker配置，将跳过相关测试")
+            logger.warning("未找到reranker配置，将跳过相关测试")
 
+    @skip_if_no_reranker
     def test_reranker_client_creation(self):
         """测试RerankerClient创建"""
-        print("\n" + "=" * 60)
-        print("🔧 测试RerankerClient创建")
-        print("=" * 60)
-
-        if not self.has_config:
-            self.skipTest("没有reranker配置")
-
-        self.assertIsInstance(self.reranker_client, RerankerClient)
-        print(f"✅ RerankerClient 创建成功: {type(self.reranker_client).__name__}")
-        print(f"📋 配置信息:")
-        print(f"  - Base URL: {self.reranker_client.base_url}")
-        print(
-            f"  - API Key: {'已设置' if self.reranker_client.api_key else '未设置'}")
-
-    @skip_if_no_reranker
-    def test_basic_rerank(self):
-        """测试基础重排序功能"""
-        print("\n" + "=" * 60)
-        print("📊 测试基础重排序功能")
-        print("=" * 60)
-
-        # 测试文档
-        test_documents = [
-            "人工智能在电力行业的应用越来越广泛，包括智能电网、预测性维护等。", "电力系统是现代社会的重要基础设施，需要高可靠性和安全性。",
-            "机器学习技术可以帮助电力公司优化运营效率，降低成本。", "可再生能源的发展对电力系统提出了新的挑战和机遇。",
-            "智能电网技术是电力行业数字化转型的关键技术。"
-        ]
-
-        query = "人工智能在电力行业的应用"
-
-        print(f"🔍 查询: {query}")
-        print(f"📄 文档数量: {len(test_documents)}")
+        logger.info("测试RerankerClient创建")
 
         try:
-            result = self.reranker_client.invoke(prompt=query,
-                                                 documents=test_documents,
-                                                 size=3)
+            logger.info(
+                f"RerankerClient 创建成功: {type(self.reranker_client).__name__}")
+            logger.info("配置信息:")
+            logger.info(f"  - Base URL: {self.reranker_client.base_url}")
+            logger.info(
+                f"  - API Key: {'已设置' if self.reranker_client.api_key else '未设置'}"
+            )
 
-            print(f"✅ 重排序成功")
-            print(f"📊 结果类型: {type(result)}")
-
-            if isinstance(result, dict):
-                print(f"📋 结果键: {list(result.keys())}")
-                if 'results' in result:
-                    print(f"📄 重排序结果数量: {len(result['results'])}")
-                    for i, item in enumerate(result['results'][:3]):
-                        print(
-                            f"  {i+1}. 文档: {item.get('text', 'N/A')[:50]}...")
-                elif 'documents' in result:
-                    print(f"📄 重排序结果数量: {len(result['documents'])}")
-                    for i, doc in enumerate(result['documents'][:3]):
-                        print(f"  {i+1}. 文档: {doc.get('text', 'N/A')[:50]}...")
-            elif isinstance(result, list):
-                print(f"📄 重排序结果数量: {len(result)}")
-                for i, item in enumerate(result[:3]):
-                    print(f"  {i+1}. 文档: {str(item)[:50]}...")
-            else:
-                print(f"📄 结果内容: {str(result)[:200]}...")
+            # 验证客户端创建
+            self.assertIsNotNone(self.reranker_client)
+            self.assertIsNotNone(self.reranker_client.base_url)
+            self.assertIsNotNone(self.reranker_client.api_key)
 
         except Exception as e:
-            print(f"❌ 重排序失败: {str(e)}")
-            self.fail(f"重排序测试失败: {str(e)}")
+            logger.error(f"RerankerClient 创建失败: {e}")
+            self.fail(f"RerankerClient 创建失败: {e}")
 
     @skip_if_no_reranker
-    def test_rerank_with_different_sizes(self):
+    def test_basic_rerank_functionality(self):
+        """测试基础重排序功能"""
+        logger.info("测试基础重排序功能")
+
+        # 创建测试文档
+        test_documents = [{
+            "text": "这是一个关于天气的文档，与电力行业无关。"
+        }, {
+            "text": "电力系统是现代社会的重要基础设施。"
+        }, {
+            "text": "人工智能技术在电力行业的应用越来越广泛。"
+        }, {
+            "text": "机器学习算法可以优化电力调度。"
+        }, {
+            "text": "智能电网技术是电力行业数字化转型的关键。"
+        }]
+
+        query = "人工智能在电力行业的应用"
+        logger.info(f"查询: {query}")
+        logger.info(f"文档数量: {len(test_documents)}")
+
+        try:
+            # 执行重排序
+            result = self.reranker_client.rerank(query, test_documents)
+            logger.info("重排序成功")
+            logger.debug(f"结果类型: {type(result)}")
+
+            # 验证结果格式
+            if isinstance(result, dict):
+                logger.debug(f"结果键: {list(result.keys())}")
+                if 'results' in result:
+                    logger.info(f"重排序结果数量: {len(result['results'])}")
+                    for i, doc in enumerate(result['results'][:3]):
+                        logger.debug(
+                            f"  {i+1}. 文档: {doc.get('text', 'N/A')[:50]}...")
+                elif 'documents' in result:
+                    logger.info(f"重排序结果数量: {len(result['documents'])}")
+                    for i, doc in enumerate(result['documents'][:3]):
+                        logger.debug(
+                            f"  {i+1}. 文档: {doc.get('text', 'N/A')[:50]}...")
+                else:
+                    logger.info(f"重排序结果数量: {len(result)}")
+                    for i, item in enumerate(list(result.items())[:3]):
+                        logger.debug(f"  {i+1}. 文档: {str(item)[:50]}...")
+            else:
+                logger.info(f"结果内容: {str(result)[:200]}...")
+
+            # 验证结果
+            self.assertIsNotNone(result)
+
+        except Exception as e:
+            logger.error(f"重排序失败: {str(e)}")
+            self.fail(f"重排序失败: {str(e)}")
+
+    @skip_if_no_reranker
+    def test_different_size_parameters(self):
         """测试不同size参数的重排序"""
-        print("\n" + "=" * 60)
-        print("📏 测试不同size参数的重排序")
-        print("=" * 60)
+        logger.info("测试不同size参数的重排序")
 
-        test_documents = [
-            "电力系统智能化是未来发展趋势。", "人工智能技术可以提升电力系统效率。", "机器学习在电力预测中发挥重要作用。",
-            "智能电网需要先进的技术支持。", "数据驱动的方法正在改变电力行业。"
-        ]
+        test_documents = [{
+            "text": "文档1: 人工智能基础概念"
+        }, {
+            "text": "文档2: 机器学习算法"
+        }, {
+            "text": "文档3: 深度学习应用"
+        }, {
+            "text": "文档4: 神经网络原理"
+        }, {
+            "text": "文档5: 计算机视觉技术"
+        }]
 
-        query = "电力系统智能化"
+        query = "机器学习算法"
+        size_options = [1, 3, 5]
 
-        for size in [1, 2, 3, 5]:
-            print(f"\n🔍 测试 size={size}")
+        for size in size_options:
+            logger.info(f"测试 size={size}")
+
             try:
-                result = self.reranker_client.invoke(prompt=query,
-                                                     documents=test_documents,
+                result = self.reranker_client.rerank(query,
+                                                     test_documents,
                                                      size=size)
 
+                # 验证结果数量
                 if isinstance(result, dict):
                     if 'results' in result:
                         actual_size = len(result['results'])
                     elif 'documents' in result:
                         actual_size = len(result['documents'])
                     else:
-                        actual_size = 0
-                elif isinstance(result, list):
-                    actual_size = len(result)
+                        actual_size = len(result)
                 else:
-                    actual_size = 0
+                    actual_size = len(result) if hasattr(result,
+                                                         '__len__') else 1
 
-                print(f"✅ size={size} 测试成功，实际返回: {actual_size} 个结果")
-                self.assertLessEqual(
-                    actual_size, size,
-                    f"返回结果数量 {actual_size} 超过了请求的 size {size}")
+                logger.info(f"size={size} 测试成功，实际返回: {actual_size} 个结果")
+
+                # 验证结果数量不超过请求的size
+                self.assertLessEqual(actual_size, size)
 
             except Exception as e:
-                print(f"❌ size={size} 测试失败: {str(e)}")
+                logger.error(f"size={size} 测试失败: {str(e)}")
+                self.fail(f"size={size} 测试失败: {str(e)}")
 
     @skip_if_no_reranker
-    def test_rerank_with_empty_documents(self):
+    def test_empty_documents_list(self):
         """测试空文档列表的重排序"""
-        print("\n" + "=" * 60)
-        print("📭 测试空文档列表的重排序")
-        print("=" * 60)
+        logger.info("测试空文档列表的重排序")
 
-        query = "测试查询"
         empty_documents = []
+        query = "测试查询"
 
         try:
-            result = self.reranker_client.invoke(prompt=query,
-                                                 documents=empty_documents,
-                                                 size=3)
+            result = self.reranker_client.rerank(query, empty_documents)
+            logger.info("空文档列表处理成功")
+            logger.debug(f"结果: {result}")
 
-            print(f"✅ 空文档列表处理成功")
-            print(f"📊 结果: {result}")
+            # 验证结果
+            self.assertIsNotNone(result)
+            if isinstance(result, dict):
+                self.assertEqual(
+                    len(result.get('results', result.get('documents', []))), 0)
+            else:
+                self.assertEqual(len(result), 0)
 
         except Exception as e:
-            print(f"❌ 空文档列表处理失败: {str(e)}")
-            # 空文档列表失败是可以接受的，不强制失败
+            logger.error(f"空文档列表处理失败: {str(e)}")
+            self.fail(f"空文档列表处理失败: {str(e)}")
 
     @skip_if_no_reranker
-    def test_rerank_with_single_document(self):
+    def test_single_document_rerank(self):
         """测试单个文档的重排序"""
-        print("\n" + "=" * 60)
-        print("📄 测试单个文档的重排序")
-        print("=" * 60)
+        logger.info("测试单个文档的重排序")
 
-        query = "电力技术"
-        single_document = ["电力系统是现代社会的重要基础设施。"]
+        single_document = [{"text": "这是一个关于人工智能的文档"}]
+        query = "人工智能"
 
         try:
-            result = self.reranker_client.invoke(prompt=query,
-                                                 documents=single_document,
-                                                 size=1)
+            result = self.reranker_client.rerank(query, single_document)
+            logger.info("单个文档重排序成功")
+            logger.debug(f"结果: {result}")
 
-            print(f"✅ 单个文档重排序成功")
-            print(f"📊 结果: {result}")
+            # 验证结果
+            self.assertIsNotNone(result)
+            if isinstance(result, dict):
+                self.assertGreaterEqual(
+                    len(result.get('results', result.get('documents', []))), 0)
+            else:
+                self.assertGreaterEqual(len(result), 0)
 
         except Exception as e:
-            print(f"❌ 单个文档重排序失败: {str(e)}")
-            self.fail(f"单个文档重排序测试失败: {str(e)}")
+            logger.error(f"单个文档重排序失败: {str(e)}")
+            self.fail(f"单个文档重排序失败: {str(e)}")
 
     @skip_if_no_reranker
-    def test_rerank_with_large_documents(self):
+    def test_large_documents_rerank(self):
         """测试大文档的重排序"""
-        print("\n" + "=" * 60)
-        print("📚 测试大文档的重排序")
-        print("=" * 60)
+        logger.info("测试大文档的重排序")
 
-        # 创建较大的文档
-        large_documents = [
-            "人工智能技术在电力行业的应用非常广泛。" * 10, "电力系统智能化是未来发展的必然趋势。" * 10,
-            "机器学习技术可以帮助电力公司优化运营。" * 10
-        ]
+        # 创建大文档
+        large_documents = [{
+            "text": "这是一个很长的文档 " * 100
+        }, {
+            "text": "另一个长文档 " * 80
+        }, {
+            "text": "第三个长文档 " * 60
+        }]
 
-        query = "电力系统智能化"
-
-        try:
-            result = self.reranker_client.invoke(prompt=query,
-                                                 documents=large_documents,
-                                                 size=2)
-
-            print(f"✅ 大文档重排序成功")
-            print(f"📊 结果类型: {type(result)}")
-
-        except Exception as e:
-            print(f"❌ 大文档重排序失败: {str(e)}")
-            # 大文档可能超出限制，不强制失败
-
-    @skip_if_no_reranker
-    def test_rerank_with_special_characters(self):
-        """测试包含特殊字符的查询和文档"""
-        print("\n" + "=" * 60)
-        print("🔤 测试包含特殊字符的重排序")
-        print("=" * 60)
-
-        test_documents = [
-            "AI技术在电力行业的应用（包括智能电网）越来越重要。", "电力系统需要高可靠性，特别是在极端天气条件下。",
-            "机器学习算法可以帮助预测电力需求，准确率达到95%以上。"
-        ]
-
-        query = "AI技术 & 电力行业"
+        query = "长文档测试"
 
         try:
-            result = self.reranker_client.invoke(prompt=query,
-                                                 documents=test_documents,
-                                                 size=2)
+            result = self.reranker_client.rerank(query, large_documents)
+            logger.info("大文档重排序成功")
+            logger.debug(f"结果类型: {type(result)}")
 
-            print(f"✅ 特殊字符处理成功")
-            print(f"📊 结果: {result}")
+            # 验证结果
+            self.assertIsNotNone(result)
 
         except Exception as e:
-            print(f"❌ 特殊字符处理失败: {str(e)}")
-            # 特殊字符处理失败是可以接受的
+            logger.error(f"大文档重排序失败: {str(e)}")
+            self.fail(f"大文档重排序失败: {str(e)}")
 
     @skip_if_no_reranker
-    def test_rerank_error_handling(self):
+    def test_special_characters_rerank(self):
+        """测试包含特殊字符的重排序"""
+        logger.info("测试包含特殊字符的重排序")
+
+        special_documents = [{
+            "text": "包含特殊字符的文档：!@#$%^&*()_+-=[]{}|;':\",./<>?"
+        }, {
+            "text": "包含中文和英文的文档：AI技术发展"
+        }, {
+            "text": "包含数字的文档：1234567890"
+        }]
+
+        query = "特殊字符测试"
+
+        try:
+            result = self.reranker_client.rerank(query, special_documents)
+            logger.info("特殊字符处理成功")
+            logger.debug(f"结果: {result}")
+
+            # 验证结果
+            self.assertIsNotNone(result)
+
+        except Exception as e:
+            logger.error(f"特殊字符处理失败: {str(e)}")
+            self.fail(f"特殊字符处理失败: {str(e)}")
+
+    @skip_if_no_reranker
+    def test_error_handling(self):
         """测试错误处理"""
-        print("\n" + "=" * 60)
-        print("⚠️  测试错误处理")
-        print("=" * 60)
+        logger.info("测试错误处理")
 
-        # 测试无效参数
-        test_cases = [{
+        # 测试各种错误情况
+        error_test_cases = [{
             "name": "空查询",
             "query": "",
-            "documents": ["测试文档"],
-            "size": 1
+            "documents": [{
+                "text": "测试文档"
+            }]
         }, {
             "name": "None查询",
             "query": None,
-            "documents": ["测试文档"],
-            "size": 1
+            "documents": [{
+                "text": "测试文档"
+            }]
         }, {
-            "name": "None文档",
+            "name": "None文档列表",
             "query": "测试查询",
-            "documents": None,
-            "size": 1
+            "documents": None
         }, {
-            "name": "无效size",
+            "name": "无效文档格式",
             "query": "测试查询",
-            "documents": ["测试文档"],
-            "size": -1
+            "documents": [{
+                "invalid": "格式"
+            }]
         }]
 
-        for test_case in test_cases:
-            print(f"\n🔍 测试: {test_case['name']}")
+        for test_case in error_test_cases:
+            logger.debug(f"测试: {test_case['name']}")
+
             try:
-                result = self.reranker_client.invoke(
-                    prompt=test_case['query'],
-                    documents=test_case['documents'],
-                    size=test_case['size'])
-                print(f"✅ {test_case['name']} 处理成功")
+                result = self.reranker_client.rerank(test_case["query"],
+                                                     test_case["documents"])
+                logger.info(f"{test_case['name']} 处理成功")
+
+                # 验证结果
+                self.assertIsNotNone(result)
+
             except Exception as e:
-                print(f"❌ {test_case['name']} 处理失败: {str(e)}")
-                # 错误处理失败是可以接受的
+                logger.error(f"{test_case['name']} 处理失败: {str(e)}")
+                # 某些错误情况可能抛出异常，这是正常的
 
     @skip_if_no_reranker
-    def test_rerank_performance(self):
+    def test_performance(self):
         """测试性能"""
-        print("\n" + "=" * 60)
-        print("⚡ 测试性能")
-        print("=" * 60)
+        logger.info("测试性能")
+
+        # 创建测试数据
+        test_documents = [{
+            "text": f"测试文档 {i}: 这是第{i}个测试文档的内容"
+        } for i in range(10)]
+        query = "性能测试查询"
 
         import time
-
-        test_documents = [
-            "人工智能在电力行业的应用越来越广泛。", "电力系统智能化是未来发展趋势。", "机器学习技术可以提升电力系统效率。",
-            "智能电网需要先进的技术支持。", "数据驱动的方法正在改变电力行业。"
-        ]
-
-        query = "电力系统智能化"
-
-        # 测试响应时间
         start_time = time.time()
+
         try:
-            result = self.reranker_client.invoke(prompt=query,
-                                                 documents=test_documents,
-                                                 size=3)
+            result = self.reranker_client.rerank(query, test_documents)
             end_time = time.time()
+
             response_time = end_time - start_time
+            logger.info(f"响应时间: {response_time:.2f} 秒")
+            logger.debug(f"结果长度: {len(str(result))} 字符")
 
-            print(f"⏱️  响应时间: {response_time:.2f} 秒")
-            print(f"📊 结果长度: {len(str(result))} 字符")
-
-            # 性能要求：响应时间应该在合理范围内
-            self.assertLess(response_time, 30, "响应时间过长")
+            # 性能基准测试
+            self.assertLess(response_time, 30.0)  # 30秒内应该完成
+            self.assertIsNotNone(result)
 
         except Exception as e:
-            print(f"❌ 性能测试失败: {str(e)}")
+            logger.error(f"性能测试失败: {str(e)}")
+            self.fail(f"性能测试失败: {str(e)}")
 
     @skip_if_no_reranker
-    def test_rerank_integration(self):
+    def test_integration_scenario(self):
         """测试集成场景"""
-        print("\n" + "=" * 60)
-        print("🔗 测试集成场景")
-        print("=" * 60)
+        logger.info("测试集成场景")
 
-        # 模拟从搜索工具获取的文档
-        search_results = [
-            "人工智能技术在电力行业的应用案例研究。", "电力系统智能化发展趋势分析报告。", "机器学习在电力预测中的应用效果评估。",
-            "智能电网技术标准与规范解读。", "电力行业数字化转型策略研究。"
-        ]
+        # 模拟搜索结果的集成场景
+        search_results = [{
+            "text": "搜索结果1: 人工智能基础"
+        }, {
+            "text": "搜索结果2: 机器学习算法"
+        }, {
+            "text": "搜索结果3: 深度学习应用"
+        }, {
+            "text": "搜索结果4: 神经网络原理"
+        }, {
+            "text": "搜索结果5: 计算机视觉技术"
+        }]
 
-        # 模拟用户查询
-        user_query = "电力系统智能化应用"
+        query = "人工智能技术"
 
         try:
             # 执行重排序
-            reranked_results = self.reranker_client.invoke(
-                prompt=user_query, documents=search_results, size=3)
+            reranked_results = self.reranker_client.rerank(
+                query, search_results)
+            logger.info("集成测试成功")
+            logger.debug(f"原始文档数量: {len(search_results)}")
 
-            print(f"✅ 集成测试成功")
-            print(f"📊 原始文档数量: {len(search_results)}")
-            print(
-                f"📊 重排序后数量: {len(reranked_results) if isinstance(reranked_results, list) else 'N/A'}"
-            )
+            # 验证集成结果
+            self.assertIsNotNone(reranked_results)
 
-            # 验证结果
+            # 检查重排序是否改变了顺序
             if isinstance(reranked_results, dict):
-                if 'results' in reranked_results:
-                    self.assertLessEqual(len(reranked_results['results']), 3)
-                elif 'documents' in reranked_results:
-                    self.assertLessEqual(len(reranked_results['documents']), 3)
-            elif isinstance(reranked_results, list):
-                self.assertLessEqual(len(reranked_results), 3)
+                reranked_docs = reranked_results.get(
+                    'results', reranked_results.get('documents', []))
+            else:
+                reranked_docs = reranked_results
+
+            logger.debug(f"重排序后文档数量: {len(reranked_docs)}")
 
         except Exception as e:
-            print(f"❌ 集成测试失败: {str(e)}")
+            logger.error(f"集成测试失败: {str(e)}")
             self.fail(f"集成测试失败: {str(e)}")
 
-    def test_reranker_config(self):
+    @skip_if_no_reranker
+    def test_configuration_info(self):
         """测试配置信息"""
-        print("\n" + "=" * 60)
-        print("⚙️  测试配置信息")
-        print("=" * 60)
+        logger.info("测试配置信息")
 
-        reranker_config = settings.get_model_config("reranker")
-        if reranker_config:
-            print(f"✅ 找到reranker配置")
-            print(f"📋 配置信息:")
-            print(f"  - URL: {reranker_config.url}")
-            print(
-                f"  - API Key: {'已设置' if reranker_config.api_key else '未设置'}")
-            print(f"  - Model ID: {reranker_config.model_id}")
-            print(f"  - Type: {reranker_config.type}")
-        else:
-            print("❌ 未找到reranker配置")
-            self.skipTest("没有reranker配置")
+        try:
+            # 检查配置信息
+            logger.info("重排序客户端配置:")
+            logger.info(f"  - Base URL: {self.reranker_client.base_url}")
+            logger.info(
+                f"  - API Key: {'已设置' if self.reranker_client.api_key else '未设置'}"
+            )
+
+            # 验证配置
+            self.assertIsNotNone(self.reranker_client.base_url)
+            self.assertIsNotNone(self.reranker_client.api_key)
+
+        except Exception as e:
+            logger.error(f"配置信息测试失败: {e}")
+            self.fail(f"配置信息测试失败: {e}")
 
 
 def main():
-    """运行所有RerankerClient测试"""
-    print("🚀 RerankerClient 测试")
-    print("=" * 80)
+    """主函数"""
+    logger.info("重排序客户端测试")
 
     # 创建测试套件
     test_suite = unittest.TestSuite()
-    test_loader = unittest.TestLoader()
-
-    # 添加所有测试方法
-    test_suite.addTest(test_loader.loadTestsFromTestCase(RerankerClientTest))
+    test_suite.addTest(unittest.makeSuite(RerankerClientTest))
 
     # 运行测试
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(test_suite)
 
-    # 输出结果统计
-    print("\n" + "=" * 80)
-    print("📊 测试结果统计")
-    print("=" * 80)
-    print(f"运行测试: {result.testsRun}")
-    print(f"失败测试: {len(result.failures)}")
-    print(f"错误测试: {len(result.errors)}")
-    print(f"跳过测试: {len(result.skipped) if hasattr(result, 'skipped') else 0}")
-
-    if result.failures:
-        print("\n❌ 失败的测试:")
-        for test, traceback in result.failures:
-            print(f"  - {test}")
-
-    if result.errors:
-        print("\n❌ 错误的测试:")
-        for test, traceback in result.errors:
-            print(f"  - {test}")
+    if result.wasSuccessful():
+        logger.info("所有重排序客户端测试通过")
+    else:
+        logger.error("重排序客户端测试失败")
 
     return result.wasSuccessful()
 
 
 if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+    main()

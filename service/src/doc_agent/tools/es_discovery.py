@@ -3,11 +3,9 @@ ES可用性检测模块
 独立处理索引发现和可用性检测功能
 """
 
-import logging
 from typing import List, Dict, Any, Optional
+from loguru import logger
 from .es_service import ESService
-
-logger = logging.getLogger(__name__)
 
 
 class ESDiscovery:
@@ -23,6 +21,7 @@ class ESDiscovery:
         self.es_service = es_service
         self._available_indices = []
         self._vector_dims = 1536  # 默认向量维度
+        logger.info("初始化ES可用性检测器")
 
     async def discover_knowledge_indices(self) -> List[Dict[str, Any]]:
         """
@@ -31,6 +30,7 @@ class ESDiscovery:
         Returns:
             List[Dict[str, Any]]: 可用索引列表
         """
+        logger.info("开始发现知识库索引")
         try:
             # 连接ES服务
             if not await self.es_service.connect():
@@ -39,6 +39,7 @@ class ESDiscovery:
 
             # 获取所有索引
             indices = await self.es_service.get_indices()
+            logger.debug(f"获取到 {len(indices)} 个索引")
 
             # 筛选知识库索引
             knowledge_indices = []
@@ -77,6 +78,7 @@ class ESDiscovery:
 
     async def _detect_vector_dims(self, index_name: str):
         """检测向量维度"""
+        logger.debug(f"检测索引 {index_name} 的向量维度")
         try:
             mapping = await self.es_service.get_index_mapping(index_name)
             if mapping:
@@ -86,19 +88,30 @@ class ESDiscovery:
                     if 'dims' in vector_config:
                         self._vector_dims = vector_config['dims']
                         logger.info(f"检测到向量维度: {self._vector_dims}")
+                    else:
+                        logger.debug("向量配置中未找到dims字段")
+                else:
+                    logger.debug("索引映射中未找到context_vector字段")
+            else:
+                logger.warning(f"无法获取索引 {index_name} 的映射信息")
         except Exception as e:
             logger.warning(f"检测向量维度失败: {str(e)}")
 
     def get_best_index(self) -> Optional[str]:
         """获取最佳索引名称"""
         if self._available_indices:
-            return self._available_indices[0]['name']
+            best_index = self._available_indices[0]['name']
+            logger.debug(f"获取最佳索引: {best_index}")
+            return best_index
+        logger.warning("没有可用的索引")
         return None
 
     def get_vector_dims(self) -> int:
         """获取向量维度"""
+        logger.debug(f"获取向量维度: {self._vector_dims}")
         return self._vector_dims
 
     def get_available_indices(self) -> List[Dict[str, Any]]:
         """获取可用索引列表"""
+        logger.debug(f"获取可用索引列表，共 {len(self._available_indices)} 个")
         return self._available_indices.copy()

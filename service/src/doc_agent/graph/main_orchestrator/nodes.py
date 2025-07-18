@@ -1,4 +1,6 @@
 # service/src/doc_agent/graph/main_orchestrator/nodes.py
+from loguru import logger
+import pprint
 from typing import Dict, List
 import json
 from ..state import ResearchState
@@ -24,7 +26,7 @@ if service_dir and str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
 
 from core.config import settings
-from doc_agent.utils.search_utils import search_and_rerank
+from src.doc_agent.utils.search_utils import search_and_rerank
 
 
 async def initial_research_node(state: ResearchState,
@@ -51,7 +53,7 @@ async def initial_research_node(state: ResearchState,
     if not topic:
         raise ValueError("主题不能为空")
 
-    print(f"🔍 开始初始研究: {topic}")
+    logger.info(f"🔍 开始初始研究: {topic}")
 
     # 生成初始搜索查询 - 更通用和广泛的查询
     initial_queries = [
@@ -69,14 +71,14 @@ async def initial_research_node(state: ResearchState,
             embedding_client = EmbeddingClient(
                 base_url=embedding_config.url,
                 api_key=embedding_config.api_key)
-            print("✅ Embedding客户端初始化成功")
+            logger.info("✅ Embedding客户端初始化成功")
         except Exception as e:
-            print(f"⚠️  Embedding客户端初始化失败: {str(e)}")
+            logger.warning(f"⚠️  Embedding客户端初始化失败: {str(e)}")
             embedding_client = None
 
     # 执行搜索
     for i, query in enumerate(initial_queries, 1):
-        print(f"执行初始搜索 {i}/{len(initial_queries)}: {query}")
+        logger.info(f"执行初始搜索 {i}/{len(initial_queries)}: {query}")
 
         # 网络搜索
         web_results = ""
@@ -85,7 +87,7 @@ async def initial_research_node(state: ResearchState,
             if "模拟" in web_results or "mock" in web_results.lower():
                 web_results = ""
         except Exception as e:
-            print(f"网络搜索失败: {str(e)}")
+            logger.error(f"网络搜索失败: {str(e)}")
             web_results = ""
 
         # ES搜索 - 使用新的搜索和重排序功能
@@ -119,7 +121,7 @@ async def initial_research_node(state: ResearchState,
                             final_top_k=5  # 重排序后返回top5
                         )
                         es_results = formatted_es_results
-                        print(
+                        logger.info(
                             f"✅ 向量检索+重排序执行成功，结果长度: {len(formatted_es_results)}"
                         )
                     else:
@@ -132,11 +134,11 @@ async def initial_research_node(state: ResearchState,
                             initial_top_k=8,
                             final_top_k=5)
                         es_results = formatted_es_results
-                        print(
+                        logger.info(
                             f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}"
                         )
                 except Exception as e:
-                    print(f"向量检索失败: {str(e)}")
+                    logger.error(f"向量检索失败: {str(e)}")
                     # 回退到文本搜索
                     _, reranked_results, formatted_es_results = await search_and_rerank(
                         es_search_tool=es_search_tool,
@@ -146,7 +148,8 @@ async def initial_research_node(state: ResearchState,
                         initial_top_k=8,
                         final_top_k=5)
                     es_results = formatted_es_results
-                    print(f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
+                    logger.info(
+                        f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
             else:
                 # 没有embedding客户端，直接使用文本搜索
                 _, reranked_results, formatted_es_results = await search_and_rerank(
@@ -157,10 +160,11 @@ async def initial_research_node(state: ResearchState,
                     initial_top_k=8,
                     final_top_k=5)
                 es_results = formatted_es_results
-                print(f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
+                logger.info(
+                    f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
 
         except Exception as e:
-            print(f"ES搜索失败: {str(e)}")
+            logger.error(f"ES搜索失败: {str(e)}")
             es_results = f"ES搜索失败: {str(e)}"
 
         # 聚合结果
@@ -176,11 +180,11 @@ async def initial_research_node(state: ResearchState,
 
     # 合并所有结果
     raw_initial_gathered_data = "\n\n".join(all_results)
-    print(f"✅ 初始研究完成，收集到 {len(raw_initial_gathered_data)} 字符的原始数据")
+    logger.info(f"✅ 初始研究完成，收集到 {len(raw_initial_gathered_data)} 字符的原始数据")
 
     # 如果数据量过大，进行压缩处理
     if len(raw_initial_gathered_data) > 10000:  # 超过10K字符时压缩
-        print("📊 数据量较大，进行压缩处理...")
+        logger.info("📊 数据量较大，进行压缩处理...")
 
         if llm_client:
             try:
@@ -211,16 +215,16 @@ async def initial_research_node(state: ResearchState,
 *压缩率: {((processed_data['original_length'] - processed_data['processed_length']) / processed_data['original_length'] * 100):.1f}%*
 """
 
-                print(f"✅ 数据压缩完成: {len(compressed_data)} 字符")
+                logger.info(f"✅ 数据压缩完成: {len(compressed_data)} 字符")
                 return {"initial_gathered_data": compressed_data}
 
             except Exception as e:
-                print(f"⚠️  数据压缩失败: {str(e)}，使用简单截断")
+                logger.warning(f"⚠️  数据压缩失败: {str(e)}，使用简单截断")
                 # 后备方案：简单截断
                 truncated_data = raw_initial_gathered_data[:8000] + "\n\n... (内容已截断)"
                 return {"initial_gathered_data": truncated_data}
         else:
-            print("⚠️  未提供LLM客户端，使用简单截断")
+            logger.warning("⚠️  未提供LLM客户端，使用简单截断")
             truncated_data = raw_initial_gathered_data[:8000] + "\n\n... (内容已截断)"
             return {"initial_gathered_data": truncated_data}
     else:
@@ -251,7 +255,7 @@ def outline_generation_node(state: ResearchState,
     if not initial_gathered_data:
         raise ValueError("初始研究数据不能为空")
 
-    print(f"📋 开始生成文档大纲: {topic}")
+    logger.info(f"📋 开始生成文档大纲: {topic}")
 
     # 获取配置
     outline_config = settings.get_agent_component_config("task_planner")
@@ -314,6 +318,10 @@ def outline_generation_node(state: ResearchState,
 - 必须输出有效的JSON格式
 """
 
+    logger.debug(
+        f"Invoking LLM with outline generation prompt:\n{pprint.pformat(prompt)}"
+    )
+
     try:
         # 调用LLM生成大纲
         response = llm_client.invoke(prompt,
@@ -338,10 +346,10 @@ def outline_generation_node(state: ResearchState,
             if "chapters" not in document_outline:
                 raise ValueError("大纲缺少chapters字段")
 
-            print(f"✅ 成功生成大纲，包含 {len(document_outline['chapters'])} 个章节")
+            logger.info(f"✅ 成功生成大纲，包含 {len(document_outline['chapters'])} 个章节")
 
         except json.JSONDecodeError as e:
-            print(f"❌ JSON解析失败: {str(e)}")
+            logger.error(f"❌ JSON解析失败: {str(e)}")
             # 返回默认大纲
             document_outline = {
                 "title":
@@ -382,7 +390,7 @@ def outline_generation_node(state: ResearchState,
         return {"document_outline": document_outline}
 
     except Exception as e:
-        print(f"❌ 大纲生成失败: {str(e)}")
+        logger.error(f"❌ 大纲生成失败: {str(e)}")
         # 返回基础大纲
         return {
             "document_outline": {
@@ -422,7 +430,7 @@ def split_chapters_node(state: ResearchState) -> dict:
     if not document_outline or "chapters" not in document_outline:
         raise ValueError("文档大纲不存在或格式无效")
 
-    print(f"📂 开始拆分章节任务")
+    logger.info(f"📂 开始拆分章节任务")
 
     # 从大纲中提取章节信息
     chapters = document_outline.get("chapters", [])
@@ -447,11 +455,12 @@ def split_chapters_node(state: ResearchState) -> dict:
         }
         chapters_to_process.append(chapter_task)
 
-    print(f"✅ 成功创建 {len(chapters_to_process)} 个章节任务")
+    logger.info(f"✅ 成功创建 {len(chapters_to_process)} 个章节任务")
 
     # 打印章节列表
     for i, chapter in enumerate(chapters_to_process):
-        print(f"  📄 第{chapter['chapter_number']}章: {chapter['chapter_title']}")
+        logger.info(
+            f"  📄 第{chapter['chapter_number']}章: {chapter['chapter_title']}")
 
     return {
         "chapters_to_process": chapters_to_process,

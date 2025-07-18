@@ -1,6 +1,7 @@
 # service/src/doc_agent/utils/content_processor.py
 from typing import List, Dict, Any
 import json
+from loguru import logger
 from ..llm_clients.base import LLMClient
 
 
@@ -18,7 +19,11 @@ def summarize_content(content: str,
     Returns:
         str: 缩写后的内容
     """
+    logger.info(f"开始缩写内容，目标长度: {max_length} 字符")
+    logger.debug(f"原始内容长度: {len(content)} 字符")
+
     if len(content) <= max_length:
+        logger.info("内容长度已在目标范围内，无需缩写")
         return content
 
     prompt = f"""
@@ -37,14 +42,19 @@ def summarize_content(content: str,
 """
 
     try:
+        logger.debug("调用LLM客户端进行内容缩写")
         response = llm_client.invoke(prompt,
                                      temperature=0.3,
                                      max_tokens=min(max_length * 2, 4000))
-        return response.strip()
+        result = response.strip()
+        logger.info(f"内容缩写完成，结果长度: {len(result)} 字符")
+        return result
     except Exception as e:
-        print(f"⚠️  内容缩写失败: {str(e)}")
+        logger.error(f"内容缩写失败: {str(e)}")
         # 简单的截断作为后备方案
-        return content[:max_length] + "..."
+        fallback_result = content[:max_length] + "..."
+        logger.warning(f"使用后备方案，截断内容到 {len(fallback_result)} 字符")
+        return fallback_result
 
 
 def extract_key_points(content: str,
@@ -61,6 +71,9 @@ def extract_key_points(content: str,
     Returns:
         List[str]: 关键要点列表
     """
+    logger.info(f"开始提取关键要点，目标数量: {num_points}")
+    logger.debug(f"原始内容长度: {len(content)} 字符")
+
     prompt = f"""
 请从以下内容中提取 {num_points} 个最重要的关键要点：
 
@@ -79,6 +92,7 @@ def extract_key_points(content: str,
 """
 
     try:
+        logger.debug("调用LLM客户端提取关键要点")
         response = llm_client.invoke(prompt, temperature=0.3, max_tokens=1000)
 
         # 解析JSON响应
@@ -92,17 +106,23 @@ def extract_key_points(content: str,
 
         try:
             data = json.loads(cleaned_response.strip())
-            return data.get("key_points", [])
+            key_points = data.get("key_points", [])
+            logger.info(f"成功提取 {len(key_points)} 个关键要点")
+            return key_points
         except Exception as json_err:
-            print(f"⚠️  关键要点提取失败: JSON解析错误: {json_err}")
-            print(f"⚠️  LLM原始响应: {repr(response)}")
+            logger.error(f"关键要点提取失败: JSON解析错误: {json_err}")
+            logger.debug(f"LLM原始响应: {repr(response)}")
             # 简单的后备方案
-            return [f"要点{i+1}" for i in range(num_points)]
+            fallback_points = [f"要点{i+1}" for i in range(num_points)]
+            logger.warning(f"使用后备方案，生成 {len(fallback_points)} 个默认要点")
+            return fallback_points
 
     except Exception as e:
-        print(f"⚠️  关键要点提取失败: {str(e)}")
+        logger.error(f"关键要点提取失败: {str(e)}")
         # 简单的后备方案
-        return [f"要点{i+1}" for i in range(num_points)]
+        fallback_points = [f"要点{i+1}" for i in range(num_points)]
+        logger.warning(f"使用后备方案，生成 {len(fallback_points)} 个默认要点")
+        return fallback_points
 
 
 def expand_content(content: str,
@@ -119,7 +139,11 @@ def expand_content(content: str,
     Returns:
         str: 扩写后的内容
     """
+    logger.info(f"开始扩写内容，目标长度: {target_length} 字符")
+    logger.debug(f"原始内容长度: {len(content)} 字符")
+
     if len(content) >= target_length:
+        logger.info("内容长度已达到目标，无需扩写")
         return content
 
     prompt = f"""
@@ -138,12 +162,16 @@ def expand_content(content: str,
 """
 
     try:
+        logger.debug("调用LLM客户端进行内容扩写")
         response = llm_client.invoke(prompt,
                                      temperature=0.7,
                                      max_tokens=min(target_length * 2, 6000))
-        return response.strip()
+        result = response.strip()
+        logger.info(f"内容扩写完成，结果长度: {len(result)} 字符")
+        return result
     except Exception as e:
-        print(f"⚠️  内容扩写失败: {str(e)}")
+        logger.error(f"内容扩写失败: {str(e)}")
+        logger.warning("扩写失败，返回原始内容")
         return content
 
 
@@ -163,7 +191,8 @@ def process_research_data(research_data: str,
     Returns:
         Dict[str, Any]: 包含摘要和关键要点的字典
     """
-    print(f"📊 处理研究数据: {len(research_data)} 字符")
+    logger.info(f"开始处理研究数据: {len(research_data)} 字符")
+    logger.debug(f"处理参数 - 摘要长度: {summary_length}, 要点数量: {key_points_count}")
 
     # 生成摘要
     summary = summarize_content(research_data, llm_client, summary_length)
@@ -172,11 +201,14 @@ def process_research_data(research_data: str,
     key_points = extract_key_points(research_data, llm_client,
                                     key_points_count)
 
-    print(f"✅ 数据处理完成: 摘要 {len(summary)} 字符, {len(key_points)} 个要点")
-
-    return {
+    result = {
         "summary": summary,
         "key_points": key_points,
         "original_length": len(research_data),
         "processed_length": len(summary)
     }
+
+    logger.info(f"数据处理完成: 摘要 {len(summary)} 字符, {len(key_points)} 个要点")
+    logger.debug(f"处理结果: {result}")
+
+    return result

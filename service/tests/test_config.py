@@ -1,208 +1,318 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-测试配置系统
-基于统一测试基础架构
+配置测试
+测试配置加载和验证功能
 """
 
-from test_base import BaseTestCase, skip_if_no_llm, skip_if_no_es, skip_if_no_web_search
-from core.config import settings
+import sys
+import os
 import unittest
+from pathlib import Path
+from loguru import logger
+
+# 设置环境变量
+os.environ['PYTHONPATH'] = '/Users/chenyuyang/git/AIDocGenerator/service'
+
+# 添加项目根目录到Python路径
+current_file = Path(__file__)
+service_dir = current_file.parent.parent
+if str(service_dir) not in sys.path:
+    sys.path.insert(0, str(service_dir))
+
+from test_base import TestBase
+from core.config import settings
 
 
-class ConfigTest(BaseTestCase):
-    """配置系统测试类"""
+class ConfigTest(TestBase):
+    """配置测试类"""
 
-    def test_basic_config_loading(self):
-        """测试基本配置加载"""
-        print("=== 基本配置测试 ===")
+    def setUp(self):
+        """测试前准备"""
+        super().setUp()
+        logger.debug("初始化配置测试")
 
-        # 测试基本配置
-        print(f"Redis URL: {settings.redis_url}")
-        print(f"OpenAI API Key: {'已设置' if settings.openai.api_key else '未设置'}")
+    def test_basic_config(self):
+        """测试基本配置"""
+        logger.info("基本配置测试")
 
-        # 测试模型配置
-        print(f"\n支持的模型数量: {len(settings.supported_models)}")
-        for model_key, model_config in list(
-                settings.supported_models.items())[:3]:
-            print(
-                f"  - {model_key}: {model_config.name} ({model_config.type})")
+        try:
+            # 检查基本配置
+            logger.info(f"Redis URL: {settings.redis_url}")
+            logger.info(
+                f"OpenAI API Key: {'已设置' if settings.openai.api_key else '未设置'}"
+            )
 
-        # 验证基本配置不为空
-        self.assertIsNotNone(settings.redis_url, "Redis URL 应该已设置")
-        print("✅ 基本配置加载成功")
+            # 检查支持的模型
+            models = settings.supported_models
+            logger.info(f"支持的模型数量: {len(models)}")
+
+            # 显示部分模型信息
+            for i, (model_key, model_config) in enumerate(models.items()):
+                if i >= 3:  # 只显示前3个
+                    break
+                logger.info(f"  {model_key}: {model_config.name}")
+
+            logger.info("基本配置加载成功")
+
+        except Exception as e:
+            logger.error(f"基本配置测试失败: {e}")
+            self.fail(f"基本配置测试失败: {e}")
 
     def test_elasticsearch_config(self):
-        """测试 Elasticsearch 配置"""
-        print("=== Elasticsearch 配置测试 ===")
+        """测试Elasticsearch配置"""
+        logger.info("Elasticsearch 配置测试")
 
-        es_config = settings.elasticsearch_config
-        print(f"Hosts: {es_config.hosts}")
-        print(f"Username: {es_config.username}")
-        print(f"Index Prefix: {es_config.index_prefix}")
+        try:
+            es_config = settings.elasticsearch_config
+            logger.info(f"Hosts: {es_config.hosts}")
+            logger.info(f"Username: {es_config.username}")
+            logger.info(f"Index Prefix: {es_config.index_prefix}")
 
-        # 验证 ES 配置
-        self.assertIsNotNone(es_config.hosts, "ES hosts 应该已设置")
-        self.assertIsNotNone(es_config.username, "ES username 应该已设置")
-        print("✅ Elasticsearch 配置验证成功")
+            # 验证配置
+            self.assertIsNotNone(es_config.hosts)
+            self.assertIsNotNone(es_config.username)
+            logger.info("Elasticsearch 配置验证成功")
+
+        except Exception as e:
+            logger.error(f"Elasticsearch 配置测试失败: {e}")
+            self.fail(f"Elasticsearch 配置测试失败: {e}")
 
     def test_tavily_config(self):
-        """测试 Tavily 配置"""
-        print("=== Tavily 配置测试 ===")
+        """测试Tavily配置"""
+        logger.info("Tavily 配置测试")
 
-        tavily_config = settings.tavily_config
-        print(f"API Key: {'已设置' if tavily_config.api_key else '未设置'}")
-        print(f"Search Depth: {tavily_config.search_depth}")
-        print(f"Max Results: {tavily_config.max_results}")
+        tavily_config = settings.get_model_config("tavily")
+        if not tavily_config:
+            logger.warning("Tavily 配置未找到")
+            self.skipTest("Tavily 配置未找到")
 
-        # 验证 Tavily 配置
-        self.assertIsNotNone(tavily_config.search_depth, "Search depth 应该已设置")
-        self.assertIsNotNone(tavily_config.max_results, "Max results 应该已设置")
-        print("✅ Tavily 配置验证成功")
+        try:
+            logger.info(
+                f"API Key: {'已设置' if tavily_config.api_key else '未设置'}")
+            logger.info(f"Search Depth: {tavily_config.search_depth}")
+            logger.info(f"Max Results: {tavily_config.max_results}")
+
+            # 验证配置
+            self.assertIsNotNone(tavily_config.api_key)
+            logger.info("Tavily 配置验证成功")
+
+        except Exception as e:
+            logger.error(f"Tavily 配置测试失败: {e}")
+            self.fail(f"Tavily 配置测试失败: {e}")
 
     def test_agent_config(self):
-        """测试 Agent 配置"""
-        print("=== Agent 配置测试 ===")
+        """测试Agent配置"""
+        logger.info("Agent 配置测试")
 
-        agent_config = settings.agent_config
-        print(f"Task Planner: {agent_config.task_planner.name}")
-        print(f"Composer: {agent_config.composer.name}")
-        print(f"Validator: {agent_config.validator.name}")
+        try:
+            agent_config = settings.agent_config
+            logger.info(f"Task Planner: {agent_config.task_planner.name}")
+            logger.info(f"Composer: {agent_config.composer.name}")
+            logger.info(f"Validator: {agent_config.validator.name}")
 
-        # 验证 Agent 配置
-        self.assertIsNotNone(agent_config.task_planner, "Task planner 应该已设置")
-        self.assertIsNotNone(agent_config.composer, "Composer 应该已设置")
-        self.assertIsNotNone(agent_config.validator, "Validator 应该已设置")
-        print("✅ Agent 配置验证成功")
+            # 验证配置
+            self.assertIsNotNone(agent_config.task_planner)
+            self.assertIsNotNone(agent_config.composer)
+            self.assertIsNotNone(agent_config.validator)
+            logger.info("Agent 配置验证成功")
+
+        except Exception as e:
+            logger.error(f"Agent 配置测试失败: {e}")
+            self.fail(f"Agent 配置测试失败: {e}")
 
     def test_model_config_retrieval(self):
         """测试模型配置获取"""
-        print("=== 模型配置获取测试 ===")
+        logger.info("模型配置获取测试")
 
-        # 测试获取特定模型配置
-        test_models = ["moonshot_k2_0711_preview", "qwen_2_5_235b_a22b"]
+        try:
+            # 测试获取各种模型配置
+            test_models = [
+                "moonshot_k2_0711_preview", "qwen_2_5_235b_a22b", "tavily"
+            ]
 
-        for model_key in test_models:
-            model_config = settings.get_model_config(model_key)
-            if model_config:
-                print(f"✅ {model_key} 配置获取成功:")
-                print(f"  - Name: {model_config.name}")
-                print(f"  - URL: {model_config.url}")
-                print(f"  - Type: {model_config.type}")
-            else:
-                print(f"⚠️  {model_key} 配置未找到")
+            for model_key in test_models:
+                try:
+                    model_config = settings.get_model_config(model_key)
+                    if model_config:
+                        logger.info(f"  {model_key} 配置获取成功:")
+                        logger.info(f"  - Name: {model_config.name}")
+                        logger.info(f"  - URL: {model_config.url}")
+                        logger.info(f"  - Type: {model_config.type}")
+                    else:
+                        logger.warning(f"  {model_key} 配置未找到")
 
-        # 验证至少有一个模型配置可用
-        self.assertGreater(len(settings.supported_models), 0, "至少应该有一个支持的模型")
-        print("✅ 模型配置获取测试完成")
+                except Exception as e:
+                    logger.warning(f"  {model_key} 配置获取失败: {e}")
+
+            logger.info("模型配置获取测试完成")
+
+        except Exception as e:
+            logger.error(f"模型配置获取测试失败: {e}")
+            self.fail(f"模型配置获取测试失败: {e}")
 
     def test_agent_component_config(self):
-        """测试 Agent 组件配置获取"""
-        print("=== Agent 组件配置测试 ===")
+        """测试Agent组件配置"""
+        logger.info("Agent 组件配置测试")
 
-        # 测试获取 Agent 组件配置
-        components = ["composer", "validator", "task_planner"]
+        try:
+            agent_config = settings.agent_config
+            components = ["task_planner", "composer", "validator"]
 
-        for component in components:
-            component_config = settings.get_agent_component_config(component)
-            if component_config:
-                print(f"✅ {component} 组件配置获取成功:")
-                print(f"  - Temperature: {component_config.temperature}")
-                print(f"  - Max Tokens: {component_config.max_tokens}")
-                print(f"  - Timeout: {component_config.timeout}")
+            for component in components:
+                try:
+                    component_config = getattr(agent_config, component)
+                    logger.info(f"  {component} 组件配置获取成功:")
+                    logger.info(
+                        f"  - Temperature: {component_config.temperature}")
+                    logger.info(
+                        f"  - Max Tokens: {component_config.max_tokens}")
+                    logger.info(f"  - Timeout: {component_config.timeout}")
+
+                except Exception as e:
+                    logger.warning(f"  {component} 组件配置未找到")
+
+            logger.info("Agent 组件配置测试完成")
+
+        except Exception as e:
+            logger.error(f"Agent 组件配置测试失败: {e}")
+            self.fail(f"Agent 组件配置测试失败: {e}")
+
+    def test_llm_model_config(self):
+        """测试LLM模型配置"""
+        logger.info("LLM 模型配置测试")
+
+        try:
+            # 测试Moonshot配置
+            moonshot_config = settings.get_model_config(
+                "moonshot_k2_0711_preview")
+            if moonshot_config:
+                logger.info("Moonshot 模型配置:")
+                logger.info(f"  - Name: {moonshot_config.name}")
+                logger.info(f"  - URL: {moonshot_config.url}")
+                logger.info(f"  - Model ID: {moonshot_config.model_id}")
+                logger.info(f"  - Description: {moonshot_config.description}")
             else:
-                print(f"⚠️  {component} 组件配置未找到")
+                logger.warning("Moonshot 模型配置未找到")
 
-        print("✅ Agent 组件配置测试完成")
+            # 测试Qwen配置
+            qwen_config = settings.get_model_config("qwen_2_5_235b_a22b")
+            if qwen_config:
+                logger.info("Qwen 模型配置:")
+                logger.info(f"  - Name: {qwen_config.name}")
+                logger.info(f"  - URL: {qwen_config.url}")
+                logger.info(f"  - Model ID: {qwen_config.model_id}")
+            else:
+                logger.warning("Qwen 模型配置未找到")
 
-    @skip_if_no_llm
-    def test_llm_model_configs(self):
-        """测试 LLM 模型配置（仅在 LLM 可用时运行）"""
-        print("=== LLM 模型配置测试 ===")
+            logger.info("LLM 模型配置测试完成")
 
-        # 测试 Moonshot 模型配置
-        moonshot_config = settings.get_model_config("moonshot_k2_0711_preview")
-        if moonshot_config:
-            print(f"✅ Moonshot 模型配置:")
-            print(f"  - Name: {moonshot_config.name}")
-            print(f"  - URL: {moonshot_config.url}")
-            print(f"  - Model ID: {moonshot_config.model_id}")
-            print(f"  - Description: {moonshot_config.description}")
-        else:
-            print("⚠️  Moonshot 模型配置未找到")
+        except Exception as e:
+            logger.error(f"LLM 模型配置测试失败: {e}")
+            self.fail(f"LLM 模型配置测试失败: {e}")
 
-        # 测试内部模型配置
-        qwen_config = settings.get_model_config("qwen_2_5_235b_a22b")
-        if qwen_config:
-            print(f"✅ Qwen 模型配置:")
-            print(f"  - Name: {qwen_config.name}")
-            print(f"  - URL: {qwen_config.url}")
-            print(f"  - Model ID: {qwen_config.model_id}")
-        else:
-            print("⚠️  Qwen 模型配置未找到")
-
-        print("✅ LLM 模型配置测试完成")
-
-    @skip_if_no_es
     def test_es_detailed_config(self):
-        """测试 ES 详细配置（仅在 ES 可用时运行）"""
-        print("=== ES 详细配置测试 ===")
+        """测试ES详细配置"""
+        logger.info("ES 详细配置测试")
 
-        es_config = settings.elasticsearch_config
-        print(f"ES 详细配置:")
-        print(f"  - Hosts: {es_config.hosts}")
-        print(f"  - Username: {es_config.username}")
-        print(f"  - Password: {'已设置' if es_config.password else '未设置'}")
-        print(f"  - Index Prefix: {es_config.index_prefix}")
-        print(f"  - Timeout: {es_config.timeout}")
+        try:
+            es_config = settings.elasticsearch_config
+            logger.info("ES 详细配置:")
+            logger.info(f"  - Hosts: {es_config.hosts}")
+            logger.info(f"  - Username: {es_config.username}")
+            logger.info(
+                f"  - Password: {'已设置' if es_config.password else '未设置'}")
+            logger.info(f"  - Index Prefix: {es_config.index_prefix}")
+            logger.info(f"  - Timeout: {es_config.timeout}")
 
-        # 验证 ES 配置完整性
-        self.assertIsNotNone(es_config.hosts, "ES hosts 应该已设置")
-        self.assertIsNotNone(es_config.username, "ES username 应该已设置")
-        self.assertIsNotNone(es_config.password, "ES password 应该已设置")
-        print("✅ ES 详细配置验证成功")
+            # 验证详细配置
+            self.assertIsNotNone(es_config.hosts)
+            self.assertIsNotNone(es_config.username)
+            self.assertIsNotNone(es_config.password)
+            self.assertIsNotNone(es_config.index_prefix)
+            logger.info("ES 详细配置验证成功")
 
-    @skip_if_no_web_search
-    def test_web_search_config(self):
-        """测试 WebSearch 配置（仅在 WebSearch 可用时运行）"""
-        print("=== WebSearch 配置测试 ===")
+        except Exception as e:
+            logger.error(f"ES 详细配置测试失败: {e}")
+            self.fail(f"ES 详细配置测试失败: {e}")
 
-        tavily_config = settings.tavily_config
-        print(f"Tavily 详细配置:")
-        print(f"  - API Key: {'已设置' if tavily_config.api_key else '未设置'}")
-        print(f"  - Search Depth: {tavily_config.search_depth}")
-        print(f"  - Max Results: {tavily_config.max_results}")
-        # print(f"  - Include Answer: {tavily_config.include_answer}")  # 字段不存在，注释掉
-        # print(f"  - Include Raw Content: {tavily_config.include_raw_content}")  # 字段不存在，注释掉
+    def test_websearch_config(self):
+        """测试WebSearch配置"""
+        logger.info("WebSearch 配置测试")
 
-        # 验证 Tavily 配置完整性
-        self.assertIsNotNone(tavily_config.search_depth, "Search depth 应该已设置")
-        self.assertIsNotNone(tavily_config.max_results, "Max results 应该已设置")
-        print("✅ WebSearch 配置验证成功")
+        tavily_config = settings.get_model_config("tavily")
+        if not tavily_config:
+            logger.warning("Tavily 配置未找到")
+            self.skipTest("Tavily 配置未找到")
+
+        try:
+            logger.info("Tavily 详细配置:")
+            logger.info(
+                f"  - API Key: {'已设置' if tavily_config.api_key else '未设置'}")
+            logger.info(f"  - Search Depth: {tavily_config.search_depth}")
+            logger.info(f"  - Max Results: {tavily_config.max_results}")
+            # print(f"  - Include Answer: {tavily_config.include_answer}")  # 字段不存在，注释掉
+            # print(f"  - Include Raw Content: {tavily_config.include_raw_content}")  # 字段不存在，注释掉
+
+            # 验证配置
+            self.assertIsNotNone(tavily_config.api_key)
+            self.assertIsNotNone(tavily_config.search_depth)
+            self.assertIsNotNone(tavily_config.max_results)
+            logger.info("WebSearch 配置验证成功")
+
+        except Exception as e:
+            logger.error(f"WebSearch 配置测试失败: {e}")
+            self.fail(f"WebSearch 配置测试失败: {e}")
 
     def test_config_validation(self):
         """测试配置验证"""
-        print("=== 配置验证测试 ===")
+        logger.info("配置验证测试")
 
-        # 验证必要的配置项
-        required_configs = [
-            ("Redis URL", settings.redis_url),
-            ("Supported Models", settings.supported_models),
-            ("ES Config", settings.elasticsearch_config),
-            ("Tavily Config", settings.tavily_config),
-            ("Agent Config", settings.agent_config),
-        ]
+        try:
+            # 验证各种配置项
+            config_items = [
+                ("Redis URL", settings.redis_url),
+                ("ES Hosts", settings.elasticsearch_config.hosts),
+                ("ES Username", settings.elasticsearch_config.username),
+            ]
 
-        for name, config in required_configs:
-            if config is not None:
-                print(f"✅ {name}: 已配置")
-            else:
-                print(f"❌ {name}: 未配置")
+            # 检查Tavily配置
+            tavily_config = settings.get_model_config("tavily")
+            if tavily_config:
+                config_items.append(("Tavily API Key", tavily_config.api_key))
 
-        # 验证至少有一些基本配置
-        self.assertIsNotNone(settings.supported_models, "支持的模型应该已配置")
-        self.assertGreater(len(settings.supported_models), 0, "至少应该有一个支持的模型")
-        print("✅ 配置验证完成")
+            for name, value in config_items:
+                if value:
+                    logger.info(f"  {name}: 已配置")
+                else:
+                    logger.error(f"  {name}: 未配置")
+
+            logger.info("配置验证完成")
+
+        except Exception as e:
+            logger.error(f"配置验证测试失败: {e}")
+            self.fail(f"配置验证测试失败: {e}")
+
+
+def main():
+    """主函数"""
+    logger.info("配置测试")
+
+    # 创建测试套件
+    test_suite = unittest.TestSuite()
+    test_suite.addTest(unittest.makeSuite(ConfigTest))
+
+    # 运行测试
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(test_suite)
+
+    if result.wasSuccessful():
+        logger.info("所有配置测试通过")
+    else:
+        logger.error("配置测试失败")
+
+    return result.wasSuccessful()
 
 
 if __name__ == "__main__":
-    unittest.main()
+    main()

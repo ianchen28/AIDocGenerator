@@ -1,4 +1,6 @@
 # service/src/doc_agent/llm_clients/providers.py
+from loguru import logger
+import pprint
 import re
 import httpx
 from .base import LLMClient
@@ -113,6 +115,10 @@ class GeminiClient(LLMClient):
                     }
                 }
 
+            logger.debug(
+                f"Gemini API request:\nURL: {url}\nData: {pprint.pformat(data)}"
+            )
+
             with httpx.Client(timeout=60.0) as client:
                 response = client.post(url, json=data, headers=headers)
                 response.raise_for_status()
@@ -124,9 +130,9 @@ class GeminiClient(LLMClient):
                     # ChatAI API 返回 OpenAI 兼容格式
                     if "choices" in result and len(result["choices"]) > 0:
                         content = result["choices"][0]["message"]["content"]
-                        print(f"🔍 ChatAI原始响应: '{content}'")
+                        logger.debug(f"🔍 ChatAI原始响应: '{content}'")
                         parsed_content = self.parser.parse(content)
-                        print(f"🔍 ChatAI解析后: '{parsed_content}'")
+                        logger.debug(f"🔍 ChatAI解析后: '{parsed_content}'")
                         return parsed_content
                     else:
                         raise ValueError(
@@ -137,15 +143,16 @@ class GeminiClient(LLMClient):
                             result["candidates"]) > 0:
                         content = result["candidates"][0]["content"]["parts"][
                             0]["text"]
-                        print(f"🔍 Gemini原始响应: '{content}'")
+                        logger.debug(f"🔍 Gemini原始响应: '{content}'")
                         parsed_content = self.parser.parse(content)
-                        print(f"🔍 Gemini解析后: '{parsed_content}'")
+                        logger.debug(f"🔍 Gemini解析后: '{parsed_content}'")
                         return parsed_content
                     else:
                         raise ValueError(
                             "No response content received from Gemini API")
 
         except Exception as e:
+            logger.error(f"Gemini API调用失败: {str(e)}")
             raise Exception(f"Gemini API调用失败: {str(e)}")
 
 
@@ -196,6 +203,10 @@ class DeepSeekClient(LLMClient):
                 "max_tokens": max_tokens
             }
 
+            logger.debug(
+                f"DeepSeek API request:\nURL: {self.base_url}/chat/completions\nData: {pprint.pformat(data)}"
+            )
+
             # 发送请求
             url = f"{self.base_url}/chat/completions"
             headers = {"Authorization": f"Bearer {self.api_key}"}
@@ -215,6 +226,7 @@ class DeepSeekClient(LLMClient):
                         "No response content received from DeepSeek API")
 
         except Exception as e:
+            logger.error(f"DeepSeek API调用失败: {str(e)}")
             raise Exception(f"DeepSeek API调用失败: {str(e)}")
 
 
@@ -266,6 +278,10 @@ class MoonshotClient(LLMClient):
                 "max_tokens": max_tokens
             }
 
+            logger.debug(
+                f"Moonshot API request:\nURL: {self.base_url}/chat/completions\nData: {pprint.pformat(data)}"
+            )
+
             # 发送请求
             url = f"{self.base_url}/chat/completions"
             headers = {
@@ -285,15 +301,16 @@ class MoonshotClient(LLMClient):
                 # 提取响应内容
                 if "choices" in result and len(result["choices"]) > 0:
                     content = result["choices"][0]["message"]["content"]
-                    print(f"🔍 Moonshot原始响应: '{content}'")
+                    logger.debug(f"🔍 Moonshot原始响应: '{content}'")
                     parsed_content = self.parser.parse(content)
-                    print(f"🔍 Moonshot解析后: '{parsed_content}'")
+                    logger.debug(f"🔍 Moonshot解析后: '{parsed_content}'")
                     return parsed_content
                 else:
                     raise ValueError(
                         "No response content received from Moonshot API")
 
         except Exception as e:
+            logger.error(f"Moonshot API调用失败: {str(e)}")
             raise Exception(f"Moonshot API调用失败: {str(e)}")
 
 
@@ -345,6 +362,10 @@ class InternalLLMClient(LLMClient):
                 "max_tokens": max_tokens
             }
 
+            logger.debug(
+                f"Internal API request:\nURL: {self.base_url}/chat/completions\nData: {pprint.pformat(data)}"
+            )
+
             # 发送请求
             url = f"{self.base_url}/chat/completions"
             headers = {
@@ -366,6 +387,7 @@ class InternalLLMClient(LLMClient):
                         "No response content received from Internal API")
 
         except Exception as e:
+            logger.error(f"Internal API调用失败: {str(e)}")
             raise Exception(f"Internal API调用失败: {str(e)}")
 
 
@@ -400,12 +422,18 @@ class RerankerClient(LLMClient):
             headers = {
                 "Authorization": f"Bearer {self.api_key}"
             } if self.api_key != "EMPTY" else {}
+
+            logger.debug(
+                f"Reranker API request:\nURL: {url}\nData: {pprint.pformat(data)}"
+            )
+
             with httpx.Client(timeout=60.0) as client:
                 response = client.post(url, json=data, headers=headers)
                 response.raise_for_status()
                 result = response.json()
                 return result
         except Exception as e:
+            logger.error(f"Reranker API调用失败: {str(e)}")
             raise Exception(f"Reranker API调用失败: {str(e)}")
 
 
@@ -437,6 +465,10 @@ class EmbeddingClient(LLMClient):
             # 构建请求数据 - 修复字段名
             data = {"inputs": prompt, "model": kwargs.get("model", "gte-qwen")}
 
+            logger.debug(
+                f"Embedding API request:\nURL: {self.base_url}\nData: {pprint.pformat(data)}"
+            )
+
             # 发送请求 - 直接使用根端点，因为测试显示它工作正常
             url = f"{self.base_url}"
             headers = {
@@ -450,4 +482,5 @@ class EmbeddingClient(LLMClient):
                 return str(result)  # 返回嵌入向量
 
         except Exception as e:
+            logger.error(f"Embedding API调用失败: {str(e)}")
             raise Exception(f"Embedding API调用失败: {str(e)}")

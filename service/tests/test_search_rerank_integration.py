@@ -9,6 +9,7 @@ import sys
 import os
 import unittest
 from pathlib import Path
+from loguru import logger
 
 # 设置环境变量
 os.environ['PYTHONPATH'] = '/Users/chenyuyang/git/AIDocGenerator/service'
@@ -33,6 +34,7 @@ class SearchRerankIntegrationTest(LLMTestCase):
     def setUp(self):
         """测试前准备"""
         super().setUp()
+        logger.debug("初始化搜索和重排序集成测试")
 
         # 获取ES配置
         es_config = settings.elasticsearch_config
@@ -42,10 +44,11 @@ class SearchRerankIntegrationTest(LLMTestCase):
                                                password=es_config.password,
                                                timeout=es_config.timeout)
             self.has_es = True
+            logger.debug("ES配置可用")
         else:
             self.es_search_tool = None
             self.has_es = False
-            print("⚠️  未找到ES配置，将跳过相关测试")
+            logger.warning("未找到ES配置，将跳过相关测试")
 
         # 获取reranker配置
         reranker_config = settings.get_model_config("reranker")
@@ -53,25 +56,23 @@ class SearchRerankIntegrationTest(LLMTestCase):
             self.reranker_tool = RerankerTool(base_url=reranker_config.url,
                                               api_key=reranker_config.api_key)
             self.has_reranker = True
+            logger.debug("Reranker配置可用")
         else:
             self.reranker_tool = None
             self.has_reranker = False
-            print("⚠️  未找到reranker配置，将跳过相关测试")
+            logger.warning("未找到reranker配置，将跳过相关测试")
 
     @skip_if_no_reranker
     async def test_search_and_rerank_basic(self):
         """测试基础搜索和重排序功能"""
-        print("\n" + "=" * 60)
-        print("🔍 测试基础搜索和重排序功能")
-        print("=" * 60)
+        logger.info("测试基础搜索和重排序功能")
 
         if not self.has_es:
-            print("❌ ES配置不可用，跳过测试")
+            logger.error("ES配置不可用，跳过测试")
             return
 
         query = "人工智能电力行业应用"
-
-        print(f"🔍 查询: {query}")
+        logger.info(f"查询: {query}")
 
         try:
             # 执行搜索和重排序
@@ -83,10 +84,10 @@ class SearchRerankIntegrationTest(LLMTestCase):
                 initial_top_k=10,
                 final_top_k=5)
 
-            print(f"✅ 搜索和重排序完成")
-            print(f"📄 原始搜索结果数量: {len(search_results)}")
-            print(f"📄 重排序结果数量: {len(reranked_results)}")
-            print(f"📝 格式化结果长度: {len(formatted_result)}")
+            logger.info("搜索和重排序完成")
+            logger.info(f"原始搜索结果数量: {len(search_results)}")
+            logger.info(f"重排序结果数量: {len(reranked_results)}")
+            logger.info(f"格式化结果长度: {len(formatted_result)}")
 
             # 验证结果
             self.assertIsInstance(search_results, list)
@@ -95,9 +96,9 @@ class SearchRerankIntegrationTest(LLMTestCase):
 
             # 显示重排序结果
             if reranked_results:
-                print(f"\n📋 重排序结果预览:")
+                logger.info("重排序结果预览:")
                 for i, result in enumerate(reranked_results[:3], 1):
-                    print(
+                    logger.info(
                         f"  {i}. 评分: {result.rerank_score:.3f} | {result.div_content[:50]}..."
                     )
 
@@ -105,23 +106,20 @@ class SearchRerankIntegrationTest(LLMTestCase):
             self.assertLessEqual(len(reranked_results), 5)
 
         except Exception as e:
-            print(f"❌ 搜索和重排序测试失败: {str(e)}")
+            logger.error(f"搜索和重排序测试失败: {str(e)}")
             self.fail(f"搜索和重排序测试失败: {str(e)}")
 
     @skip_if_no_reranker
     async def test_search_and_rerank_without_reranker(self):
         """测试没有重排序工具的情况"""
-        print("\n" + "=" * 60)
-        print("🔍 测试没有重排序工具的情况")
-        print("=" * 60)
+        logger.info("测试没有重排序工具的情况")
 
         if not self.has_es:
-            print("❌ ES配置不可用，跳过测试")
+            logger.error("ES配置不可用，跳过测试")
             return
 
         query = "电力系统技术"
-
-        print(f"🔍 查询: {query}")
+        logger.info(f"查询: {query}")
 
         try:
             # 执行搜索，不提供重排序工具
@@ -133,10 +131,10 @@ class SearchRerankIntegrationTest(LLMTestCase):
                 initial_top_k=10,
                 final_top_k=5)
 
-            print(f"✅ 搜索完成（无重排序）")
-            print(f"📄 原始搜索结果数量: {len(search_results)}")
-            print(f"📄 重排序结果数量: {len(reranked_results)}")
-            print(f"📝 格式化结果长度: {len(formatted_result)}")
+            logger.info("搜索完成（无重排序）")
+            logger.info(f"原始搜索结果数量: {len(search_results)}")
+            logger.info(f"重排序结果数量: {len(reranked_results)}")
+            logger.info(f"格式化结果长度: {len(formatted_result)}")
 
             # 验证结果
             self.assertIsInstance(search_results, list)
@@ -147,15 +145,13 @@ class SearchRerankIntegrationTest(LLMTestCase):
             self.assertIn("找到", formatted_result)
 
         except Exception as e:
-            print(f"❌ 无重排序测试失败: {str(e)}")
+            logger.error(f"无重排序测试失败: {str(e)}")
             self.fail(f"无重排序测试失败: {str(e)}")
 
     @skip_if_no_reranker
     def test_format_functions(self):
         """测试格式化函数"""
-        print("\n" + "=" * 60)
-        print("🔍 测试格式化函数")
-        print("=" * 60)
+        logger.info("测试格式化函数")
 
         # 创建模拟的搜索结果
         from src.doc_agent.tools.es_service import ESSearchResult
@@ -181,8 +177,8 @@ class SearchRerankIntegrationTest(LLMTestCase):
         # 测试格式化搜索结果
         formatted_search = format_search_results(mock_results, query,
                                                  indices_list)
-        print(f"📝 搜索格式化结果长度: {len(formatted_search)}")
-        print(f"📋 搜索格式化结果预览: {formatted_search[:200]}...")
+        logger.info(f"搜索格式化结果长度: {len(formatted_search)}")
+        logger.debug(f"搜索格式化结果预览: {formatted_search[:200]}...")
 
         # 验证格式化结果
         self.assertIn("找到 2 个相关文档", formatted_search)
@@ -211,33 +207,34 @@ class SearchRerankIntegrationTest(LLMTestCase):
 
         formatted_reranked = format_reranked_results(mock_reranked_results,
                                                      query, indices_list)
-        print(f"📝 重排序格式化结果长度: {len(formatted_reranked)}")
-        print(f"📋 重排序格式化结果预览: {formatted_reranked[:200]}...")
+        logger.info(f"重排序格式化结果长度: {len(formatted_reranked)}")
+        logger.debug(f"重排序格式化结果预览: {formatted_reranked[:200]}...")
 
         # 验证重排序格式化结果
         self.assertIn("重排序后找到 2 个最相关文档", formatted_reranked)
         self.assertIn("原始评分", formatted_reranked)
         self.assertIn("重排序评分", formatted_reranked)
 
-        print(f"✅ 格式化函数测试通过")
+        logger.info("格式化函数测试通过")
 
     @skip_if_no_reranker
     async def test_search_performance(self):
         """测试搜索性能"""
-        print("\n" + "=" * 60)
-        print("⚡ 测试搜索性能")
-        print("=" * 60)
+        logger.info("测试搜索性能")
 
         if not self.has_es:
-            print("❌ ES配置不可用，跳过测试")
+            logger.error("ES配置不可用，跳过测试")
             return
 
         import time
 
-        test_queries = ["人工智能", "电力系统", "机器学习", "智能电网"]
+        queries = ["人工智能", "电力系统", "机器学习算法", "深度学习应用"]
 
-        for i, query in enumerate(test_queries, 1):
-            print(f"\n🔍 测试查询 {i}/{len(test_queries)}: {query}")
+        total_time = 0
+        total_results = 0
+
+        for i, query in enumerate(queries, 1):
+            logger.info(f"性能测试 {i}/{len(queries)}: {query}")
 
             start_time = time.time()
             try:
@@ -246,77 +243,74 @@ class SearchRerankIntegrationTest(LLMTestCase):
                     query=query,
                     query_vector=None,
                     reranker_tool=self.reranker_tool,
-                    initial_top_k=8,
+                    initial_top_k=5,
                     final_top_k=3)
+
                 end_time = time.time()
+                query_time = end_time - start_time
+                total_time += query_time
+                total_results += len(reranked_results)
 
-                response_time = end_time - start_time
-                print(f"⏱️  响应时间: {response_time:.3f} 秒")
-                print(f"📄 原始结果: {len(search_results)} 个")
-                print(f"📄 重排序结果: {len(reranked_results)} 个")
-
-                # 性能要求
-                if response_time < 10:  # 10秒内
-                    print(f"✅ 性能良好")
-                elif response_time < 20:  # 20秒内
-                    print(f"⚠️  性能一般")
-                else:
-                    print(f"❌ 性能较差")
+                logger.info(
+                    f"查询耗时: {query_time:.2f}秒, 结果数量: {len(reranked_results)}")
 
             except Exception as e:
-                print(f"❌ 查询失败: {str(e)}")
+                logger.error(f"性能测试查询失败: {query}, 错误: {str(e)}")
+
+        avg_time = total_time / len(queries) if queries else 0
+        avg_results = total_results / len(queries) if queries else 0
+
+        logger.info(f"性能测试完成:")
+        logger.info(f"  平均查询时间: {avg_time:.2f}秒")
+        logger.info(f"  平均结果数量: {avg_results:.1f}")
+        logger.info(f"  总查询时间: {total_time:.2f}秒")
+
+        # 性能基准测试
+        self.assertLess(avg_time, 10.0)  # 平均查询时间应该小于10秒
+        self.assertGreater(avg_results, 0)  # 应该有结果返回
 
 
 async def run_async_tests():
     """运行异步测试"""
-    import asyncio
+    logger.info("运行异步集成测试")
 
-    # 创建测试实例
     test_instance = SearchRerankIntegrationTest()
     test_instance.setUp()
 
-    print("🚀 运行异步搜索和重排序集成测试")
-    print("=" * 80)
-
-    # 运行异步测试
     try:
         await test_instance.test_search_and_rerank_basic()
-        print("✅ test_search_and_rerank_basic 通过")
-    except Exception as e:
-        print(f"❌ test_search_and_rerank_basic 失败: {str(e)}")
-
-    try:
         await test_instance.test_search_and_rerank_without_reranker()
-        print("✅ test_search_and_rerank_without_reranker 通过")
-    except Exception as e:
-        print(f"❌ test_search_and_rerank_without_reranker 失败: {str(e)}")
-
-    try:
         await test_instance.test_search_performance()
-        print("✅ test_search_performance 通过")
+        test_instance.test_format_functions()
+
+        logger.info("所有异步集成测试通过")
+        return True
     except Exception as e:
-        print(f"❌ test_search_performance 失败: {str(e)}")
-
-    test_instance.test_format_functions()
-    print("✅ test_format_functions 通过")
-
-    print("\n" + "=" * 80)
-    print("📊 异步集成测试完成")
-    print("=" * 80)
-
-    return True
+        logger.error(f"异步集成测试失败: {str(e)}")
+        return False
+    finally:
+        # 清理资源
+        if hasattr(test_instance,
+                   'es_search_tool') and test_instance.es_search_tool:
+            try:
+                await test_instance.es_search_tool.close()
+                logger.info("ES搜索工具连接已关闭")
+            except Exception as e:
+                logger.warning(f"关闭ES搜索工具连接时出错: {str(e)}")
 
 
 def main():
-    """运行所有搜索和重排序集成测试"""
-    import asyncio
+    """主函数"""
+    logger.info("搜索和重排序集成测试")
 
-    # 运行异步测试
+    import asyncio
     success = asyncio.run(run_async_tests())
 
-    return success
+    if success:
+        logger.info("所有集成测试通过")
+    else:
+        logger.error("集成测试失败")
 
 
 if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+    main()

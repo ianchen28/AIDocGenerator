@@ -3,12 +3,10 @@ Elasticsearch搜索工具
 基于底层ES服务模块，提供简洁有效的搜索接口，支持KNN向量搜索
 """
 
-import logging
 from typing import Optional, List, Dict, Any
+from loguru import logger
 from .es_service import ESService, ESSearchResult
 from .es_discovery import ESDiscovery
-
-logger = logging.getLogger(__name__)
 
 
 class ESSearchTool:
@@ -46,10 +44,12 @@ class ESSearchTool:
         self._indices_list = []
         self._vector_dims = 1536
         self._initialized = False
+        logger.info("初始化ES搜索工具")
 
     async def _ensure_initialized(self):
         """确保已初始化"""
         if not self._initialized:
+            logger.info("开始初始化ES搜索工具")
             try:
                 # 发现可用索引
                 indices = await self._discovery.discover_knowledge_indices()
@@ -89,6 +89,15 @@ class ESSearchTool:
         Returns:
             List[ESSearchResult]: 搜索结果列表
         """
+        logger.info(f"开始ES搜索，查询: {query[:50]}...")
+        logger.debug(
+            f"搜索参数 - top_k: {top_k}, use_multiple_indices: {use_multiple_indices}"
+        )
+        if query_vector:
+            logger.debug(f"查询向量维度: {len(query_vector)}")
+        if filters:
+            logger.debug(f"过滤条件: {filters}")
+
         try:
             # 确保已初始化
             await self._ensure_initialized()
@@ -113,6 +122,9 @@ class ESSearchTool:
             if config:
                 vector_recall_size = config.get('vector_recall_size', top_k)
                 min_score = config.get('min_score', 0.3)
+                logger.debug(
+                    f"使用配置参数 - vector_recall_size: {vector_recall_size}, min_score: {min_score}"
+                )
             else:
                 vector_recall_size = top_k
                 min_score = 0.3
@@ -120,6 +132,7 @@ class ESSearchTool:
             # 执行搜索
             if use_multiple_indices and len(self._indices_list) > 1:
                 # 多索引搜索
+                logger.info(f"执行多索引搜索，索引数量: {len(self._indices_list)}")
                 results = await self._es_service.search_multiple_indices(
                     indices=self._indices_list,
                     query=query,
@@ -134,6 +147,7 @@ class ESSearchTool:
                     logger.warning("没有可用的索引")
                     return []
 
+                logger.info(f"执行单索引搜索，索引: {index_to_use}")
                 results = await self._es_service.search(
                     index=index_to_use,
                     query=query,
@@ -143,8 +157,11 @@ class ESSearchTool:
 
             # 根据最小分数过滤结果
             if min_score > 0:
+                original_count = len(results)
                 results = [r for r in results if r.score >= min_score]
-                logger.info(f"根据最小分数 {min_score} 过滤后，剩余 {len(results)} 个结果")
+                logger.info(
+                    f"根据最小分数 {min_score} 过滤后，剩余 {len(results)} 个结果（原始: {original_count}）"
+                )
 
             logger.info(f"ES搜索完成，返回 {len(results)} 个结果")
             return results
@@ -172,8 +189,16 @@ class ESSearchTool:
         Returns:
             List[ESSearchResult]: 搜索结果列表
         """
+        logger.info(f"开始混合搜索，查询: {query[:50]}...")
+        logger.debug(f"混合搜索参数 - top_k: {top_k}")
+        if query_vector:
+            logger.debug(f"查询向量维度: {len(query_vector)}")
+        if filters:
+            logger.debug(f"过滤条件: {filters}")
+
         if not query_vector:
             # 如果没有向量，回退到普通搜索
+            logger.info("没有查询向量，回退到普通搜索")
             return await self.search(query,
                                      None,
                                      top_k,
@@ -194,11 +219,15 @@ class ESSearchTool:
                 else:
                     query_vector.extend(
                         [0.0] * (self._vector_dims - len(query_vector)))
+                logger.info(f"调整向量维度到 {self._vector_dims}")
 
             # 使用配置参数或默认值
             if config:
                 hybrid_recall_size = config.get('hybrid_recall_size', top_k)
                 min_score = config.get('min_score', 0.3)
+                logger.debug(
+                    f"使用配置参数 - hybrid_recall_size: {hybrid_recall_size}, min_score: {min_score}"
+                )
             else:
                 hybrid_recall_size = top_k
                 min_score = 0.3
@@ -210,6 +239,7 @@ class ESSearchTool:
                 logger.warning("没有可用的索引")
                 return []
 
+            logger.info(f"执行混合搜索，索引: {index_to_use}")
             results = await self._es_service.search(index=index_to_use,
                                                     query=query,
                                                     top_k=hybrid_recall_size,
@@ -218,8 +248,11 @@ class ESSearchTool:
 
             # 根据最小分数过滤结果
             if min_score > 0:
+                original_count = len(results)
                 results = [r for r in results if r.score >= min_score]
-                logger.info(f"根据最小分数 {min_score} 过滤后，剩余 {len(results)} 个结果")
+                logger.info(
+                    f"根据最小分数 {min_score} 过滤后，剩余 {len(results)} 个结果（原始: {original_count}）"
+                )
 
             logger.info(f"混合搜索完成，返回 {len(results)} 个结果")
             return results
@@ -231,23 +264,28 @@ class ESSearchTool:
     async def get_available_indices(self) -> List[str]:
         """获取可用索引列表"""
         await self._ensure_initialized()
+        logger.debug(f"获取可用索引列表，共 {len(self._indices_list)} 个")
         return self._indices_list.copy()
 
     async def get_current_index(self) -> Optional[str]:
         """获取当前使用的索引"""
         await self._ensure_initialized()
+        logger.debug(f"获取当前索引: {self._current_index}")
         return self._current_index
 
     async def __aenter__(self):
         """异步上下文管理器入口"""
+        logger.debug("进入ES搜索工具异步上下文")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """异步上下文管理器出口，自动关闭连接"""
+        logger.debug("退出ES搜索工具异步上下文")
         await self.close()
 
     async def close(self):
         """关闭连接"""
+        logger.info("关闭ES搜索工具连接")
         try:
             await self._es_service.close()
             self._initialized = False
@@ -256,8 +294,10 @@ class ESSearchTool:
             try:
                 from . import unregister_es_tool
                 unregister_es_tool(self)
+                logger.debug("从全局注册表移除ES工具")
             except ImportError:
                 # 如果导入失败，说明不在测试环境中，忽略
+                logger.debug("不在测试环境中，跳过注册表移除")
                 pass
         except Exception as e:
             logger.error(f"关闭ES搜索工具时出错: {e}")
@@ -266,9 +306,11 @@ class ESSearchTool:
     async def _discover_available_indices(self):
         """发现可用索引（兼容性方法）"""
         await self._ensure_initialized()
+        logger.debug("调用兼容性方法 _discover_available_indices")
         return self._indices_list
 
     @property
     def _available_indices(self):
         """获取可用索引（兼容性属性）"""
+        logger.debug("调用兼容性属性 _available_indices")
         return self._indices_list

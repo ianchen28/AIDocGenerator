@@ -4,10 +4,11 @@
 """
 
 from test_base import NodeTestCase, skip_if_no_llm
-from src.doc_agent.graph.router import supervisor_router
+from src.doc_agent.graph.chapter_workflow.router import supervisor_router
 from src.doc_agent.graph.state import ResearchState
 from src.doc_agent.llm_clients import get_llm_client
 import unittest
+from loguru import logger
 
 
 class SupervisorRouterTest(NodeTestCase):
@@ -16,11 +17,12 @@ class SupervisorRouterTest(NodeTestCase):
     def setUp(self):
         super().setUp()
         self.llm_client = self.get_llm_client("moonshot_k2_0711_preview")
+        logger.debug("初始化 supervisor_router 测试")
 
     @skip_if_no_llm
     def test_sufficient_data(self):
         """测试充足的研究数据场景"""
-        print("\n=== 测试充足的研究数据场景 ===")
+        logger.info("测试充足的研究数据场景")
 
         state = ResearchState(topic="人工智能在医疗领域的应用",
                               research_plan="研究AI在医疗诊断、药物发现、个性化治疗等方面的应用",
@@ -73,12 +75,12 @@ class SupervisorRouterTest(NodeTestCase):
 
         result = supervisor_router(state, self.llm_client)
         self.assertEqual(result, "continue_to_writer")
-        print("✅ 充足数据测试通过，正确路由到写作者")
+        logger.info("充足数据测试通过，正确路由到写作者")
 
     @skip_if_no_llm
     def test_insufficient_data(self):
         """测试不足的研究数据场景"""
-        print("\n=== 测试不足的研究数据场景 ===")
+        logger.info("测试不足的研究数据场景")
 
         state = ResearchState(topic="量子计算在金融领域的应用",
                               research_plan="研究量子计算在金融建模、风险分析、投资优化等方面的应用",
@@ -103,12 +105,12 @@ class SupervisorRouterTest(NodeTestCase):
 
         result = supervisor_router(state, self.llm_client)
         self.assertEqual(result, "rerun_researcher")
-        print("✅ 不足数据测试通过，正确路由回研究者")
+        logger.info("不足数据测试通过，正确路由回研究者")
 
     @skip_if_no_llm
     def test_empty_data(self):
         """测试空数据场景"""
-        print("\n=== 测试空数据场景 ===")
+        logger.info("测试空数据场景")
 
         state = ResearchState(topic="区块链技术",
                               research_plan="研究区块链技术原理和应用",
@@ -119,12 +121,12 @@ class SupervisorRouterTest(NodeTestCase):
 
         result = supervisor_router(state, self.llm_client)
         self.assertEqual(result, "rerun_researcher")
-        print("✅ 空数据测试通过，正确路由回研究者")
+        logger.info("空数据测试通过，正确路由回研究者")
 
     @skip_if_no_llm
     def test_no_topic(self):
         """测试无主题场景"""
-        print("\n=== 测试无主题场景 ===")
+        logger.info("测试无主题场景")
 
         state = ResearchState(topic="",
                               research_plan="",
@@ -135,12 +137,12 @@ class SupervisorRouterTest(NodeTestCase):
 
         result = supervisor_router(state, self.llm_client)
         self.assertEqual(result, "rerun_researcher")
-        print("✅ 无主题测试通过，正确路由回研究者")
+        logger.info("无主题测试通过，正确路由回研究者")
 
     @skip_if_no_llm
     def test_minimal_data(self):
         """测试最小数据场景"""
-        print("\n=== 测试最小数据场景 ===")
+        logger.info("测试最小数据场景")
 
         state = ResearchState(
             topic="机器学习",
@@ -154,12 +156,12 @@ class SupervisorRouterTest(NodeTestCase):
         result = supervisor_router(state, self.llm_client)
         # 最小数据可能路由到写作者或继续研究，取决于LLM判断
         self.assertIn(result, ["continue_to_writer", "rerun_researcher"])
-        print(f"✅ 最小数据测试通过，路由结果: {result}")
+        logger.info(f"最小数据测试通过，路由结果: {result}")
 
     @skip_if_no_llm
     def test_error_handling(self):
         """测试错误处理"""
-        print("\n=== 测试错误处理 ===")
+        logger.info("测试错误处理")
 
         class MockLLMClient:
 
@@ -177,12 +179,12 @@ class SupervisorRouterTest(NodeTestCase):
         # 应该返回默认路由而不是崩溃
         result = supervisor_router(state, mock_client)
         self.assertEqual(result, "rerun_researcher")
-        print("✅ 错误处理测试通过，LLM失败时正确回退")
+        logger.info("错误处理测试通过，LLM失败时正确回退")
 
     @skip_if_no_llm
     def test_different_topics(self):
         """测试不同主题的路由决策"""
-        print("\n=== 测试不同主题的路由决策 ===")
+        logger.info("测试不同主题的路由决策")
 
         test_cases = [{
             "topic": "深度学习",
@@ -196,6 +198,7 @@ class SupervisorRouterTest(NodeTestCase):
         }]
 
         for i, case in enumerate(test_cases):
+            logger.debug(f"测试用例 {i+1}: {case['topic']}")
             state = ResearchState(topic=case["topic"],
                                   research_plan=f"研究{case['topic']}",
                                   search_queries=[case["topic"]],
@@ -204,12 +207,99 @@ class SupervisorRouterTest(NodeTestCase):
                                   messages=[])
 
             result = supervisor_router(state, self.llm_client)
-            print(
-                f"  主题 '{case['topic']}': 期望 {case['expected']}, 实际 {result}")
-            # 由于LLM可能给出不同判断，我们只验证结果是有效的路由
-            self.assertIn(result, ["continue_to_writer", "rerun_researcher"])
+            self.assertEqual(result, case["expected"])
+            logger.info(f"主题 '{case['topic']}' 测试通过，路由结果: {result}")
 
-        print("✅ 不同主题路由测试通过")
+    @skip_if_no_llm
+    def test_complex_data(self):
+        """测试复杂数据结构"""
+        logger.info("测试复杂数据结构")
+
+        complex_data = """
+=== 搜索查询 1: 人工智能 ===
+
+知识库搜索结果:
+1. AI技术发展
+   - 机器学习算法
+   - 深度学习框架
+   - 自然语言处理
+   - 计算机视觉
+
+2. 应用领域
+   - 医疗健康
+   - 金融服务
+   - 教育科技
+   - 智能制造
+
+3. 技术挑战
+   - 数据隐私保护
+   - 算法公平性
+   - 可解释性
+   - 鲁棒性
+
+=== 搜索查询 2: 机器学习 ===
+
+知识库搜索结果:
+1. 监督学习
+   - 分类算法
+   - 回归算法
+   - 支持向量机
+   - 决策树
+
+2. 无监督学习
+   - 聚类算法
+   - 降维技术
+   - 关联规则
+   - 异常检测
+
+3. 强化学习
+   - Q学习
+   - 策略梯度
+   - 深度强化学习
+   - 多智能体系统
+"""
+
+        state = ResearchState(topic="人工智能技术综述",
+                              research_plan="全面研究AI技术发展、应用和挑战",
+                              search_queries=["人工智能", "机器学习"],
+                              gathered_data=complex_data,
+                              final_document="",
+                              messages=[])
+
+        result = supervisor_router(state, self.llm_client)
+        self.assertEqual(result, "continue_to_writer")
+        logger.info("复杂数据测试通过，正确路由到写作者")
+
+    @skip_if_no_llm
+    def test_edge_cases(self):
+        """测试边界情况"""
+        logger.info("测试边界情况")
+
+        # 测试极长数据
+        long_data = "详细数据 " * 1000
+        state = ResearchState(topic="长数据测试",
+                              research_plan="测试长数据处理",
+                              search_queries=["测试"],
+                              gathered_data=long_data,
+                              final_document="",
+                              messages=[])
+
+        result = supervisor_router(state, self.llm_client)
+        self.assertIn(result, ["continue_to_writer", "rerun_researcher"])
+        logger.info(f"长数据测试通过，路由结果: {result}")
+
+        # 测试特殊字符
+        special_data = "包含特殊字符的数据：!@#$%^&*()_+-=[]{}|;':\",./<>?"
+        state = ResearchState(topic="特殊字符测试",
+                              research_plan="测试特殊字符处理",
+                              search_queries=["测试"],
+                              gathered_data=special_data,
+                              final_document="",
+                              messages=[])
+
+        result = supervisor_router(state, self.llm_client)
+        self.assertIn(result, ["continue_to_writer", "rerun_researcher"])
+        logger.info(f"特殊字符测试通过，路由结果: {result}")
 
 
 if __name__ == "__main__":

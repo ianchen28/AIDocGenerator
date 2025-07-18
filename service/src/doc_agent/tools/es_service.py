@@ -3,13 +3,11 @@ Elasticsearch 底层服务模块
 提供基础的ES连接和搜索功能，支持KNN向量搜索
 """
 
-import logging
 from typing import List, Dict, Any, Optional, Union
 from dataclasses import dataclass
 from elasticsearch import AsyncElasticsearch
 import asyncio
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 @dataclass
@@ -51,9 +49,11 @@ class ESService:
         self.timeout = timeout
         self._client: Optional[AsyncElasticsearch] = None
         self._initialized = False
+        logger.info("初始化ES服务")
 
     async def connect(self) -> bool:
         """连接ES服务"""
+        logger.info("开始连接ES服务")
         try:
             es_kwargs = {
                 "hosts": self.hosts,
@@ -66,6 +66,7 @@ class ESService:
 
             if self.username and self.password:
                 es_kwargs["basic_auth"] = (self.username, self.password)
+                logger.debug("使用基本认证连接ES")
 
             self._client = AsyncElasticsearch(**es_kwargs)
 
@@ -83,6 +84,7 @@ class ESService:
     async def _ensure_connected(self):
         """确保已连接"""
         if not self._initialized or not self._client:
+            logger.debug("ES客户端未连接，尝试连接")
             await self.connect()
 
     async def search(
@@ -105,6 +107,13 @@ class ESService:
         Returns:
             List[ESSearchResult]: 搜索结果列表
         """
+        logger.info(f"开始ES搜索，索引: {index}, 查询: {query[:50]}...")
+        logger.debug(f"搜索参数 - top_k: {top_k}")
+        if query_vector:
+            logger.debug(f"查询向量维度: {len(query_vector)}")
+        if filters:
+            logger.debug(f"过滤条件: {filters}")
+
         await self._ensure_connected()
 
         if not self._client:
@@ -115,6 +124,7 @@ class ESService:
             # 构建搜索查询
             search_body = self._build_search_body(query, query_vector, filters,
                                                   top_k)
+            logger.debug(f"搜索查询体: {search_body}")
 
             # 执行搜索
             response = await self._client.search(index=index, body=search_body)
@@ -173,9 +183,11 @@ class ESService:
         """
         # 如果有向量查询，优先使用KNN搜索
         if query_vector:
+            logger.debug("使用KNN向量搜索")
             return self._build_knn_search_body(query_vector, query, filters,
                                                top_k)
         else:
+            logger.debug("使用文本搜索")
             return self._build_text_search_body(query, filters, top_k)
 
     def _build_knn_search_body(self,
@@ -199,8 +211,10 @@ class ESService:
         if len(query_vector) != 1536:
             if len(query_vector) > 1536:
                 query_vector = query_vector[:1536]
+                logger.debug(f"截断向量维度到 1536")
             else:
                 query_vector.extend([0.0] * (1536 - len(query_vector)))
+                logger.debug(f"扩展向量维度到 1536")
 
         # 构建基础KNN查询
         search_body = {
@@ -218,6 +232,7 @@ class ESService:
 
         # 如果有文本查询，使用混合搜索
         if query:
+            logger.debug("构建混合搜索查询")
             search_body = {
                 "size": top_k,
                 "_source": {
@@ -256,6 +271,7 @@ class ESService:
 
         # 添加过滤条件
         if filters:
+            logger.debug(f"添加过滤条件: {filters}")
             filter_conditions = self._build_filter_conditions(filters)
             if "knn" in search_body:
                 search_body["knn"]["filter"] = filter_conditions
@@ -307,6 +323,7 @@ class ESService:
 
         # 添加过滤条件
         if filters:
+            logger.debug(f"添加过滤条件: {filters}")
             filter_conditions = self._build_filter_conditions(filters)
             search_body["query"]["bool"]["filter"] = filter_conditions["bool"][
                 "must"]
@@ -339,6 +356,7 @@ class ESService:
                         key: value
                     }})
 
+        logger.debug(f"构建的过滤条件: {filter_conditions}")
         return filter_conditions
 
     async def search_multiple_indices(
@@ -361,7 +379,16 @@ class ESService:
         Returns:
             List[ESSearchResult]: 搜索结果列表
         """
+        logger.info(f"开始多索引搜索，索引数量: {len(indices)}")
+        logger.debug(f"索引列表: {indices}")
+        logger.debug(f"搜索参数 - top_k: {top_k}")
+        if query_vector:
+            logger.debug(f"查询向量维度: {len(query_vector)}")
+        if filters:
+            logger.debug(f"过滤条件: {filters}")
+
         if not indices:
+            logger.warning("索引列表为空")
             return []
 
         await self._ensure_connected()
@@ -379,6 +406,8 @@ class ESService:
             for index in indices:
                 msearch_body.append({"index": index})
                 msearch_body.append(search_body)
+
+            logger.debug(f"构建msearch请求体，包含 {len(indices)} 个索引")
 
             # 执行msearch
             response = await self._client.msearch(body=msearch_body)
@@ -426,6 +455,7 @@ class ESService:
 
     async def close(self):
         """关闭连接"""
+        logger.info("开始关闭ES连接")
         if self._client:
             try:
                 await self._client.close()
@@ -443,13 +473,16 @@ class ESService:
 
     async def get_indices(self) -> List[Dict[str, Any]]:
         """获取所有索引信息"""
+        logger.debug("获取所有索引信息")
         await self._ensure_connected()
 
         if not self._client:
+            logger.error("ES客户端未连接")
             return []
 
         try:
             indices = await self._client.cat.indices(format='json')
+            logger.debug(f"获取到 {len(indices)} 个索引")
             return indices
         except Exception as e:
             logger.error(f"获取索引失败: {str(e)}")
@@ -457,20 +490,25 @@ class ESService:
 
     async def get_index_mapping(self, index: str) -> Optional[Dict[str, Any]]:
         """获取索引映射"""
+        logger.debug(f"获取索引 {index} 的映射信息")
         await self._ensure_connected()
 
         if not self._client:
+            logger.error("ES客户端未连接")
             return None
 
         try:
             mapping = await self._client.indices.get_mapping(index=index)
+            logger.debug(f"成功获取索引 {index} 的映射")
             return mapping[index]['mappings']
         except Exception as e:
             logger.error(f"获取索引映射失败: {str(e)}")
             return None
 
     async def __aenter__(self):
+        logger.debug("进入ES服务异步上下文")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        logger.debug("退出ES服务异步上下文")
         await self.close()

@@ -137,6 +137,16 @@ class AgentSettings(BaseSettings):
     max_tokens: int = Field(4096, alias="AGENT_MAX_TOKENS")
 
 
+class LoggingSettings(BaseSettings):
+    """日志配置"""
+    model_config = SettingsConfigDict(extra='ignore')
+
+    level: str = Field("INFO", alias="LOGGING_LEVEL")
+    file_path: str = Field("logs/app.log", alias="LOGGING_FILE_PATH")
+    rotation: str = Field("10 MB", alias="LOGGING_ROTATION")
+    retention: str = Field("7 days", alias="LOGGING_RETENTION")
+
+
 class AppSettings(BaseSettings):
     """应用的主配置类"""
     model_config = SettingsConfigDict(env_file=".env",
@@ -147,6 +157,7 @@ class AppSettings(BaseSettings):
     internal_llm: InternalLLMSettings = InternalLLMSettings()
     tavily: TavilySettings = TavilySettings()
     agent: AgentSettings = AgentSettings()
+    logging: LoggingSettings = LoggingSettings()
     redis_url: str = Field("redis://localhost:6379/0", alias="REDIS_URL")
 
     # YAML配置缓存
@@ -156,6 +167,7 @@ class AppSettings(BaseSettings):
     _tavily_config: Optional[TavilyConfig] = None
     _agent_config: Optional[AgentConfig] = None
     _document_generation_config: Optional[DocumentGenerationConfig] = None
+    _logging_config: Optional[LoggingSettings] = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -281,6 +293,29 @@ class AppSettings(BaseSettings):
                     document_length=DocumentLengthConfig(),
                     fast_test_mode=FastTestModeConfig())
         return self._document_generation_config
+
+    @property
+    def logging_config(self) -> LoggingSettings:
+        """获取日志配置"""
+        if self._logging_config is None:
+            if self._yaml_config and 'logging' in self._yaml_config:
+                # 从YAML加载配置，但允许环境变量覆盖
+                yaml_logging = self._yaml_config['logging']
+                self._logging_config = LoggingSettings(
+                    level=yaml_logging.get('level', 'INFO'),
+                    file_path=yaml_logging.get('file_path', 'logs/app.log'),
+                    rotation=yaml_logging.get('rotation', '10 MB'),
+                    retention=yaml_logging.get('retention', '7 days'))
+            else:
+                # 使用默认配置
+                self._logging_config = LoggingSettings()
+        return self._logging_config
+
+    def get_raw_logging_config(self) -> Dict[str, Any]:
+        """获取原始YAML日志配置（不经过环境变量覆盖）"""
+        if self._yaml_config and 'logging' in self._yaml_config:
+            return self._yaml_config['logging'].copy()
+        return {}
 
     def get_document_config(self, fast_mode: bool = False) -> Dict[str, Any]:
         """获取文档配置，支持快速模式"""
