@@ -60,7 +60,15 @@ class Container:
 
         # --- 3. 实例化所有单例服务 (保持不变) ---
         # 这里的具体模型可以从配置中读取，为清晰起见，我们暂时硬编码
-        self.llm_client = get_llm_client(model_key="qwen_2_5_235b_a22b")
+        from core.config import settings
+        # 读取 default_llm
+        default_llm = None
+        if hasattr(settings, '_yaml_config') and settings._yaml_config:
+            agent_cfg = settings._yaml_config.get('agent_config', {})
+            default_llm = agent_cfg.get('default_llm', 'qwen_2_5_235b_a22b')
+        if not default_llm:
+            default_llm = 'qwen_2_5_235b_a22b'
+        self.llm_client = get_llm_client(model_key=default_llm)
         self.web_search_tool = get_web_search_tool()
         self.es_search_tool = get_es_search_tool()
         self.reranker_tool = get_reranker_tool()

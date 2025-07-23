@@ -213,6 +213,10 @@ document_generation:
 # Agent 配置
 # ================================================
 agent_config:
+  # 默认 LLM 设置
+  default_llm: "gemini_2_5_pro"
+  # default_llm: "qwen_2_5_235b_a22b"
+
   # 任务规划器
   task_planner:
     name: "task_planner"
