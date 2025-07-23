@@ -44,10 +44,12 @@ supported_models:
     name: "Qwen3-235B-A22B (推理)"
     type: "enterprise_generate"
     model_id: "Qwen3-235B-A22B"
-    url: "http://10.218.108.245:9966/v1"
+    url: ${ONE_API_BASE}
+    # url: "http://10.218.108.245:9966/v1"
     reasoning: "True"
     description: "千问 235b 最强推理模型量化版"
-    api_key: "EMPTY"
+    api_key: "${ONE_API_KEY}"
+    # api_key: "EMPTY"
   qwen_72b:
     name: "Qwen2.5-72B (基础)"
     type: "enterprise_generate"

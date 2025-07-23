@@ -7,7 +7,6 @@
 
 import sys
 import os
-import pprint
 import json
 from datetime import datetime
 from pathlib import Path
