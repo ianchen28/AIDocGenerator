@@ -18,6 +18,7 @@ if str(src_dir) not in sys.path:
 from core.env_loader import setup_environment
 from core.config import settings
 from core.logging_config import setup_logging
+from loguru import logger
 
 setup_environment()
 
@@ -48,6 +49,7 @@ from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
 from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
 from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
 from doc_agent.graph.fast_builder import build_fast_main_workflow
+from doc_agent.graph.callbacks import create_redis_callback_handler
 
 
 class Container:
@@ -137,6 +139,46 @@ class Container:
         print("   - Main Orchestrator Graph compiled successfully.")
         print("   - Fast Main Orchestrator Graph compiled successfully.")
         print("✅ Container initialization complete.")
+
+    def get_graph_runnable_for_job(self, job_id: str):
+        """
+        为指定作业获取带有Redis回调处理器的图执行器
+        
+        Args:
+            job_id: 作业ID，用于创建特定的回调处理器
+            
+        Returns:
+            配置了Redis回调处理器的图执行器
+        """
+        # 创建Redis回调处理器
+        redis_handler = create_redis_callback_handler(job_id)
+
+        # 使用回调处理器配置主图
+        configured_graph = self.main_graph.with_config(
+            {"callbacks": [redis_handler]})
+
+        logger.info(f"为作业 {job_id} 创建了带回调处理器的图执行器")
+        return configured_graph
+
+    def get_fast_graph_runnable_for_job(self, job_id: str):
+        """
+        为指定作业获取带有Redis回调处理器的快速图执行器
+        
+        Args:
+            job_id: 作业ID，用于创建特定的回调处理器
+            
+        Returns:
+            配置了Redis回调处理器的快速图执行器
+        """
+        # 创建Redis回调处理器
+        redis_handler = create_redis_callback_handler(job_id)
+
+        # 使用回调处理器配置快速图
+        configured_fast_graph = self.fast_main_graph.with_config(
+            {"callbacks": [redis_handler]})
+
+        logger.info(f"为作业 {job_id} 创建了带回调处理器的快速图执行器")
+        return configured_fast_graph
 
     async def cleanup(self):
         """清理资源 (保持不变)"""

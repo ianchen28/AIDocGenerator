@@ -70,7 +70,7 @@ supported_models:
     name: "gte_qwen"
     type: "enterprise_embedding"
     model_id: "gte_qwen"
-    url: "http://10.238.130.30:13031/embed"
+    url: "http://10.215.58.199:13037/embed"
     description: "gte_qwen - 嵌入模型"
     api_key: "EMPTY"
   # 外部模型
