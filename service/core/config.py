@@ -247,9 +247,11 @@ class AppSettings(BaseSettings):
                 agent_data = self._yaml_config['agent_config']
                 processed_agent_data = {}
                 for component_name, component_data in agent_data.items():
-                    processed_agent_data[
-                        component_name] = AgentComponentConfig(
-                            **component_data)
+                    # 跳过非组件配置字段（如 default_llm）
+                    if isinstance(component_data, dict):
+                        processed_agent_data[
+                            component_name] = AgentComponentConfig(
+                                **component_data)
                 self._agent_config = AgentConfig(**processed_agent_data)
             else:
                 # 默认配置

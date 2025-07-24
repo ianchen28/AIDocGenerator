@@ -223,8 +223,12 @@ async def search_and_rerank(
     # 如果没有重排序工具，直接格式化原始结果
     if not reranker_tool:
         logger.info("未提供重排序工具，使用原始结果")
+        # 安全地获取索引列表
+        indices_list = getattr(es_search_tool, '_indices_list', [])
+        if not isinstance(indices_list, list):
+            indices_list = []
         formatted_result = format_search_results(search_results, query,
-                                                 es_search_tool._indices_list)
+                                                 indices_list)
         return search_results, [], formatted_result
 
     # 执行重排序
@@ -234,8 +238,12 @@ async def search_and_rerank(
 
     # 格式化重排序结果
     logger.info("格式化重排序结果")
+    # 安全地获取索引列表
+    indices_list = getattr(es_search_tool, '_indices_list', [])
+    if not isinstance(indices_list, list):
+        indices_list = []
     formatted_result = format_reranked_results(reranked_results, query,
-                                               es_search_tool._indices_list)
+                                               indices_list)
 
     logger.info(
         f"搜索和重排序流程完成，原始结果: {len(search_results)}, 重排序结果: {len(reranked_results)}"

@@ -47,6 +47,7 @@ from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
 
 from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
 from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
+from doc_agent.graph.fast_builder import build_fast_main_workflow
 
 
 class Container:
@@ -125,7 +126,16 @@ class Container:
             outline_generation_node=main_outline_generation_node,
             split_chapters_node=main_split_chapters_node,
             chapter_workflow_graph=self.chapter_graph)
+
+        # 编译快速模式的主工作流图
+        self.fast_main_graph = build_fast_main_workflow(
+            web_search_tool=self.web_search_tool,
+            es_search_tool=self.es_search_tool,
+            reranker_tool=self.reranker_tool,
+            llm_client=self.llm_client)
+
         print("   - Main Orchestrator Graph compiled successfully.")
+        print("   - Fast Main Orchestrator Graph compiled successfully.")
         print("✅ Container initialization complete.")
 
     async def cleanup(self):

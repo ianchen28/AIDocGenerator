@@ -46,22 +46,13 @@ def supervisor_router(
     logger.info(f"📊 Gathered data 长度: {total_length} 字符")
     logger.info(f"🔍 来源数量: {num_sources}")
 
+    # 导入提示词模板
+    from ...prompts import SUPERVISOR_PROMPT
+
     # 3. 构建简化的评估提示词
-    prompt = f"""**角色：** 你是一个高效的决策机器人。
-**任务：** 根据下方的数据摘要，判断是否可以开始为「{topic}」撰写一个章节。
-
-**决策标准：**
-- 如果来源数量 >= 3 且总字符数 >= 200，返回 "FINISH"
-- 如果来源数量 >= 2 且总字符数 >= 500，返回 "FINISH"  
-- 其他情况返回 "CONTINUE"
-
-**数据摘要：**
-- 来源数量: {num_sources}
-- 总字符数: {total_length}
-
-**你的决策：**
-你的回答只能是一个单词："FINISH" 或 "CONTINUE"。
-"""
+    prompt = SUPERVISOR_PROMPT.format(topic=topic,
+                                      num_sources=num_sources,
+                                      total_length=total_length)
 
     logger.debug(
         f"Invoking LLM with supervisor prompt:\n{pprint.pformat(prompt)}")

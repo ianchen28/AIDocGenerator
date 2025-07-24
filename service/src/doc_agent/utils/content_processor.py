@@ -26,20 +26,12 @@ def summarize_content(content: str,
         logger.info("内容长度已在目标范围内，无需缩写")
         return content
 
-    prompt = f"""
-请将以下内容缩写到 {max_length} 字符以内，保留关键信息和要点：
+    # 导入提示词模板
+    from ..prompts import CONTENT_COMPRESSION_PROMPT
 
-{content[:8000]}  # 限制输入长度
-
-要求：
-1. 保留核心观点和重要事实
-2. 删除冗余和重复信息
-3. 使用简洁明了的语言
-4. 保持逻辑结构清晰
-5. 确保缩写后的内容仍然有价值
-
-请直接返回缩写后的内容，不要添加任何额外说明。
-"""
+    prompt = CONTENT_COMPRESSION_PROMPT.format(
+        research_data=content[:8000],  # 限制输入长度
+        target_length=max_length)
 
     try:
         logger.debug("调用LLM客户端进行内容缩写")
@@ -74,22 +66,12 @@ def extract_key_points(content: str,
     logger.info(f"开始提取关键要点，目标数量: {num_points}")
     logger.debug(f"原始内容长度: {len(content)} 字符")
 
-    prompt = f"""
-请从以下内容中提取 {num_points} 个最重要的关键要点：
+    # 导入提示词模板
+    from ..prompts import KEY_POINTS_EXTRACTION_PROMPT
 
-{content[:6000]}  # 限制输入长度
-
-要求：
-1. 提取最核心、最重要的信息
-2. 每个要点应该是一个完整的观点
-3. 要点之间应该有逻辑关联
-4. 使用简洁明了的表达
-
-请以JSON格式返回：
-{{
-    "key_points": ["要点1", "要点2", "要点3", "要点4", "要点5"]
-}}
-"""
+    prompt = KEY_POINTS_EXTRACTION_PROMPT.format(
+        research_data=content[:6000],  # 限制输入长度
+        key_points_count=num_points)
 
     try:
         logger.debug("调用LLM客户端提取关键要点")

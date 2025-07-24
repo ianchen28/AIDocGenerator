@@ -453,11 +453,9 @@ class EmbeddingClient(LLMClient):
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         调用Embedding API
-        
         Args:
             prompt: 输入文本
             **kwargs: 其他参数
-            
         Returns:
             str: 嵌入向量（JSON格式）
         """

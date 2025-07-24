@@ -43,7 +43,8 @@ supported_models:
   qwen_2_5_235b_a22b:
     name: "Qwen3-235B-A22B (推理)"
     type: "enterprise_generate"
-    model_id: "Qwen3-235B-A22B"
+    model_id: "hdy_model"
+    # model_id: "Qwen3-235B-A22B"
     url: ${ONE_API_BASE}
     # url: "http://10.218.108.245:9966/v1"
     reasoning: "True"
@@ -69,7 +70,7 @@ supported_models:
     name: "gte_qwen"
     type: "enterprise_embedding"
     model_id: "gte_qwen"
-    url: "http://10.215.58.199:13031/embed"
+    url: "http://10.238.130.30:13031/embed"
     description: "gte_qwen - 嵌入模型"
     api_key: "EMPTY"
   # 外部模型
@@ -214,8 +215,8 @@ document_generation:
 # ================================================
 agent_config:
   # 默认 LLM 设置
-  default_llm: "gemini_2_5_pro"
-  # default_llm: "qwen_2_5_235b_a22b"
+  # default_llm: "gemini_2_5_pro"
+  default_llm: "qwen_2_5_235b_a22b"
 
   # 任务规划器
   task_planner:

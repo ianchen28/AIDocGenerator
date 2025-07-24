@@ -107,29 +107,13 @@ def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
     if not task_planner_config:
         raise ValueError("Task planner configuration not found")
 
+    # 导入提示词模板
+    from ...prompts import PLANNER_PROMPT
+
     # 创建研究计划生成的 prompt，要求 JSON 格式响应
-    prompt = f"""
-你是一个专业的研究规划专家。请为以下章节制定详细的研究计划和搜索策略。
-
-**文档主题:** {topic}
-**当前章节:** {chapter_title}
-**章节描述:** {chapter_description}
-
-请严格按照以下 JSON 格式输出，不要包含任何其他内容：
-
-{{
-    "research_plan": "详细的研究计划，包括：1. 需要了解的核心概念 2. 需要收集的信息类型 3. 研究的时间安排 4. 可能遇到的挑战和解决方案",
-    "search_queries": ["具体的搜索查询1", "具体的搜索查询2", "具体的搜索查询3", "具体的搜索查询4", "具体的搜索查询5"]
-}}
-
-要求：
-1. research_plan 应该是一个详细的步骤计划，包含具体的研究步骤和策略
-2. search_queries 应该包含3-5个具体的搜索查询，每个查询要针对性强且覆盖章节的不同方面
-3. 必须严格按照 JSON 格式输出，确保 JSON 格式正确
-4. 搜索查询应该使用通用关键词，避免过于具体的术语，确保能在知识库中找到相关内容
-5. 搜索查询应该包含主题的核心词汇，比如"水电站"、"电力"、"能源"等通用术语
-6. 搜索查询应该针对当前章节的具体内容，结合章节标题和描述
-"""
+    prompt = PLANNER_PROMPT.format(topic=topic,
+                                   chapter_title=chapter_title,
+                                   chapter_description=chapter_description)
 
     logger.debug(f"Invoking LLM with prompt:\n{pprint.pformat(prompt)}")
 
@@ -452,53 +436,19 @@ def writer_node(state: ResearchState, llm_client: LLMClient) -> dict:
             for i, content in enumerate(completed_chapters_content)
         ])
 
+    # 导入提示词模板
+    from ...prompts import WRITER_PROMPT, WRITER_PROMPT_SIMPLE
+
     # 构建高质量的提示词
-    prompt = f"""
-**角色:** 你是一位专业的研究员和文档撰写专家，负责撰写高质量的章节内容。
-
-**文档主题:** {topic}
-
-**当前章节信息:**
-- 章节标题: {chapter_title}
-- 章节描述: {chapter_description}
-- 章节序号: 第{current_chapter_index + 1}章（共{len(chapters_to_process)}章）
-
-**已完成的章节内容（用于保持连贯性）:**
-{previous_chapters_context if previous_chapters_context else "这是第一章，没有前置内容。"}
-
-**当前章节的研究数据:**
-{gathered_data}
-
-**写作任务:**
-基于提供的研究数据，为当前章节撰写内容。请遵循以下要求：
-
-1. **保持连贯性:** 确保当前章节与已完成的章节内容自然衔接，避免重复，保持逻辑连贯。
-
-2. **章节结构:** 
-   - 以二级标题（##）开始，使用章节标题
-   - 包含适当的引言，说明本章节的主要内容
-   - 使用三级标题（###）组织子节
-   - 在章节末尾提供简短的过渡，为下一章节做准备（如果不是最后一章）
-
-3. **内容要求:**
-   - 综合分析研究数据，不要简单罗列
-   - 保持客观，基于事实
-   - 使用专业的学术写作风格
-   - 适当引用已完成章节的内容以保持连贯性
-
-4. **格式要求:**
-   - 使用Markdown格式
-   - 适当使用列表、表格、引用等格式元素
-   - 代码或技术规范使用代码块
-   - 重要观点使用粗体强调
-
-5. **篇幅控制:**
-   - 章节内容应该充实但不冗长
-   - 根据研究数据的丰富程度调整篇幅
-   - 一般每章2000-4000字为宜
-
-请立即开始撰写当前章节的内容。
-"""
+    prompt = WRITER_PROMPT.format(
+        topic=topic,
+        chapter_title=chapter_title,
+        chapter_description=chapter_description,
+        chapter_number=current_chapter_index + 1,
+        total_chapters=len(chapters_to_process),
+        previous_chapters_context=previous_chapters_context
+        if previous_chapters_context else "这是第一章，没有前置内容。",
+        gathered_data=gathered_data)
 
     # 限制 prompt 长度
     max_prompt_length = 30000
@@ -520,25 +470,15 @@ def writer_node(state: ResearchState, llm_client: LLMClient) -> dict:
             gathered_data = gathered_data[:15000] + "\n\n... (研究数据已截断)"
 
         # 重新构建prompt
-        prompt = f"""
-**角色:** 你是一位专业的研究员和文档撰写专家，负责撰写高质量的章节内容。
-
-**文档主题:** {topic}
-
-**当前章节信息:**
-- 章节标题: {chapter_title}
-- 章节描述: {chapter_description}
-- 章节序号: 第{current_chapter_index + 1}章（共{len(chapters_to_process)}章）
-
-**已完成的章节内容（摘要）:**
-{previous_chapters_context if previous_chapters_context else "这是第一章，没有前置内容。"}
-
-**当前章节的研究数据:**
-{gathered_data}
-
-**写作任务:**
-基于研究数据撰写当前章节，确保与前面章节连贯，使用Markdown格式，以##开始章节标题。
-"""
+        prompt = WRITER_PROMPT_SIMPLE.format(
+            topic=topic,
+            chapter_title=chapter_title,
+            chapter_description=chapter_description,
+            chapter_number=current_chapter_index + 1,
+            total_chapters=len(chapters_to_process),
+            previous_chapters_context=previous_chapters_context
+            if previous_chapters_context else "这是第一章，没有前置内容。",
+            gathered_data=gathered_data)
         logger.info(f"📝 截断后 writer prompt 长度: {len(prompt)} 字符")
 
     logger.debug(f"Invoking LLM with writer prompt:\n{pprint.pformat(prompt)}")
