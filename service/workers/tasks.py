@@ -1,37 +1,44 @@
 import asyncio
-import aioredis
+import redis.asyncio as redis
 import json
 from loguru import logger
 from typing import Optional
 
-# 修复相对导入
-try:
-    from ..core.container import container
-except ImportError:
-    # 如果相对导入失败，尝试绝对导入
-    import sys
-    from pathlib import Path
 
-    # 添加项目根目录到Python路径
-    current_file = Path(__file__)
-    service_dir = current_file.parent.parent
-    if str(service_dir) not in sys.path:
-        sys.path.insert(0, str(service_dir))
+# 延迟导入container以避免循环导入
+def get_container():
+    """延迟导入container以避免循环导入"""
+    try:
+        # 尝试相对导入
+        from ..core.container import container
+        return container
+    except ImportError:
+        # 如果相对导入失败，尝试绝对导入
+        import sys
+        from pathlib import Path
 
-    from core.container import container
+        # 添加项目根目录到Python路径
+        current_file = Path(__file__)
+        service_dir = current_file.parent.parent
+        if str(service_dir) not in sys.path:
+            sys.path.insert(0, str(service_dir))
+
+        from core.container import container
+        return container
+
 
 # Redis客户端实例
-redis_client: Optional[aioredis.Redis] = None
+redis_client: Optional[redis.Redis] = None
 
 
-async def get_redis_client() -> aioredis.Redis:
+async def get_redis_client() -> redis.Redis:
     """获取Redis客户端实例"""
     global redis_client
     if redis_client is None:
         try:
-            redis_client = aioredis.from_url("redis://localhost:6379",
-                                             encoding="utf-8",
-                                             decode_responses=True)
+            redis_client = redis.from_url("redis://localhost:6379",
+                                          encoding="utf-8",
+                                          decode_responses=True)
             # 测试连接
             await redis_client.ping()
             logger.info("Redis客户端连接成功")
@@ -164,6 +171,7 @@ async def run_main_workflow(job_id: str, topic: str) -> str:
 
         # 1. 获取带有Redis回调处理器的图执行器
         logger.info(f"Job {job_id}: 获取图执行器...")
+        container = get_container()
         runnable = container.get_graph_runnable_for_job(job_id)
 
         # 2. 从Redis获取初始状态数据

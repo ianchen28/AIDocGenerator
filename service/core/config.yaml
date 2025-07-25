@@ -35,13 +35,13 @@ supported_models:
   hdy_model:
     name: "HDY模型"
     type: "enterprise_generate"
-    model_id: "hdy_model"
+    model_id: "Qwen3-235B-new"
     url: "http://10.238.130.28:10004/v1"
     reasoning: "False"
     description: "基于 qwen-32b 精调的行业知识问答模型"
     api_key: "EMPTY"
   qwen_2_5_235b_a22b:
-    name: "Qwen3-235B-A22B (推理)"
+    name: "Qwen3-235B-A22B-new (推理)"
     type: "enterprise_generate"
     model_id: "hdy_model"
     # model_id: "Qwen3-235B-A22B"
