@@ -1,8 +1,10 @@
+import asyncio
 import json
 import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi.responses import StreamingResponse
 from loguru import logger
 
 # 导入数据模型
@@ -295,6 +297,175 @@ async def update_outline(job_id: str, request: UpdateOutlineRequest,
         logger.error(f"更新大纲失败: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"更新大纲失败: {str(e)}") from e
+
+
+@router.get("/jobs/{job_id}/events")
+async def stream_events(job_id: str):
+    """
+    流式获取作业事件
+    """
+    logger.info(f"开始流式获取作业事件: {job_id}")
+
+    try:
+        redis = await get_redis_client()
+
+        # 验证作业是否存在
+        job_data = await redis.hgetall(f"job:{job_id}")
+        if not job_data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"作业 {job_id} 不存在")
+
+        # 创建 SSE 响应
+        async def event_generator():
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(f"job:{job_id}:events")
+
+            try:
+                while True:
+                    message = await pubsub.get_message(timeout=1.0)
+                    if message and message["type"] == "message":
+                        data = message["data"]
+                        yield f"data: {data}\n\n"
+                    await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.error(f"事件流错误: {e}")
+            finally:
+                await pubsub.unsubscribe(f"job:{job_id}:events")
+                await pubsub.close()
+
+        return StreamingResponse(event_generator(),
+                                 media_type="text/event-stream",
+                                 headers={
+                                     "Cache-Control":
+                                     "no-cache",
+                                     "Connection":
+                                     "keep-alive",
+                                     "Access-Control-Allow-Origin":
+                                     "*",
+                                     "Access-Control-Allow-Headers":
+                                     "Cache-Control"
+                                 })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取事件流失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"获取事件流失败: {str(e)}") from e
+
+
+@router.get("/jobs/{job_id}/document/stream")
+async def stream_document(job_id: str):
+    """
+    流式获取文档内容
+    """
+    logger.info(f"开始流式获取文档内容: {job_id}")
+
+    try:
+        redis = await get_redis_client()
+
+        # 验证作业是否存在
+        job_data = await redis.hgetall(f"job:{job_id}")
+        if not job_data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"作业 {job_id} 不存在")
+
+        # 创建 SSE 响应
+        async def document_generator():
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(f"job:{job_id}:document")
+
+            try:
+                while True:
+                    message = await pubsub.get_message(timeout=1.0)
+                    if message and message["type"] == "message":
+                        data = message["data"]
+                        yield f"data: {data}\n\n"
+                    await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.error(f"文档流错误: {e}")
+            finally:
+                await pubsub.unsubscribe(f"job:{job_id}:document")
+                await pubsub.close()
+
+        return StreamingResponse(document_generator(),
+                                 media_type="text/event-stream",
+                                 headers={
+                                     "Cache-Control":
+                                     "no-cache",
+                                     "Connection":
+                                     "keep-alive",
+                                     "Access-Control-Allow-Origin":
+                                     "*",
+                                     "Access-Control-Allow-Headers":
+                                     "Cache-Control"
+                                 })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取文档流失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"获取文档流失败: {str(e)}") from e
+
+
+@router.get("/jobs/{job_id}/document")
+async def get_document(job_id: str):
+    """
+    获取最终生成的文档
+    """
+    logger.info(f"获取最终文档: {job_id}")
+
+    try:
+        redis = await get_redis_client()
+
+        # 验证作业是否存在
+        job_data = await redis.hgetall(f"job:{job_id}")
+        if not job_data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"作业 {job_id} 不存在")
+
+        # 获取文档内容
+        final_document = job_data.get("final_document")
+        if not final_document:
+            # 检查作业状态
+            job_status = job_data.get("status", "UNKNOWN")
+            if job_status == "COMPLETED":
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                    detail="文档生成已完成但内容丢失")
+            elif job_status in ["PENDING", "RUNNING", "processing"]:
+                raise HTTPException(status_code=status.HTTP_202_ACCEPTED,
+                                    detail="文档仍在生成中，请稍后再试")
+            else:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                    detail="文档尚未生成")
+
+        # 计算文档统计信息
+        word_count = len(final_document.split())
+        char_count = len(final_document)
+        line_count = len(final_document.splitlines())
+
+        return {
+            "job_id": job_id,
+            "status": job_data.get("status"),
+            "document": {
+                "content": final_document,
+                "statistics": {
+                    "word_count": word_count,
+                    "char_count": char_count,
+                    "line_count": line_count
+                }
+            },
+            "created_at": job_data.get("created_at"),
+            "completed_at": job_data.get("completed_at")
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取文档失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"获取文档失败: {str(e)}") from e
 
 
 @router.get("/health")
