@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Fixtures使用示例测试
 演示如何使用conftest.py中定义的各种fixtures

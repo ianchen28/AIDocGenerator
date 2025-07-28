@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 配置管理模块
 """
 
 import os
-import yaml
-from typing import Dict, List, Optional, Any
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from typing import Any, Optional
 
-# 统一环境变量加载
-from .env_loader import setup_environment
+import yaml
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ModelConfig(BaseSettings):
@@ -27,7 +24,7 @@ class ModelConfig(BaseSettings):
 
 class ElasticsearchConfig(BaseSettings):
     """Elasticsearch配置"""
-    hosts: List[str]
+    hosts: list[str]
     port: int = 9200
     scheme: str = "https"
     username: str
@@ -57,7 +54,7 @@ class AgentComponentConfig(BaseSettings):
     timeout: int = 180
     retry_count: int = 5
     enable_logging: bool = True
-    extra_params: Dict[str, Any] = Field(default_factory=dict)
+    extra_params: dict[str, Any] = Field(default_factory=dict)
 
 
 class ESSearchConfig(BaseSettings):
@@ -161,8 +158,8 @@ class AppSettings(BaseSettings):
     redis_url: str = Field("redis://localhost:6379/0", alias="REDIS_URL")
 
     # YAML配置缓存
-    _yaml_config: Optional[Dict[str, Any]] = None
-    _supported_models: Optional[Dict[str, ModelConfig]] = None
+    _yaml_config: Optional[dict[str, Any]] = None
+    _supported_models: Optional[dict[str, ModelConfig]] = None
     _elasticsearch_config: Optional[ElasticsearchConfig] = None
     _tavily_config: Optional[TavilyConfig] = None
     _agent_config: Optional[AgentConfig] = None
@@ -191,7 +188,7 @@ class AppSettings(BaseSettings):
         return value
 
     def _process_model_config(self, model_key: str,
-                              model_data: Dict[str, Any]) -> ModelConfig:
+                              model_data: dict[str, Any]) -> ModelConfig:
         """处理单个模型配置"""
         processed_data = {}
         for key, value in model_data.items():
@@ -202,7 +199,7 @@ class AppSettings(BaseSettings):
         return ModelConfig(**processed_data)
 
     @property
-    def supported_models(self) -> Dict[str, ModelConfig]:
+    def supported_models(self) -> dict[str, ModelConfig]:
         """获取支持的模型配置"""
         if self._supported_models is None:
             self._supported_models = {}
@@ -313,13 +310,13 @@ class AppSettings(BaseSettings):
                 self._logging_config = LoggingSettings()
         return self._logging_config
 
-    def get_raw_logging_config(self) -> Dict[str, Any]:
+    def get_raw_logging_config(self) -> dict[str, Any]:
         """获取原始YAML日志配置（不经过环境变量覆盖）"""
         if self._yaml_config and 'logging' in self._yaml_config:
             return self._yaml_config['logging'].copy()
         return {}
 
-    def get_document_config(self, fast_mode: bool = False) -> Dict[str, Any]:
+    def get_document_config(self, fast_mode: bool = False) -> dict[str, Any]:
         """获取文档配置，支持快速模式"""
         config = self.document_generation_config
 

@@ -39,6 +39,19 @@ service/cache/
 *.bak
 .pytest_cache/
 .coverage
+.coverage.*
+
+# Redis dump files
+dump.rdb
+*.rdb
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Temporary files
+*.pyc
+__pycache__/
 
 # Generated files
 output/

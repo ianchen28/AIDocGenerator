@@ -4,11 +4,7 @@ Chapter Workflow集成测试
 测试章节工作流子图的完整执行流程
 """
 
-import asyncio
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
-import os
-from pathlib import Path
 
 import pytest
 from loguru import logger
@@ -208,24 +204,24 @@ class TestChapterWorkflow:
             "gathered_data":
             """
             === AI Diagnostic Technologies Research Data ===
-            
+
             Artificial Intelligence has revolutionized medical diagnostics through various technologies:
-            
+
             1. Machine Learning Algorithms
             - Supervised learning for classification tasks
             - Unsupervised learning for pattern discovery
             - Reinforcement learning for treatment optimization
-            
+
             2. Deep Learning Models
             - Convolutional Neural Networks (CNNs) for image analysis
             - Recurrent Neural Networks (RNNs) for sequential data
             - Transformer models for complex pattern recognition
-            
+
             3. Computer Vision Applications
             - Medical imaging analysis (X-ray, MRI, CT scans)
             - Pathology slide analysis
             - Dermatology image classification
-            
+
             === End of Research Data ===
             """,
             "messages": []
@@ -278,7 +274,7 @@ class TestChapterWorkflow:
 
         try:
             # 尝试执行章节工作流
-            async for event in test_container.chapter_graph.astream(
+            async for _event in test_container.chapter_graph.astream(
                     incomplete_state):
                 # 如果执行到这里，说明没有抛出预期的异常
                 pass

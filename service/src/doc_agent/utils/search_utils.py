@@ -3,15 +3,17 @@
 提供搜索结果格式化和重排序功能
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
+
 from loguru import logger
+
 from ..tools.es_service import ESSearchResult
-from ..tools.reranker import RerankerTool, RerankedSearchResult
+from ..tools.reranker import RerankedSearchResult, RerankerTool
 
 
-def format_search_results(results: List[ESSearchResult],
+def format_search_results(results: list[ESSearchResult],
                           query: str,
-                          indices_list: List[str] = None) -> str:
+                          indices_list: list[str] = None) -> str:
     """
     格式化搜索结果
     
@@ -63,10 +65,10 @@ def format_search_results(results: List[ESSearchResult],
     return result
 
 
-async def rerank_search_results(search_results: List[ESSearchResult],
+async def rerank_search_results(search_results: list[ESSearchResult],
                                 query: str,
                                 reranker_tool: RerankerTool,
-                                top_k: int = 5) -> List[RerankedSearchResult]:
+                                top_k: int = 5) -> list[RerankedSearchResult]:
     """
     对搜索结果进行重排序
     
@@ -122,17 +124,15 @@ async def rerank_search_results(search_results: List[ESSearchResult],
         return fallback_results
 
 
-def format_reranked_results(reranked_results: List[RerankedSearchResult],
+def format_reranked_results(reranked_results: list[RerankedSearchResult],
                             query: str,
-                            indices_list: List[str] = None) -> str:
+                            indices_list: list[str] = None) -> str:
     """
     格式化重排序后的搜索结果
-    
     Args:
         reranked_results: 重排序后的结果列表
         query: 搜索查询
         indices_list: 索引列表
-        
     Returns:
         str: 格式化后的重排序结果字符串
     """
@@ -173,16 +173,15 @@ def format_reranked_results(reranked_results: List[RerankedSearchResult],
 async def search_and_rerank(
     es_search_tool,
     query: str,
-    query_vector: Optional[List[float]] = None,
+    query_vector: Optional[list[float]] = None,
     reranker_tool: Optional[RerankerTool] = None,
     initial_top_k: int = 10,
     final_top_k: int = 5,
-    filters: Optional[Dict[str, Any]] = None,
-    config: Optional[Dict[str, Any]] = None
-) -> tuple[List[ESSearchResult], List[RerankedSearchResult], str]:
+    filters: Optional[dict[str, Any]] = None,
+    config: Optional[dict[str, Any]] = None
+) -> tuple[list[ESSearchResult], list[RerankedSearchResult], str]:
     """
     执行搜索并进行重排序
-    
     Args:
         es_search_tool: ES搜索工具
         query: 搜索查询
@@ -191,7 +190,6 @@ async def search_and_rerank(
         initial_top_k: 初始搜索返回结果数量
         final_top_k: 重排序后返回结果数量
         filters: 过滤条件
-        
     Returns:
         tuple: (原始搜索结果, 重排序结果, 格式化字符串)
     """

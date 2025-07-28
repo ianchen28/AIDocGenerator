@@ -7,11 +7,10 @@
 
 import asyncio
 import logging
-from datetime import datetime
-from pathlib import Path
 
 # 添加项目路径
 import sys
+from pathlib import Path
 
 current_file = Path(__file__)
 service_dir = current_file.parent
@@ -20,7 +19,7 @@ if str(service_dir) not in sys.path:
 
 # 修复导入路径
 try:
-    from src.doc_agent.automation import AutomationManager, TaskPriority, AlertLevel
+    from src.doc_agent.automation import AlertLevel, AutomationManager, TaskPriority
 except ImportError:
     # 如果相对导入失败，尝试绝对导入
     import sys
@@ -32,7 +31,7 @@ except ImportError:
     if str(service_dir) not in sys.path:
         sys.path.insert(0, str(service_dir))
 
-    from src.doc_agent.automation import AutomationManager, TaskPriority, AlertLevel
+    from src.doc_agent.automation import AlertLevel, AutomationManager, TaskPriority
 
 
 def alert_callback(alert):

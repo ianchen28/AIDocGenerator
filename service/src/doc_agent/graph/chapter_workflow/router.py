@@ -1,9 +1,11 @@
 # service/src/doc_agent/graph/router.py
-from loguru import logger
 import pprint
 from typing import Literal
-from ..state import ResearchState
+
+from loguru import logger
+
 from ...llm_clients.base import LLMClient
+from ..state import ResearchState
 
 
 def supervisor_router(
@@ -11,13 +13,10 @@ def supervisor_router(
 ) -> Literal["continue_to_writer", "rerun_researcher"]:
     """
     条件路由: 决策下一步走向
-    
     评估收集的研究数据是否足够撰写高质量文档
-    
     Args:
         state: 研究状态，包含 topic 和 gathered_data
         llm_client: LLM客户端实例
-        
     Returns:
         str: "continue_to_writer" 如果数据充足，"rerun_researcher" 如果需要更多研究
     """
@@ -62,7 +61,7 @@ def supervisor_router(
         # 使用小的 max_tokens，因为期望的输出很短
         max_tokens = 10
 
-        logger.info(f"🤖 调用 LLM 进行决策判断...")
+        logger.info("🤖 调用 LLM 进行决策判断...")
         logger.debug(f"📝 Prompt 长度: {len(prompt)} 字符")
         logger.debug(f"🔧 参数: max_tokens={max_tokens}, temperature=0")
 

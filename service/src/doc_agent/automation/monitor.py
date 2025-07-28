@@ -9,18 +9,18 @@
 """
 
 import asyncio
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Any
-from dataclasses import dataclass, field
-from enum import Enum
-import psutil
 import json
-from pathlib import Path
+import logging
 
 # 添加项目路径
 import sys
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
+from typing import Callable, Optional
+
+import psutil
 
 current_file = Path(__file__)
 service_dir = None
@@ -31,8 +31,6 @@ for parent in current_file.parents:
 
 if service_dir and str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
-
-from core.config import settings
 
 
 class AlertLevel(Enum):
@@ -51,11 +49,11 @@ class Alert:
     message: str
     source: str
     timestamp: datetime = field(default_factory=datetime.now)
-    details: Dict = field(default_factory=dict)
+    details: dict = field(default_factory=dict)
     resolved: bool = False
     resolved_at: Optional[datetime] = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """转换为字典格式"""
         return {
             "id":
@@ -90,7 +88,7 @@ class PerformanceMetrics:
     failed_tasks: int = 0
     avg_task_duration: float = 0.0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """转换为字典格式"""
         return {
             "timestamp": self.timestamp.isoformat(),
@@ -111,10 +109,9 @@ class AutomationMonitor:
     def __init__(self,
                  scheduler,
                  storage_path: Optional[str] = None,
-                 alert_callbacks: Optional[List[Callable]] = None):
+                 alert_callbacks: Optional[list[Callable]] = None):
         """
         初始化监控器
-        
         Args:
             scheduler: 调度器实例
             storage_path: 监控数据存储路径
@@ -126,8 +123,8 @@ class AutomationMonitor:
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
         self.alert_callbacks = alert_callbacks or []
-        self.alerts: List[Alert] = []
-        self.metrics_history: List[PerformanceMetrics] = []
+        self.alerts: list[Alert] = []
+        self.metrics_history: list[PerformanceMetrics] = []
         self.running = False
         self.logger = logging.getLogger(__name__)
 
@@ -224,7 +221,7 @@ class AutomationMonitor:
                   level: AlertLevel,
                   message: str,
                   source: str,
-                  details: Optional[Dict] = None):
+                  details: Optional[dict] = None):
         """添加告警"""
         import uuid
 
@@ -264,7 +261,7 @@ class AutomationMonitor:
 
     def get_alerts(self,
                    level: Optional[AlertLevel] = None,
-                   resolved: Optional[bool] = None) -> List[Alert]:
+                   resolved: Optional[bool] = None) -> list[Alert]:
         """获取告警列表"""
         alerts = list(self.alerts)
 
@@ -402,7 +399,7 @@ class AutomationMonitor:
         self.running = False
         self.logger.info("自动化监控器已停止")
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """获取监控统计信息"""
         # 告警统计
         alert_stats = {}
@@ -423,7 +420,7 @@ class AutomationMonitor:
             "running": self.running
         }
 
-    def get_metrics_history(self, hours: int = 24) -> List[PerformanceMetrics]:
+    def get_metrics_history(self, hours: int = 24) -> list[PerformanceMetrics]:
         """获取历史性能指标"""
         cutoff_time = datetime.now() - timedelta(hours=hours)
         return [m for m in self.metrics_history if m.timestamp > cutoff_time]

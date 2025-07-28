@@ -1,10 +1,11 @@
 # service/src/doc_agent/llm_clients/providers.py
-from loguru import logger
 import pprint
 import re
+
 import httpx
-from .base import LLMClient
-from .base import BaseOutputParser
+from loguru import logger
+
+from .base import BaseOutputParser, LLMClient
 
 
 class ReasoningParser(BaseOutputParser):
@@ -37,7 +38,6 @@ class GeminiClient(LLMClient):
                  reasoning: bool = False):
         """
         初始化Gemini客户端
-        
         Args:
             api_key: Gemini API密钥
             model: 模型名称，默认为gemini-1.5-pro-latest
@@ -56,11 +56,9 @@ class GeminiClient(LLMClient):
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         调用Gemini API
-        
         Args:
             prompt: 输入提示
             **kwargs: 其他参数，如temperature, max_tokens等
-            
         Returns:
             str: 模型响应的内容
         """
@@ -153,7 +151,7 @@ class GeminiClient(LLMClient):
 
         except Exception as e:
             logger.error(f"Gemini API调用失败: {str(e)}")
-            raise Exception(f"Gemini API调用失败: {str(e)}")
+            raise Exception(f"Gemini API调用失败: {str(e)}") from e
 
 
 class DeepSeekClient(LLMClient):
@@ -165,7 +163,6 @@ class DeepSeekClient(LLMClient):
                  reasoning: bool = False):
         """
         初始化DeepSeek客户端
-        
         Args:
             api_key: DeepSeek API密钥
             model: 模型名称，默认为deepseek-chat
@@ -179,11 +176,9 @@ class DeepSeekClient(LLMClient):
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         调用DeepSeek API
-        
         Args:
             prompt: 输入提示
             **kwargs: 其他参数，如temperature, max_tokens等
-            
         Returns:
             str: 模型响应的内容
         """
@@ -227,7 +222,7 @@ class DeepSeekClient(LLMClient):
 
         except Exception as e:
             logger.error(f"DeepSeek API调用失败: {str(e)}")
-            raise Exception(f"DeepSeek API调用失败: {str(e)}")
+            raise Exception(f"DeepSeek API调用失败: {str(e)}") from e
 
 
 class MoonshotClient(LLMClient):
@@ -239,7 +234,6 @@ class MoonshotClient(LLMClient):
                  reasoning: bool = False):
         """
         初始化Moonshot客户端
-        
         Args:
             base_url: Moonshot API地址
             api_key: API密钥
@@ -254,11 +248,9 @@ class MoonshotClient(LLMClient):
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         调用Moonshot API
-        
         Args:
             prompt: 输入提示
             **kwargs: 其他参数，如temperature, max_tokens等
-            
         Returns:
             str: 模型响应的内容
         """
@@ -311,7 +303,7 @@ class MoonshotClient(LLMClient):
 
         except Exception as e:
             logger.error(f"Moonshot API调用失败: {str(e)}")
-            raise Exception(f"Moonshot API调用失败: {str(e)}")
+            raise Exception(f"Moonshot API调用失败: {str(e)}") from e
 
 
 class InternalLLMClient(LLMClient):
@@ -323,7 +315,6 @@ class InternalLLMClient(LLMClient):
                  reasoning: bool = False):
         """
         初始化内部模型客户端
-        
         Args:
             base_url: 内部API地址
             api_key: API密钥
@@ -388,7 +379,7 @@ class InternalLLMClient(LLMClient):
 
         except Exception as e:
             logger.error(f"Internal API调用失败: {str(e)}")
-            raise Exception(f"Internal API调用失败: {str(e)}")
+            raise Exception(f"Internal API调用失败: {str(e)}") from e
 
 
 class RerankerClient(LLMClient):
@@ -396,7 +387,6 @@ class RerankerClient(LLMClient):
     def __init__(self, base_url: str, api_key: str):
         """
         初始化Reranker客户端
-        
         Args:
             base_url: Reranker API地址
             api_key: API密钥
@@ -434,7 +424,7 @@ class RerankerClient(LLMClient):
                 return result
         except Exception as e:
             logger.error(f"Reranker API调用失败: {str(e)}")
-            raise Exception(f"Reranker API调用失败: {str(e)}")
+            raise Exception(f"Reranker API调用失败: {str(e)}") from e
 
 
 class EmbeddingClient(LLMClient):
@@ -442,7 +432,6 @@ class EmbeddingClient(LLMClient):
     def __init__(self, base_url: str, api_key: str):
         """
         初始化Embedding客户端
-        
         Args:
             base_url: Embedding API地址
             api_key: API密钥
@@ -481,4 +470,4 @@ class EmbeddingClient(LLMClient):
 
         except Exception as e:
             logger.error(f"Embedding API调用失败: {str(e)}")
-            raise Exception(f"Embedding API调用失败: {str(e)}")
+            raise Exception(f"Embedding API调用失败: {str(e)}") from e

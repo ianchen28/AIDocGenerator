@@ -1,6 +1,11 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from src.doc_agent.llm_clients.providers import GeminiClient, DeepSeekClient, MoonshotClient, InternalLLMClient
+from unittest.mock import MagicMock, patch
+
+from src.doc_agent.llm_clients.providers import (
+    DeepSeekClient,
+    GeminiClient,
+    InternalLLMClient,
+    MoonshotClient,
+)
 
 
 class TestLLMClients:

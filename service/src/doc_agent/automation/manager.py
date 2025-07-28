@@ -9,15 +9,14 @@
 """
 
 import asyncio
-import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Callable
-from pathlib import Path
 import json
+import logging
 
 # 添加项目路径
 import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Callable, Optional
 
 current_file = Path(__file__)
 service_dir = None
@@ -30,9 +29,10 @@ if service_dir and str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
 
 from core.config import settings
-from .scheduler import AutomationScheduler, TaskStatus, TaskPriority
-from .monitor import AutomationMonitor, AlertLevel
+
 from .executor import AutomationExecutor, ExecutionStatus
+from .monitor import AlertLevel, AutomationMonitor
+from .scheduler import AutomationScheduler, TaskPriority, TaskStatus
 
 
 class AutomationManager:
@@ -41,10 +41,9 @@ class AutomationManager:
     def __init__(self,
                  storage_path: Optional[str] = None,
                  max_concurrent_tasks: int = 3,
-                 alert_callbacks: Optional[List[Callable]] = None):
+                 alert_callbacks: Optional[list[Callable]] = None):
         """
         初始化自动化管理器
-        
         Args:
             storage_path: 存储路径
             max_concurrent_tasks: 最大并发任务数
@@ -127,7 +126,7 @@ class AutomationManager:
                  description: str = "",
                  priority: TaskPriority = TaskPriority.NORMAL,
                  max_retries: int = 3,
-                 metadata: Optional[Dict] = None) -> str:
+                 metadata: Optional[dict] = None) -> str:
         """添加任务"""
         return self.scheduler.add_task(name=name,
                                        topic=topic,
@@ -158,9 +157,9 @@ class AutomationManager:
 
     def create_batch_job(self,
                          name: str,
-                         topics: List[str],
+                         topics: list[str],
                          description: str = "",
-                         metadata: Optional[Dict] = None) -> str:
+                         metadata: Optional[dict] = None) -> str:
         """创建批量作业"""
         return self.executor.create_batch_job(name=name,
                                               topics=topics,
@@ -199,7 +198,7 @@ class AutomationManager:
                   level: AlertLevel,
                   message: str,
                   source: str,
-                  details: Optional[Dict] = None):
+                  details: Optional[dict] = None):
         """添加告警"""
         return self.monitor.add_alert(level, message, source, details)
 
@@ -219,7 +218,7 @@ class AutomationManager:
 
     # ==================== 统计信息 ====================
 
-    def get_system_statistics(self) -> Dict:
+    def get_system_statistics(self) -> dict:
         """获取系统统计信息"""
         scheduler_stats = self.scheduler.get_statistics()
         monitor_stats = self.monitor.get_statistics()
@@ -244,7 +243,7 @@ class AutomationManager:
 
     # ==================== 配置管理 ====================
 
-    def update_config(self, config: Dict):
+    def update_config(self, config: dict):
         """更新配置"""
         # 更新监控器配置
         if "monitor" in config:
@@ -269,7 +268,7 @@ class AutomationManager:
 
         self.logger.info("配置已更新")
 
-    def get_config(self) -> Dict:
+    def get_config(self) -> dict:
         """获取当前配置"""
         return {
             "monitor": {

@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 查看测试输出文件的工具脚本
 """
 
-import os
 import json
 from pathlib import Path
-from datetime import datetime
 
 
 def list_sessions():
@@ -34,7 +31,7 @@ def show_session_info(session_dir: Path):
     # 读取摘要信息
     summary_file = session_dir / "test_summary.json"
     if summary_file.exists():
-        with open(summary_file, 'r', encoding='utf-8') as f:
+        with open(summary_file, encoding='utf-8') as f:
             summary = json.load(f)
 
         print(f"📅 时间: {summary['timestamp']}")
@@ -43,7 +40,7 @@ def show_session_info(session_dir: Path):
         print(f"📊 日志条目: {summary['log_entries']}")
 
     # 列出文件
-    print(f"\n📋 文件列表:")
+    print("\n📋 文件列表:")
     for file in session_dir.iterdir():
         if file.is_file():
             size = file.stat().st_size
@@ -63,7 +60,7 @@ def view_document(session_dir: Path):
     print(f"\n📄 查看文档: {doc_file.name}")
     print("=" * 80)
 
-    with open(doc_file, 'r', encoding='utf-8') as f:
+    with open(doc_file, encoding='utf-8') as f:
         content = f.read()
 
     # 显示前 500 字符
@@ -84,7 +81,7 @@ def view_log(session_dir: Path):
     print(f"\n📋 查看测试日志: {log_file.name}")
     print("=" * 80)
 
-    with open(log_file, 'r', encoding='utf-8') as f:
+    with open(log_file, encoding='utf-8') as f:
         lines = f.readlines()
 
     # 显示最后 20 行
@@ -138,7 +135,7 @@ def main():
     show_session_info(latest_session)
 
     # 询问要查看什么
-    print(f"\n请选择要查看的内容:")
+    print("\n请选择要查看的内容:")
     print("  1. 查看生成的文档")
     print("  2. 查看测试日志")
     print("  3. 查看研究数据")

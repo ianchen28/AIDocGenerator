@@ -1,8 +1,12 @@
 import asyncio
-import redis.asyncio as redis
 import json
-from loguru import logger
 from typing import Optional
+
+import redis.asyncio as redis
+from loguru import logger
+
+# 导入 Celery 应用程序
+from .celery_app import celery_app
 
 
 # 延迟导入container以避免循环导入
@@ -48,18 +52,29 @@ async def get_redis_client() -> redis.Redis:
     return redis_client
 
 
-async def generate_outline_task(job_id: str) -> str:
+@celery_app.task
+def generate_outline_task(job_id: str) -> str:
     """
     生成大纲的异步任务
-    
+
     Args:
         job_id: 作业ID
-        
+
     Returns:
         任务状态
     """
     logger.info(f"大纲生成任务开始 - Job ID: {job_id}")
 
+    try:
+        # 使用同步方式运行异步函数
+        return asyncio.run(_generate_outline_task_async(job_id))
+    except Exception as e:
+        logger.error(f"大纲生成任务失败: {e}")
+        return "FAILED"
+
+
+async def _generate_outline_task_async(job_id: str) -> str:
+    """异步大纲生成任务的内部实现"""
     try:
         # 获取Redis客户端
         redis = await get_redis_client()
@@ -143,20 +158,31 @@ async def generate_outline_task(job_id: str) -> str:
         return "FAILED"
 
 
-async def run_main_workflow(job_id: str, topic: str) -> str:
+@celery_app.task
+def run_main_workflow(job_id: str, topic: str) -> str:
     """
     主要的异步工作流函数
     使用真实的图执行器和Redis回调处理器
-    
+
     Args:
         job_id: 任务ID
         topic: 文档主题
-        
+
     Returns:
         任务状态
     """
     logger.info(f"主工作流开始 - Job ID: {job_id}, Topic: {topic}")
 
+    try:
+        # 使用同步方式运行异步函数
+        return asyncio.run(_run_main_workflow_async(job_id, topic))
+    except Exception as e:
+        logger.error(f"主工作流任务失败: {e}")
+        return "FAILED"
+
+
+async def _run_main_workflow_async(job_id: str, topic: str) -> str:
+    """异步主工作流任务的内部实现"""
     try:
         # 获取Redis客户端
         redis = await get_redis_client()
@@ -324,16 +350,27 @@ async def run_main_workflow(job_id: str, topic: str) -> str:
         return "FAILED"
 
 
-async def get_job_status(job_id: str) -> dict:
+@celery_app.task
+def get_job_status(job_id: str) -> dict:
     """
     获取任务状态
-    
+
     Args:
         job_id: 任务ID
-        
+
     Returns:
         任务状态字典
     """
+    try:
+        # 使用同步方式运行异步函数
+        return asyncio.run(_get_job_status_async(job_id))
+    except Exception as e:
+        logger.error(f"获取任务状态失败: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+async def _get_job_status_async(job_id: str) -> dict:
+    """异步获取任务状态的内部实现"""
     try:
         redis = await get_redis_client()
         job_data = await redis.hgetall(f"job:{job_id}")
@@ -346,3 +383,55 @@ async def get_job_status(job_id: str) -> dict:
     except Exception as e:
         logger.error(f"获取任务状态失败: {e}")
         return {"status": "error", "error": str(e)}
+
+
+# Celery 任务导入
+from .celery_app import celery_app
+
+
+@celery_app.task
+def test_celery_task(message: str) -> str:
+    """
+    测试 Celery 任务
+    
+    Args:
+        message: 测试消息
+        
+    Returns:
+        str: 返回的消息
+    """
+    logger.info(f"执行 Celery 测试任务: {message}")
+    return f"Celery 任务执行成功: {message}"
+
+
+@celery_app.task
+def generate_document_celery(job_id: str, topic: str) -> dict:
+    """
+    使用 Celery 执行文档生成任务
+    
+    Args:
+        job_id: 作业ID
+        topic: 文档主题
+        
+    Returns:
+        dict: 执行结果
+    """
+    logger.info(f"开始 Celery 文档生成任务: {job_id}, 主题: {topic}")
+
+    try:
+        # 这里可以调用现有的文档生成逻辑
+        # 暂时返回模拟结果
+        result = {
+            "job_id": job_id,
+            "status": "completed",
+            "topic": topic,
+            "document_length": 5000,
+            "chapters": 5
+        }
+
+        logger.info(f"Celery 文档生成任务完成: {job_id}")
+        return result
+
+    except Exception as e:
+        logger.error(f"Celery 文档生成任务失败: {job_id}, 错误: {e}")
+        return {"job_id": job_id, "status": "failed", "error": str(e)}

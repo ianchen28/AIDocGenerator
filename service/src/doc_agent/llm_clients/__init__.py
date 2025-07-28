@@ -1,14 +1,21 @@
 # service/src/doc_agent/llm_clients/__init__.py
-from loguru import logger
 import pprint
-
-from .base import LLMClient
-from .providers import (InternalLLMClient, GeminiClient, DeepSeekClient,
-                        MoonshotClient, RerankerClient, EmbeddingClient)
 
 # 动态导入配置，避免相对导入问题
 import sys
 from pathlib import Path
+
+from loguru import logger
+
+from .base import LLMClient
+from .providers import (
+    DeepSeekClient,
+    EmbeddingClient,
+    GeminiClient,
+    InternalLLMClient,
+    MoonshotClient,
+    RerankerClient,
+)
 
 # 添加service目录到路径
 service_dir = Path(__file__).parent.parent.parent.parent
@@ -21,11 +28,9 @@ from core.config import settings
 def get_llm_client(model_key: str = "qwen_2_5_235b_a22b") -> LLMClient:
     """
     工厂函数，根据配置创建并返回一个LLM客户端实例
-    
     Args:
         model_key: 模型键名，从config.yaml的supported_models中获取，
             默认为qwen_2_5_235b_a22b
-        
     Returns:
         LLMClient: 相应的客户端实例
     """

@@ -12,10 +12,10 @@ service_dir = current_file.parent.parent  # service 目录
 if str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
 
+from core.config import settings
 from src.doc_agent.graph.nodes import writer_node
 from src.doc_agent.graph.state import ResearchState
 from src.doc_agent.llm_clients.providers import InternalLLMClient
-from core.config import settings
 
 
 def test_writer_node():

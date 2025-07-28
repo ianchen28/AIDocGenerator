@@ -57,21 +57,25 @@ AIDocGenerator/
 ## 🎯 核心功能
 
 ### 1. 📋 交互式大纲生成
+
 - 智能分析用户需求，生成结构化大纲
 - 支持用户编辑和个性化定制
 - 大纲确认后自动触发文档生成
 
 ### 2. 🔄 实时事件监控
+
 - Redis驱动的实时事件流
 - 支持阶段更新、工具调用、错误处理等事件
 - 完整的执行过程透明化
 
 ### 3. 🤖 智能文档生成
+
 - 多阶段工作流：研究 → 规划 → 写作 → 验证
 - 支持多种检索源：ES、网络搜索、向量检索
 - 自动化的内容生成和质量控制
 
 ### 4. 🌐 企业级API
+
 - RESTful设计，支持完整的CRUD操作
 - 异步处理，高并发支持
 - 完整的错误处理和状态管理
@@ -81,6 +85,7 @@ AIDocGenerator/
 ## 🚀 快速开始
 
 ### 环境要求
+
 - Python 3.9+
 - Redis 7.0+
 - Elasticsearch 8.0+ (可选)
@@ -137,6 +142,7 @@ curl http://localhost:8000/api/v1/health
 ### 完整工作流
 
 #### 1. 创建上下文（可选）
+
 ```bash
 curl -X POST "http://localhost:8000/api/v1/contexts" \
   -H "Content-Type: application/json" \
@@ -152,6 +158,7 @@ curl -X POST "http://localhost:8000/api/v1/contexts" \
 ```
 
 #### 2. 创建文档生成作业
+
 ```bash
 curl -X POST "http://localhost:8000/api/v1/jobs" \
   -H "Content-Type: application/json" \
@@ -162,16 +169,19 @@ curl -X POST "http://localhost:8000/api/v1/jobs" \
 ```
 
 #### 3. 生成大纲
+
 ```bash
 curl -X POST "http://localhost:8000/api/v1/jobs/job-xyz789/outline"
 ```
 
 #### 4. 获取生成的大纲
+
 ```bash
 curl "http://localhost:8000/api/v1/jobs/job-xyz789/outline"
 ```
 
 #### 5. 编辑并确认大纲
+
 ```bash
 curl -X PUT "http://localhost:8000/api/v1/jobs/job-xyz789/outline" \
   -H "Content-Type: application/json" \
@@ -207,12 +217,14 @@ curl -X PUT "http://localhost:8000/api/v1/jobs/job-xyz789/outline" \
 ## 🎭 演示脚本
 
 ### 1. 完整API演示
+
 ```bash
 python examples/api_demo.py
 ```
 展示完整的API使用流程：创建作业 → 生成大纲 → 编辑确认 → 最终生成
 
 ### 2. 实时事件流演示
+
 ```bash
 # 完整演示（自动创建作业并监听事件）
 python examples/redis_events_demo.py
@@ -222,6 +234,7 @@ python examples/redis_events_demo.py simple
 ```
 
 ### 3. 传统命令行测试
+
 ```bash
 # 端到端文档生成（无API）
 python _test_graph.py
@@ -267,6 +280,7 @@ async def listen_events(job_id):
 ## 🧪 测试
 
 ### 运行所有测试
+
 ```bash
 # API端点测试
 pytest tests/test_api_endpoints.py -v
@@ -280,6 +294,7 @@ python tests/run_all_tests.py
 ```
 
 ### 测试覆盖
+
 - Unit Tests: 核心组件单元测试
 - Integration Tests: API集成测试
 - E2E Tests: 端到端工作流测试
@@ -289,6 +304,7 @@ python tests/run_all_tests.py
 ## ⚙️ 配置说明
 
 ### 主配置文件 (`service/core/config.yaml`)
+
 ```yaml
 # 支持的模型配置
 supported_models:
@@ -314,6 +330,7 @@ agent_config:
 ```
 
 ### 环境变量配置
+
 - 敏感信息通过 `.env` 文件管理
 - 支持环境变量替换
 - 多环境配置支持
@@ -323,6 +340,7 @@ agent_config:
 ## 🏗️ 高级功能
 
 ### 1. 自定义LLM客户端
+
 ```python
 from service.src.doc_agent.llm_clients import get_llm_client
 
@@ -332,6 +350,7 @@ result = client.invoke("你的提示")
 ```
 
 ### 2. 扩展Agent工具
+
 ```python
 from service.src.doc_agent.tools import register_tool
 
@@ -342,6 +361,7 @@ def custom_tool(input_str: str) -> str:
 ```
 
 ### 3. 自定义回调处理器
+
 ```python
 from service.src.doc_agent.graph.callbacks import RedisCallbackHandler
 
@@ -356,6 +376,7 @@ class CustomCallback(RedisCallbackHandler):
 ## 🚀 部署指南
 
 ### Docker部署
+
 ```bash
 # 构建镜像
 docker build -t aidoc-generator .
@@ -365,6 +386,7 @@ docker run -p 8000:8000 -e REDIS_URL=redis://host:6379 aidoc-generator
 ```
 
 ### 生产环境推荐
+
 - 使用Nginx作为反向代理
 - Redis集群配置
 - 监控和日志聚合
@@ -391,6 +413,7 @@ docker run -p 8000:8000 -e REDIS_URL=redis://host:6379 aidoc-generator
 5. 开启Pull Request
 
 ### 开发规范
+
 - 代码请放在对应的目录：`examples/`（演示）、`tests/`（测试）、`docs/`（文档）
 - 使用loguru进行日志记录
 - 遵循现有的代码风格和架构
@@ -406,15 +429,19 @@ docker run -p 8000:8000 -e REDIS_URL=redis://host:6379 aidoc-generator
 ## 🆘 常见问题
 
 ### Q: Redis连接失败？
+
 A: 确保Redis服务正在运行，检查连接配置和网络设置。
 
 ### Q: API返回422错误？
+
 A: 检查请求数据格式，确保必需字段都已提供。
 
 ### Q: 大纲生成一直是GENERATING状态？
+
 A: 检查LLM配置和API密钥，查看日志获取详细错误信息。
 
 ### Q: 如何添加新的LLM模型？
+
 A: 在`config.yaml`中添加模型配置，确保API密钥和地址正确。
 
 ---

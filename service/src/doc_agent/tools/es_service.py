@@ -3,10 +3,11 @@ Elasticsearch 底层服务模块
 提供基础的ES连接和搜索功能，支持KNN向量搜索
 """
 
-from typing import List, Dict, Any, Optional, Union
-from dataclasses import dataclass
-from elasticsearch import AsyncElasticsearch
 import asyncio
+from dataclasses import dataclass
+from typing import Any, Optional
+
+from elasticsearch import AsyncElasticsearch
 from loguru import logger
 
 
@@ -18,7 +19,7 @@ class ESSearchResult:
     div_content: str = ""  # 切分后的内容
     source: str = ""
     score: float = 0.0
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
     alias_name: str = ""  # 来源索引别名
 
     def __post_init__(self):
@@ -30,13 +31,13 @@ class ESService:
     """ES底层服务类"""
 
     def __init__(self,
-                 hosts: List[str],
+                 hosts: list[str],
                  username: str = "",
                  password: str = "",
                  timeout: int = 30):
         """
         初始化ES服务
-        
+
         Args:
             hosts: ES服务器地址列表
             username: 用户名
@@ -92,18 +93,18 @@ class ESService:
             index: str,
             query: str,
             top_k: int = 10,
-            query_vector: Optional[List[float]] = None,
-            filters: Optional[Dict[str, Any]] = None) -> List[ESSearchResult]:
+            query_vector: Optional[list[float]] = None,
+            filters: Optional[dict[str, Any]] = None) -> list[ESSearchResult]:
         """
         执行ES搜索
-        
+
         Args:
             index: 索引名称
             query: 搜索查询
             top_k: 返回结果数量
             query_vector: 查询向量（可选）
             filters: 过滤条件（可选）
-            
+
         Returns:
             List[ESSearchResult]: 搜索结果列表
         """
@@ -166,18 +167,18 @@ class ESService:
 
     def _build_search_body(self,
                            query: str,
-                           query_vector: Optional[List[float]] = None,
-                           filters: Optional[Dict[str, Any]] = None,
-                           top_k: int = 10) -> Dict[str, Any]:
+                           query_vector: Optional[list[float]] = None,
+                           filters: Optional[dict[str, Any]] = None,
+                           top_k: int = 10) -> dict[str, Any]:
         """
         构建搜索查询体
-        
+
         Args:
             query: 搜索查询
             query_vector: 查询向量
             filters: 过滤条件
             top_k: 返回结果数量
-            
+
         Returns:
             Dict[str, Any]: 搜索查询体
         """
@@ -191,19 +192,19 @@ class ESService:
             return self._build_text_search_body(query, filters, top_k)
 
     def _build_knn_search_body(self,
-                               query_vector: List[float],
+                               query_vector: list[float],
                                query: str = "",
-                               filters: Optional[Dict[str, Any]] = None,
-                               top_k: int = 10) -> Dict[str, Any]:
+                               filters: Optional[dict[str, Any]] = None,
+                               top_k: int = 10) -> dict[str, Any]:
         """
         构建KNN向量搜索查询体
-        
+
         Args:
             query_vector: 查询向量
             query: 文本查询（可选，用于混合搜索）
             filters: 过滤条件
             top_k: 返回结果数量
-            
+
         Returns:
             Dict[str, Any]: KNN搜索查询体
         """
@@ -211,10 +212,10 @@ class ESService:
         if len(query_vector) != 1536:
             if len(query_vector) > 1536:
                 query_vector = query_vector[:1536]
-                logger.debug(f"截断向量维度到 1536")
+                logger.debug("截断向量维度到 1536")
             else:
                 query_vector.extend([0.0] * (1536 - len(query_vector)))
-                logger.debug(f"扩展向量维度到 1536")
+                logger.debug("扩展向量维度到 1536")
 
         # 构建基础KNN查询
         search_body = {
@@ -285,16 +286,16 @@ class ESService:
 
     def _build_text_search_body(self,
                                 query: str,
-                                filters: Optional[Dict[str, Any]] = None,
-                                top_k: int = 10) -> Dict[str, Any]:
+                                filters: Optional[dict[str, Any]] = None,
+                                top_k: int = 10) -> dict[str, Any]:
         """
         构建文本搜索查询体
-        
+
         Args:
             query: 搜索查询
             filters: 过滤条件
             top_k: 返回结果数量
-            
+
         Returns:
             Dict[str, Any]: 文本搜索查询体
         """
@@ -330,14 +331,14 @@ class ESService:
 
         return search_body
 
-    def _build_filter_conditions(self, filters: Dict[str,
-                                                     Any]) -> Dict[str, Any]:
+    def _build_filter_conditions(self, filters: dict[str,
+                                                     Any]) -> dict[str, Any]:
         """
         构建过滤条件
-        
+
         Args:
             filters: 过滤条件字典
-            
+
         Returns:
             Dict[str, Any]: 过滤条件查询体
         """
@@ -361,21 +362,21 @@ class ESService:
 
     async def search_multiple_indices(
             self,
-            indices: List[str],
+            indices: list[str],
             query: str,
             top_k: int = 10,
-            query_vector: Optional[List[float]] = None,
-            filters: Optional[Dict[str, Any]] = None) -> List[ESSearchResult]:
+            query_vector: Optional[list[float]] = None,
+            filters: Optional[dict[str, Any]] = None) -> list[ESSearchResult]:
         """
         在多个索引中搜索
-        
+
         Args:
             indices: 索引列表
             query: 搜索查询
             top_k: 返回结果数量
             query_vector: 查询向量
             filters: 过滤条件
-            
+
         Returns:
             List[ESSearchResult]: 搜索结果列表
         """
@@ -471,7 +472,7 @@ class ESService:
                 self._client = None
                 self._initialized = False
 
-    async def get_indices(self) -> List[Dict[str, Any]]:
+    async def get_indices(self) -> list[dict[str, Any]]:
         """获取所有索引信息"""
         logger.debug("获取所有索引信息")
         await self._ensure_connected()
@@ -488,7 +489,7 @@ class ESService:
             logger.error(f"获取索引失败: {str(e)}")
             return []
 
-    async def get_index_mapping(self, index: str) -> Optional[Dict[str, Any]]:
+    async def get_index_mapping(self, index: str) -> Optional[dict[str, Any]]:
         """获取索引映射"""
         logger.debug(f"获取索引 {index} 的映射信息")
         await self._ensure_connected()

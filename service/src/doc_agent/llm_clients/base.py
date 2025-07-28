@@ -1,6 +1,5 @@
 # service/src/doc_agent/llm_clients/base.py
 from abc import ABC, abstractmethod
-from typing import Any, Dict
 
 
 class LLMClient(ABC):
@@ -13,14 +12,11 @@ class LLMClient(ABC):
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         同步调用模型
-        
         Args:
             prompt: 输入提示
             **kwargs: 其他参数，如temperature, max_tokens等
-            
         Returns:
             str: 模型响应的内容
-            
         Raises:
             Exception: 当API调用失败时抛出异常
         """

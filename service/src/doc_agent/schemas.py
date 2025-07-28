@@ -1,7 +1,7 @@
 # service/src/doc_agent/schemas.py
+from typing import Literal, Optional
+
 from pydantic import BaseModel, Field
-from typing import Literal, List, Optional
-from datetime import datetime
 
 
 # --- Context Models ---
@@ -14,7 +14,7 @@ class ContextFile(BaseModel):
 
 class CreateContextRequest(BaseModel):
     """创建上下文请求"""
-    files: List[ContextFile]
+    files: list[ContextFile]
 
 
 class ContextStatusResponse(BaseModel):
@@ -43,7 +43,7 @@ class OutlineNode(BaseModel):
     id: str
     title: str
     content_summary: Optional[str] = None
-    children: List['OutlineNode'] = []
+    children: list['OutlineNode'] = []
 
 
 # 支持递归模型引用
@@ -53,7 +53,7 @@ OutlineNode.model_rebuild()
 class Outline(BaseModel):
     """大纲模型"""
     title: str
-    nodes: List[OutlineNode]
+    nodes: list[OutlineNode]
 
 
 class OutlineResponse(BaseModel):

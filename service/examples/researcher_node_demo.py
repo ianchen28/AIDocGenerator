@@ -5,9 +5,9 @@ researcher_node 使用示例
 演示如何使用 researcher_node 进行搜索研究
 """
 
+import asyncio
 import sys
 from pathlib import Path
-import asyncio
 
 # 添加项目根目录到Python路径
 current_file = Path(__file__)
@@ -18,8 +18,8 @@ if str(src_dir) not in sys.path:
 
 from doc_agent.graph.nodes import async_researcher_node
 from doc_agent.graph.state import ResearchState
-from doc_agent.tools.web_search import WebSearchTool
 from doc_agent.tools.es_search import ESSearchTool
+from doc_agent.tools.web_search import WebSearchTool
 
 
 def demo_researcher_node():

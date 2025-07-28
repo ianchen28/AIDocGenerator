@@ -1,7 +1,7 @@
 # service/core/container.py
 import sys
-from pathlib import Path
 from functools import partial
+from pathlib import Path
 
 # 添加项目根目录到Python路径
 current_file = Path(__file__)
@@ -15,10 +15,11 @@ if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
 
 # 确保环境变量已加载
-from core.env_loader import setup_environment
-from core.config import settings
-from core.logging_config import setup_logging
 from loguru import logger
+
+from core.config import settings
+from core.env_loader import setup_environment
+from core.logging_config import setup_logging
 
 setup_environment()
 
@@ -27,29 +28,35 @@ setup_logging(settings)
 
 # 在设置路径后导入 doc_agent 模块
 try:
-    from doc_agent.llm_clients import get_llm_client
-    from doc_agent.tools import get_web_search_tool, get_es_search_tool, get_reranker_tool, get_all_tools
-
     from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
     from doc_agent.graph.chapter_workflow import router as chapter_router
-    from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
-
     from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
+    from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
     from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
+    from doc_agent.llm_clients import get_llm_client
+    from doc_agent.tools import (
+        get_all_tools,
+        get_es_search_tool,
+        get_reranker_tool,
+        get_web_search_tool,
+    )
 except ImportError as e:
     print(f"❌ 导入 doc_agent 模块失败: {e}")
     print(f"当前 Python 路径: {sys.path[:3]}")
     raise
-from doc_agent.tools import get_web_search_tool, get_es_search_tool, get_reranker_tool, get_all_tools
-
+from doc_agent.graph.callbacks import create_redis_callback_handler
 from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
 from doc_agent.graph.chapter_workflow import router as chapter_router
-from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
-
 from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
-from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
 from doc_agent.graph.fast_builder import build_fast_main_workflow
-from doc_agent.graph.callbacks import create_redis_callback_handler
+from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
+from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
+from doc_agent.tools import (
+    get_all_tools,
+    get_es_search_tool,
+    get_reranker_tool,
+    get_web_search_tool,
+)
 
 
 class Container:
@@ -163,12 +170,8 @@ class Container:
     def get_fast_graph_runnable_for_job(self, job_id: str):
         """
         为指定作业获取带有Redis回调处理器的快速图执行器
-        
         Args:
             job_id: 作业ID，用于创建特定的回调处理器
-            
-        Returns:
-            配置了Redis回调处理器的快速图执行器
         """
         # 创建Redis回调处理器
         redis_handler = create_redis_callback_handler(job_id)

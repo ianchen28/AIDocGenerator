@@ -9,18 +9,17 @@
 """
 
 import asyncio
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Any
-from dataclasses import dataclass, field
-from enum import Enum
-import uuid
-from pathlib import Path
 import json
+import logging
 
 # 添加项目路径
 import sys
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 current_file = Path(__file__)
 service_dir = None
@@ -31,8 +30,6 @@ for parent in current_file.parents:
 
 if service_dir and str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
-
-from core.config import settings
 
 
 class TaskStatus(Enum):
@@ -68,10 +65,10 @@ class AutomationTask:
     retry_count: int = 0
     max_retries: int = 3
     error_message: str = ""
-    result: Optional[Dict] = None
-    metadata: Dict = field(default_factory=dict)
+    result: Optional[dict] = None
+    metadata: dict = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """转换为字典格式"""
         return {
             "id":
@@ -105,7 +102,7 @@ class AutomationTask:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'AutomationTask':
+    def from_dict(cls, data: dict) -> 'AutomationTask':
         """从字典创建任务"""
         task = cls()
         task.id = data.get("id", str(uuid.uuid4()))
@@ -135,7 +132,6 @@ class AutomationScheduler:
     def __init__(self, storage_path: Optional[str] = None):
         """
         初始化调度器
-        
         Args:
             storage_path: 任务存储路径，默认为 output/automation
         """
@@ -143,7 +139,7 @@ class AutomationScheduler:
             "output/automation")
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
-        self.tasks: Dict[str, AutomationTask] = {}
+        self.tasks: dict[str, AutomationTask] = {}
         self.running = False
         self.logger = logging.getLogger(__name__)
 
@@ -180,10 +176,9 @@ class AutomationScheduler:
                  description: str = "",
                  priority: TaskPriority = TaskPriority.NORMAL,
                  max_retries: int = 3,
-                 metadata: Optional[Dict] = None) -> str:
+                 metadata: Optional[dict] = None) -> str:
         """
         添加新任务
-        
         Args:
             name: 任务名称
             topic: 文档主题
@@ -191,7 +186,6 @@ class AutomationScheduler:
             priority: 任务优先级
             max_retries: 最大重试次数
             metadata: 额外元数据
-            
         Returns:
             str: 任务ID
         """
@@ -215,7 +209,7 @@ class AutomationScheduler:
     def get_tasks(
             self,
             status: Optional[TaskStatus] = None,
-            priority: Optional[TaskPriority] = None) -> List[AutomationTask]:
+            priority: Optional[TaskPriority] = None) -> list[AutomationTask]:
         """获取任务列表"""
         tasks = list(self.tasks.values())
 
@@ -317,7 +311,7 @@ class AutomationScheduler:
         finally:
             self._save_tasks()
 
-    async def _run_document_generation(self, topic: str) -> Dict:
+    async def _run_document_generation(self, topic: str) -> dict:
         """运行文档生成"""
         # 这里调用您的文档生成图
         from core.container import container
@@ -338,7 +332,7 @@ class AutomationScheduler:
 
         return result or {"status": "completed", "topic": topic}
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """获取调度器统计信息"""
         total = len(self.tasks)
         status_counts = {}

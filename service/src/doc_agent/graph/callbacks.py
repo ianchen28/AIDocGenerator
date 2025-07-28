@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Redis回调处理器
 用于将LangGraph执行事件发布到Redis，支持实时事件流监控
 """
 
-import json
 import asyncio
-from typing import Any, Dict, List, Optional, Union
-from uuid import UUID
+import json
 from datetime import datetime
+from typing import Any, Optional, Union
+from uuid import UUID
 
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 from loguru import logger
 
 # 导入Redis客户端
 try:
-    from ...workers.tasks import get_redis_client
+    from ....workers.tasks import get_redis_client
 except ImportError:
     # 如果相对导入失败，尝试绝对导入
     import sys
@@ -37,7 +35,7 @@ except ImportError:
 class RedisCallbackHandler(BaseCallbackHandler):
     """
     Redis回调处理器
-    
+
     将LangGraph执行过程中的各种事件发布到Redis，
     以支持实时事件流监控和前端状态更新
     """
@@ -45,7 +43,7 @@ class RedisCallbackHandler(BaseCallbackHandler):
     def __init__(self, job_id: str):
         """
         初始化Redis回调处理器
-        
+
         Args:
             job_id: 作业ID，用于构建Redis频道名称
         """
@@ -67,10 +65,10 @@ class RedisCallbackHandler(BaseCallbackHandler):
                 self.redis_client = None
         return self.redis_client
 
-    async def _publish_event(self, event_type: str, data: Dict[str, Any]):
+    async def _publish_event(self, event_type: str, data: dict[str, Any]):
         """
         发布事件到Redis
-        
+
         Args:
             event_type: 事件类型
             data: 事件数据
@@ -99,13 +97,13 @@ class RedisCallbackHandler(BaseCallbackHandler):
 
     def on_chain_start(
         self,
-        serialized: Dict[str, Any],
-        inputs: Dict[str, Any],
+        serialized: dict[str, Any],
+        inputs: dict[str, Any],
         *,
         run_id: UUID,
         parent_run_id: Optional[UUID] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[list[str]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         """链开始执行时的回调"""
@@ -128,24 +126,33 @@ class RedisCallbackHandler(BaseCallbackHandler):
             phase = "WRITING"
             message = "开始撰写文档内容..."
 
-        # 异步发布事件
-        asyncio.create_task(
-            self._publish_event(
-                "phase_update", {
-                    "phase": phase,
-                    "message": message,
-                    "chain_name": chain_name,
-                    "run_id": str(run_id),
-                    "inputs": {
-                        k:
-                        str(v)[:100] + "..." if len(str(v)) > 100 else str(v)
-                        for k, v in inputs.items()
-                    }
-                }))
+        # 同步发布事件（避免异步问题）
+        try:
+            # 使用线程池执行异步操作
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    self._publish_event(
+                        "phase_update", {
+                            "phase": phase,
+                            "message": message,
+                            "chain_name": chain_name,
+                            "run_id": str(run_id),
+                            "inputs": {
+                                k:
+                                str(v)[:100] +
+                                "..." if len(str(v)) > 100 else str(v)
+                                for k, v in inputs.items()
+                            }
+                        }))
+                # 不等待结果，避免阻塞
+        except Exception as e:
+            logger.debug(f"发布事件失败（非阻塞）: {e}")
 
     def on_chain_end(
         self,
-        outputs: Dict[str, Any],
+        outputs: dict[str, Any],
         *,
         run_id: UUID,
         parent_run_id: Optional[UUID] = None,
@@ -153,43 +160,59 @@ class RedisCallbackHandler(BaseCallbackHandler):
     ) -> None:
         """链执行结束时的回调"""
         # 发布完成事件
-        asyncio.create_task(
-            self._publish_event(
-                "done", {
-                    "task": "chain_execution",
-                    "message": "链执行完成",
-                    "run_id": str(run_id),
-                    "outputs_summary": {
-                        k: f"{len(str(v))} characters"
-                        for k, v in outputs.items()
-                    }
-                }))
+        try:
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    self._publish_event(
+                        "done", {
+                            "task": "chain_execution",
+                            "message": "链执行完成",
+                            "run_id": str(run_id),
+                            "outputs_summary": {
+                                k: f"{len(str(v))} characters"
+                                for k, v in outputs.items()
+                            }
+                        }))
+        except Exception as e:
+            logger.debug(f"发布完成事件失败（非阻塞）: {e}")
 
     def on_tool_start(
         self,
-        serialized: Dict[str, Any],
+        serialized: dict[str, Any],
         input_str: str,
         *,
         run_id: UUID,
         parent_run_id: Optional[UUID] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        inputs: Optional[Dict[str, Any]] = None,
+        tags: Optional[list[str]] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        inputs: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         """工具开始执行时的回调"""
         tool_name = serialized.get("name", "Unknown Tool")
 
-        # 异步发布工具调用事件
-        asyncio.create_task(
-            self._publish_event(
-                "tool_call", {
-                    "tool_name": tool_name,
-                    "status": "START",
-                    "input": input_str[:200] +
-                    "..." if len(input_str) > 200 else input_str,
-                    "run_id": str(run_id)
-                }))
+        # 发布工具调用事件
+        try:
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    self._publish_event(
+                        "tool_call", {
+                            "tool_name":
+                            tool_name,
+                            "status":
+                            "START",
+                            "input":
+                            input_str[:200] +
+                            "..." if len(input_str) > 200 else input_str,
+                            "run_id":
+                            str(run_id)
+                        }))
+        except Exception as e:
+            logger.debug(f"发布工具调用事件失败（非阻塞）: {e}")
 
     def on_tool_end(
         self,
@@ -202,35 +225,51 @@ class RedisCallbackHandler(BaseCallbackHandler):
         """工具执行结束时的回调"""
         # 如果输出看起来像是搜索结果，发布source_found事件
         if len(output) > 100:  # 假设是有意义的搜索结果
-            asyncio.create_task(
-                self._publish_event(
-                    "source_found", {
-                        "source_type": "search_result",
-                        "title": "搜索结果",
-                        "snippet":
-                        output[:300] + "..." if len(output) > 300 else output,
-                        "run_id": str(run_id)
-                    }))
+            try:
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        asyncio.run,
+                        self._publish_event(
+                            "source_found", {
+                                "source_type":
+                                "search_result",
+                                "title":
+                                "搜索结果",
+                                "snippet":
+                                output[:300] +
+                                "..." if len(output) > 300 else output,
+                                "run_id":
+                                str(run_id)
+                            }))
+            except Exception as e:
+                logger.debug(f"发布搜索结果事件失败（非阻塞）: {e}")
 
         # 发布工具完成事件
-        asyncio.create_task(
-            self._publish_event(
-                "tool_call", {
-                    "tool_name": "tool",
-                    "status": "END",
-                    "output_length": len(output),
-                    "run_id": str(run_id)
-                }))
+        try:
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    self._publish_event(
+                        "tool_call", {
+                            "tool_name": "tool",
+                            "status": "END",
+                            "output_length": len(output),
+                            "run_id": str(run_id)
+                        }))
+        except Exception as e:
+            logger.debug(f"发布工具完成事件失败（非阻塞）: {e}")
 
     def on_chat_model_start(
         self,
-        serialized: Dict[str, Any],
-        messages: List[List[BaseMessage]],
+        serialized: dict[str, Any],
+        messages: list[list[BaseMessage]],
         *,
         run_id: UUID,
         parent_run_id: Optional[UUID] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[list[str]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         """聊天模型开始时的回调"""
@@ -249,13 +288,13 @@ class RedisCallbackHandler(BaseCallbackHandler):
 
     def on_llm_start(
         self,
-        serialized: Dict[str, Any],
-        prompts: List[str],
+        serialized: dict[str, Any],
+        prompts: list[str],
         *,
         run_id: UUID,
         parent_run_id: Optional[UUID] = None,
-        tags: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[list[str]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         **kwargs: Any,
     ) -> None:
         """LLM开始时的回调"""
@@ -350,10 +389,10 @@ class RedisCallbackHandler(BaseCallbackHandler):
 def create_redis_callback_handler(job_id: str) -> RedisCallbackHandler:
     """
     创建Redis回调处理器的工厂函数
-    
+
     Args:
         job_id: 作业ID
-        
+
     Returns:
         RedisCallbackHandler实例
     """

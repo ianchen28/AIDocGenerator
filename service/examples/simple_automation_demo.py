@@ -6,14 +6,14 @@
 """
 
 import asyncio
-import logging
 import json
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional
-from dataclasses import dataclass, field
-from enum import Enum
+import logging
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Optional, Dict, List
 
 # 设置日志
 logging.basicConfig(level=logging.INFO,
@@ -49,9 +49,9 @@ class AutomationTask:
     created_at: datetime = field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    result: Optional[Dict] = None
+    result: Optional[dict] = None
     error_message: str = ""
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
         """转换为字典格式"""
@@ -90,7 +90,7 @@ class SimpleAutomationManager:
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
-        self.tasks: Dict[str, AutomationTask] = {}
+        self.tasks: dict[str, AutomationTask] = {}
         self.running = False
         self.logger = logger
 
@@ -146,7 +146,7 @@ class SimpleAutomationManager:
                  topic: str,
                  description: str = "",
                  priority: TaskPriority = TaskPriority.NORMAL,
-                 metadata: Optional[Dict] = None) -> str:
+                 metadata: Optional[dict] = None) -> str:
         """添加任务"""
         task = AutomationTask(name=name,
                               topic=topic,
@@ -165,7 +165,7 @@ class SimpleAutomationManager:
         return self.tasks.get(task_id)
 
     def get_tasks(self,
-                  status: Optional[TaskStatus] = None) -> List[AutomationTask]:
+                  status: Optional[TaskStatus] = None) -> list[AutomationTask]:
         """获取任务列表"""
         tasks = list(self.tasks.values())
 
@@ -218,7 +218,7 @@ class SimpleAutomationManager:
         finally:
             self._save_tasks()
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """获取统计信息"""
         total = len(self.tasks)
         status_counts = {}

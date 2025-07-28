@@ -209,21 +209,23 @@ class TestMainOrchestrator:
         """验证工作流完整性"""
         logger.debug("验证工作流完整性")
 
-        # 检查关键节点是否被执行
-        expected_nodes = ["planner", "researcher"]
+        # 检查主编排器的关键节点是否被执行
+        expected_nodes = [
+            "initial_research", "outline_generation", "split_chapters"
+        ]
         for node in expected_nodes:
             assert node in nodes_executed, f"关键节点 '{node}' 应该被执行"
 
-        # 检查是否有输出节点（writer或finalize_document）
-        output_nodes = ["writer", "finalize_document"]
+        # 检查是否有输出节点（chapter_processing或finalize_document）
+        output_nodes = ["chapter_processing", "finalize_document"]
         assert any(node in nodes_executed for node in output_nodes), \
-            "应该执行至少一个输出节点（writer或finalize_document）"
+            "应该执行至少一个输出节点（chapter_processing或finalize_document）"
 
         # 验证执行顺序的合理性
-        if "planner" in nodes_executed and "researcher" in nodes_executed:
-            planner_idx = nodes_executed.index("planner")
-            researcher_idx = nodes_executed.index("researcher")
-            assert planner_idx < researcher_idx, "planner应该在researcher之前执行"
+        if "initial_research" in nodes_executed and "outline_generation" in nodes_executed:
+            research_idx = nodes_executed.index("initial_research")
+            outline_idx = nodes_executed.index("outline_generation")
+            assert research_idx < outline_idx, "initial_research应该在outline_generation之前执行"
 
         logger.debug("✅ 工作流完整性验证通过")
 

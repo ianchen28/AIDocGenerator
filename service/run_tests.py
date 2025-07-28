@@ -5,7 +5,6 @@
 """
 
 import sys
-import os
 from pathlib import Path
 
 # 添加当前目录到Python路径

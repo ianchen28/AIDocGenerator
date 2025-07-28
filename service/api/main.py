@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from loguru import logger
+
 from .endpoints import router
 
 

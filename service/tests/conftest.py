@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 pytest配置文件
 提供可重用的测试夹具(fixtures)
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # 添加项目根目录到路径
 current_file = Path(__file__)

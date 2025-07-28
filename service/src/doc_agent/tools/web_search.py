@@ -1,5 +1,6 @@
 # service/src/doc_agent/tools/web_search.py
 from typing import Optional
+
 from loguru import logger
 
 
@@ -12,7 +13,6 @@ class WebSearchTool:
     def __init__(self, api_key: Optional[str] = None):
         """
         初始化网络搜索工具
-        
         Args:
             api_key: Tavily API密钥，暂时未使用
         """
@@ -26,10 +26,8 @@ class WebSearchTool:
     def search(self, query: str) -> str:
         """
         执行网络搜索
-        
         Args:
             query: 搜索查询字符串
-            
         Returns:
             str: 搜索结果（暂时返回模拟结果）
         """

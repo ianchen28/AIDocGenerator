@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 API端点测试
 使用pytest fixtures重构后的版本
 """
 
-import pytest
-import json
 from unittest.mock import AsyncMock, patch
-import httpx
+
+import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 from loguru import logger
 
 # 创建测试应用

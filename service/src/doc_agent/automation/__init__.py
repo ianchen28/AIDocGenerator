@@ -8,12 +8,14 @@ AI文档生成系统自动化操作模块
 - 结果管理和归档
 """
 
-from .scheduler import AutomationScheduler
-from .monitor import AutomationMonitor
 from .executor import AutomationExecutor
 from .manager import AutomationManager
+from .monitor import AutomationMonitor
+from .scheduler import AutomationScheduler
 
 __all__ = [
-    "AutomationScheduler", "AutomationMonitor", "AutomationExecutor",
-    "AutomationManager"
+    "AutomationScheduler",
+    "AutomationMonitor",
+    "AutomationExecutor",
+    "AutomationManager",
 ]

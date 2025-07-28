@@ -3,12 +3,13 @@ RerankerTool 重排序工具
 接收 ESSearchResult 列表，调用 RerankerClient 进行重排序
 """
 
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any, Optional
+
 from loguru import logger
 
-from .es_service import ESSearchResult
 from ..llm_clients.providers import RerankerClient
+from .es_service import ESSearchResult
 
 
 @dataclass
@@ -20,7 +21,7 @@ class RerankedSearchResult:
     source: str = ""
     score: float = 0.0
     rerank_score: float = 0.0  # 重排序评分
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
     alias_name: str = ""
 
     def __post_init__(self):
@@ -34,7 +35,6 @@ class RerankerTool:
     def __init__(self, base_url: str, api_key: str):
         """
         初始化重排序工具
-        
         Args:
             reranker_client: RerankerClient 实例
         """
@@ -45,16 +45,14 @@ class RerankerTool:
     def rerank_search_results(
             self,
             query: str,
-            search_results: List[ESSearchResult],
-            top_k: Optional[int] = None) -> List[RerankedSearchResult]:
+            search_results: list[ESSearchResult],
+            top_k: Optional[int] = None) -> list[RerankedSearchResult]:
         """
         对搜索结果进行重排序
-        
         Args:
             query: 查询文本
             search_results: ESSearchResult 列表
             top_k: 返回结果数量，None表示返回全部
-            
         Returns:
             List[RerankedSearchResult]: 重排序后的结果列表
         """
@@ -102,17 +100,15 @@ class RerankerTool:
             # 如果重排序失败，返回原始结果（按原始评分排序）
             return self._fallback_to_original_results(search_results)
 
-    def _parse_rerank_result(self, rerank_result: Dict[str, Any],
-                             original_results: List[ESSearchResult],
-                             query: str) -> List[RerankedSearchResult]:
+    def _parse_rerank_result(self, rerank_result: dict[str, Any],
+                             original_results: list[ESSearchResult],
+                             query: str) -> list[RerankedSearchResult]:
         """
         解析重排序结果
-        
         Args:
             rerank_result: RerankerClient 返回的结果
             original_results: 原始搜索结果
             query: 查询文本
-            
         Returns:
             List[RerankedSearchResult]: 解析后的重排序结果
         """
@@ -172,14 +168,12 @@ class RerankerTool:
         return reranked_results
 
     def _fallback_to_original_results(
-            self, original_results: List[ESSearchResult]
-    ) -> List[RerankedSearchResult]:
+            self, original_results: list[ESSearchResult]
+    ) -> list[RerankedSearchResult]:
         """
         回退到原始结果（当重排序失败时）
-        
         Args:
             original_results: 原始搜索结果
-            
         Returns:
             List[RerankedSearchResult]: 转换后的结果
         """
@@ -200,8 +194,8 @@ class RerankerTool:
         logger.info(f"回退到原始结果，返回 {len(fallback_results)} 个结果")
         return fallback_results
 
-    def get_top_results(self, reranked_results: List[RerankedSearchResult],
-                        top_k: int) -> List[RerankedSearchResult]:
+    def get_top_results(self, reranked_results: list[RerankedSearchResult],
+                        top_k: int) -> list[RerankedSearchResult]:
         """
         获取前 top_k 个重排序结果
         
@@ -228,15 +222,13 @@ class RerankerTool:
         return top_results
 
     def analyze_rerank_effectiveness(
-            self, reranked_results: List[RerankedSearchResult],
-            query: str) -> Dict[str, Any]:
+            self, reranked_results: list[RerankedSearchResult],
+            query: str) -> dict[str, Any]:
         """
         分析重排序效果
-        
         Args:
             reranked_results: 重排序结果列表
             query: 查询文本
-            
         Returns:
             Dict[str, Any]: 分析结果
         """

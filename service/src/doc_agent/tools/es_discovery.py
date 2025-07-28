@@ -3,8 +3,10 @@ ES可用性检测模块
 独立处理索引发现和可用性检测功能
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
+
 from loguru import logger
+
 from .es_service import ESService
 
 
@@ -14,7 +16,6 @@ class ESDiscovery:
     def __init__(self, es_service: ESService):
         """
         初始化ES检测器
-        
         Args:
             es_service: ES服务实例
         """
@@ -23,10 +24,9 @@ class ESDiscovery:
         self._vector_dims = 1536  # 默认向量维度
         logger.info("初始化ES可用性检测器")
 
-    async def discover_knowledge_indices(self) -> List[Dict[str, Any]]:
+    async def discover_knowledge_indices(self) -> list[dict[str, Any]]:
         """
         发现可用的知识库索引
-        
         Returns:
             List[Dict[str, Any]]: 可用索引列表
         """
@@ -111,7 +111,7 @@ class ESDiscovery:
         logger.debug(f"获取向量维度: {self._vector_dims}")
         return self._vector_dims
 
-    def get_available_indices(self) -> List[Dict[str, Any]]:
+    def get_available_indices(self) -> list[dict[str, Any]]:
         """获取可用索引列表"""
         logger.debug(f"获取可用索引列表，共 {len(self._available_indices)} 个")
         return self._available_indices.copy()

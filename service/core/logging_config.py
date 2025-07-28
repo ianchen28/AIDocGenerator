@@ -5,17 +5,18 @@
 使用 loguru 库提供强大的日志功能
 """
 
-import sys
 import os
-from loguru import logger
+import sys
 from typing import Any
+
+from loguru import logger
+
 from .config import AppSettings
 
 
 def setup_logging(config: AppSettings) -> None:
     """
     设置集中式日志配置
-    
     Args:
         config: 应用配置对象，包含日志配置信息
     """
@@ -71,10 +72,8 @@ def setup_logging(config: AppSettings) -> None:
 def get_logger(name: str = None) -> Any:
     """
     获取配置好的 logger 实例
-    
     Args:
         name: 日志器名称，默认为 None（使用根日志器）
-        
     Returns:
         loguru.logger: 配置好的日志器实例
     """

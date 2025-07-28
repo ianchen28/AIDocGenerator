@@ -5,10 +5,10 @@
 确保所有运行文件都能自动加载 .env 文件
 """
 
-import os
 import sys
 from pathlib import Path
-from dotenv import load_dotenv, find_dotenv
+
+from dotenv import find_dotenv, load_dotenv
 from loguru import logger
 
 

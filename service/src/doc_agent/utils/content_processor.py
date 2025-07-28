@@ -1,7 +1,9 @@
 # service/src/doc_agent/utils/content_processor.py
-from typing import List, Dict, Any
 import json
+from typing import Any
+
 from loguru import logger
+
 from ..llm_clients.base import LLMClient
 
 
@@ -10,12 +12,10 @@ def summarize_content(content: str,
                       max_length: int = 2000) -> str:
     """
     缩写内容，提取关键信息
-    
     Args:
         content: 原始内容
         llm_client: LLM客户端
         max_length: 目标长度
-        
     Returns:
         str: 缩写后的内容
     """
@@ -51,15 +51,13 @@ def summarize_content(content: str,
 
 def extract_key_points(content: str,
                        llm_client: LLMClient,
-                       num_points: int = 5) -> List[str]:
+                       num_points: int = 5) -> list[str]:
     """
     从内容中提取关键要点
-    
     Args:
         content: 原始内容
         llm_client: LLM客户端
         num_points: 要点数量
-        
     Returns:
         List[str]: 关键要点列表
     """
@@ -112,12 +110,10 @@ def expand_content(content: str,
                    target_length: int = 3000) -> str:
     """
     扩写内容，增加详细程度
-    
     Args:
         content: 原始内容
         llm_client: LLM客户端
         target_length: 目标长度
-        
     Returns:
         str: 扩写后的内容
     """
@@ -160,16 +156,14 @@ def expand_content(content: str,
 def process_research_data(research_data: str,
                           llm_client: LLMClient,
                           summary_length: int = 3000,
-                          key_points_count: int = 8) -> Dict[str, Any]:
+                          key_points_count: int = 8) -> dict[str, Any]:
     """
     处理研究数据，生成摘要和关键要点
-    
     Args:
         research_data: 原始研究数据
         llm_client: LLM客户端
         summary_length: 摘要长度
         key_points_count: 关键要点数量
-        
     Returns:
         Dict[str, Any]: 包含摘要和关键要点的字典
     """

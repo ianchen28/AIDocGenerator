@@ -8,8 +8,6 @@
 import asyncio
 import logging
 from datetime import datetime
-from pathlib import Path
-import json
 
 # 设置日志
 logging.basicConfig(level=logging.INFO,
@@ -152,7 +150,11 @@ class AutomationUsageExample:
         print("📋 示例3: 错误处理和重试机制")
         print("=" * 60)
 
-        from simple_automation_demo import SimpleAutomationManager, TaskPriority, TaskStatus
+        from simple_automation_demo import (
+            SimpleAutomationManager,
+            TaskPriority,
+            TaskStatus,
+        )
 
         manager = SimpleAutomationManager("output/automation_example")
 
@@ -197,7 +199,7 @@ class AutomationUsageExample:
 
         # 显示错误统计
         failed_tasks = manager.get_tasks(status=TaskStatus.FAILED)
-        print(f"\n📊 错误统计:")
+        print("\n📊 错误统计:")
         print(f"  - 失败任务数: {len(failed_tasks)}")
         for task in failed_tasks:
             print(f"    - {task.name}: {task.error_message}")
@@ -235,7 +237,7 @@ class AutomationUsageExample:
 
         # 检查数据恢复
         recovered_tasks = manager2.get_tasks()
-        print(f"📊 数据恢复结果:")
+        print("📊 数据恢复结果:")
         print(f"  - 恢复的任务数: {len(recovered_tasks)}")
 
         for task in recovered_tasks:
@@ -283,7 +285,7 @@ class AutomationUsageExample:
         stats = manager.get_statistics()
         all_tasks = manager.get_tasks()
 
-        print(f"\n📈 详细统计信息:")
+        print("\n📈 详细统计信息:")
         print(f"  - 总任务数: {stats['total_tasks']}")
         print(f"  - 状态分布: {stats['status_counts']}")
 

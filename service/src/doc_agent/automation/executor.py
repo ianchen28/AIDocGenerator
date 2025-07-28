@@ -9,19 +9,17 @@
 """
 
 import asyncio
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, field
-from enum import Enum
-import uuid
 import json
-from pathlib import Path
-import shutil
+import logging
 
 # 添加项目路径
 import sys
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 current_file = Path(__file__)
 service_dir = None
@@ -32,8 +30,6 @@ for parent in current_file.parents:
 
 if service_dir and str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
-
-from core.config import settings
 
 
 class ExecutionStatus(Enum):
@@ -51,7 +47,7 @@ class BatchJob:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = ""
     description: str = ""
-    topics: List[str] = field(default_factory=list)
+    topics: list[str] = field(default_factory=list)
     status: ExecutionStatus = ExecutionStatus.PENDING
     created_at: datetime = field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
@@ -59,10 +55,10 @@ class BatchJob:
     total_tasks: int = 0
     completed_tasks: int = 0
     failed_tasks: int = 0
-    results: List[Dict] = field(default_factory=list)
-    metadata: Dict = field(default_factory=dict)
+    results: list[dict] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """转换为字典格式"""
         return {
             "id":
@@ -94,7 +90,7 @@ class BatchJob:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'BatchJob':
+    def from_dict(cls, data: dict) -> 'BatchJob':
         """从字典创建批量作业"""
         job = cls()
         job.id = data.get("id", str(uuid.uuid4()))
@@ -138,7 +134,7 @@ class AutomationExecutor:
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
         self.max_concurrent_tasks = max_concurrent_tasks
-        self.batch_jobs: Dict[str, BatchJob] = {}
+        self.batch_jobs: dict[str, BatchJob] = {}
         self.running = False
         self.logger = logging.getLogger(__name__)
 
@@ -171,18 +167,16 @@ class AutomationExecutor:
 
     def create_batch_job(self,
                          name: str,
-                         topics: List[str],
+                         topics: list[str],
                          description: str = "",
-                         metadata: Optional[Dict] = None) -> str:
+                         metadata: Optional[dict] = None) -> str:
         """
         创建批量作业
-        
         Args:
             name: 作业名称
             topics: 主题列表
             description: 作业描述
             metadata: 额外元数据
-            
         Returns:
             str: 作业ID
         """
@@ -205,7 +199,7 @@ class AutomationExecutor:
 
     def get_batch_jobs(self,
                        status: Optional[ExecutionStatus] = None
-                       ) -> List[BatchJob]:
+                       ) -> list[BatchJob]:
         """获取批量作业列表"""
         jobs = list(self.batch_jobs.values())
 
@@ -349,11 +343,9 @@ class AutomationExecutor:
                         archive_name: Optional[str] = None) -> str:
         """
         归档作业结果
-        
         Args:
             job_id: 作业ID
             archive_name: 归档名称，默认为作业名称
-            
         Returns:
             str: 归档文件路径
         """
@@ -422,7 +414,7 @@ class AutomationExecutor:
         with open(report_file, 'w', encoding='utf-8') as f:
             f.write(report_content)
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """获取执行器统计信息"""
         total_jobs = len(self.batch_jobs)
         status_counts = {}

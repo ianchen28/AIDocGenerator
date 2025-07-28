@@ -1,10 +1,8 @@
 # service/src/doc_agent/graph/builder.py
+from langgraph.graph import END, StateGraph
 from loguru import logger
-import pprint
-from langgraph.graph import StateGraph, END
+
 from ..state import ResearchState
-from . import nodes
-from . import router
 
 
 def build_graph(planner_node, researcher_node, writer_node,
@@ -45,19 +43,16 @@ def build_chapter_workflow_graph(
 ):
     """
     构建章节工作流图
-    
     该工作流用于处理单个章节的研究和写作：
     1. planner: 为当前章节制定研究计划
     2. researcher: 执行研究收集数据
     3. supervisor_router: 决定是否需要更多研究
     4. writer: 基于研究数据和上下文撰写章节内容
-    
     Args:
         planner_node: 已绑定依赖的规划节点函数
         researcher_node: 已绑定依赖的研究节点函数
         writer_node: 已绑定依赖的写作节点函数
         supervisor_router_func: 已绑定依赖的路由决策函数
-    
     Returns:
         CompiledGraph: 编译后的章节工作流图
     """

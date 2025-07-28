@@ -21,7 +21,6 @@ if str(src_dir) not in sys.path:
 from src.doc_agent.graph.nodes import async_researcher_node
 from src.doc_agent.graph.state import ResearchState
 from src.doc_agent.tools.web_search import WebSearchTool
-from core.config import settings
 
 
 async def test_researcher_node_with_vector():

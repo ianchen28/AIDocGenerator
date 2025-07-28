@@ -3,10 +3,12 @@ Elasticsearch搜索工具
 基于底层ES服务模块，提供简洁有效的搜索接口，支持KNN向量搜索
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Any, Optional
+
 from loguru import logger
-from .es_service import ESService, ESSearchResult
+
 from .es_discovery import ESDiscovery
+from .es_service import ESSearchResult, ESService
 
 
 class ESSearchTool:
@@ -16,14 +18,13 @@ class ESSearchTool:
     """
 
     def __init__(self,
-                 hosts: List[str],
+                 hosts: list[str],
                  username: str = "",
                  password: str = "",
                  index_prefix: str = "doc_gen",
                  timeout: int = 30):
         """
         初始化Elasticsearch搜索工具
-        
         Args:
             hosts: ES服务器地址列表
             username: 用户名
@@ -71,14 +72,14 @@ class ESSearchTool:
     async def search(
             self,
             query: str,
-            query_vector: Optional[List[float]] = None,
+            query_vector: Optional[list[float]] = None,
             top_k: int = 10,
-            filters: Optional[Dict[str, Any]] = None,
+            filters: Optional[dict[str, Any]] = None,
             use_multiple_indices: bool = True,
-            config: Optional[Dict[str, Any]] = None) -> List[ESSearchResult]:
+            config: Optional[dict[str, Any]] = None) -> list[ESSearchResult]:
         """
         执行Elasticsearch搜索
-        
+
         Args:
             query: 搜索查询字符串
             query_vector: 查询向量（可选）
@@ -173,13 +174,13 @@ class ESSearchTool:
     async def search_with_hybrid(
             self,
             query: str,
-            query_vector: Optional[List[float]] = None,
+            query_vector: Optional[list[float]] = None,
             top_k: int = 10,
-            filters: Optional[Dict[str, Any]] = None,
-            config: Optional[Dict[str, Any]] = None) -> List[ESSearchResult]:
+            filters: Optional[dict[str, Any]] = None,
+            config: Optional[dict[str, Any]] = None) -> list[ESSearchResult]:
         """
         执行混合搜索（文本+向量）
-        
+
         Args:
             query: 搜索查询字符串
             query_vector: 查询向量
@@ -261,7 +262,7 @@ class ESSearchTool:
             logger.error(f"混合搜索失败: {str(e)}")
             return []
 
-    async def get_available_indices(self) -> List[str]:
+    async def get_available_indices(self) -> list[str]:
         """获取可用索引列表"""
         await self._ensure_initialized()
         logger.debug(f"获取可用索引列表，共 {len(self._indices_list)} 个")

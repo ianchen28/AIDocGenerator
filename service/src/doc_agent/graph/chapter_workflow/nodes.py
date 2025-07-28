@@ -1,16 +1,10 @@
-# service/src/doc_agent/graph/nodes.py
-from loguru import logger
+# service/src/doc_agent/graph/chapter_workflow/nodes.py
 import pprint
-from ..state import ResearchState
-from ...llm_clients.base import LLMClient
-from ...tools.web_search import WebSearchTool
-from ...tools.es_search import ESSearchTool
-from ...tools.reranker import RerankerTool
-from ...llm_clients.providers import EmbeddingClient, RerankerClient
-
-# 添加配置导入
 import sys
 from pathlib import Path
+from typing import Any
+
+from loguru import logger
 
 # 添加项目根目录到Python路径
 current_file = Path(__file__)
@@ -23,62 +17,33 @@ for parent in current_file.parents:
 if service_dir and str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
 
+# 添加src目录到Python路径
+if service_dir:
+    src_dir = service_dir / "src"
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+
+# 导入项目内部模块
 from core.config import settings
-
-# 修复相对导入
-# 直接导入utils模块
-import sys
-from pathlib import Path
-
-# 添加src目录到Python路径
-current_file = Path(__file__)
-service_dir = None
-for parent in current_file.parents:
-    if parent.name == 'service':
-        service_dir = parent
-        break
-
-if service_dir:
-    src_dir = service_dir / "src"
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
-
-# 导入utils模块
-import sys
-from pathlib import Path
-
-# 添加src目录到Python路径
-current_file = Path(__file__)
-service_dir = None
-for parent in current_file.parents:
-    if parent.name == 'service':
-        service_dir = parent
-        break
-
-if service_dir:
-    src_dir = service_dir / "src"
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
-
-# 直接导入utils.py文件
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from doc_agent.common import parse_planner_response
 from doc_agent.utils.search_utils import search_and_rerank
 
+from ...llm_clients.base import LLMClient
+from ...llm_clients.providers import EmbeddingClient
+from ...tools.es_search import ESSearchTool
+from ...tools.reranker import RerankerTool
+from ...tools.web_search import WebSearchTool
+from ..state import ResearchState
 
-def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
+
+def planner_node(state: ResearchState,
+                 llm_client: LLMClient) -> dict[str, Any]:
     """
     节点1: 规划研究步骤
-    
     从状态中获取 topic 和当前章节信息，创建 prompt 调用 LLM 生成研究计划和搜索查询
-    
     Args:
         state: 研究状态，包含 topic 和当前章节信息
         llm_client: LLM客户端实例
-        
     Returns:
         dict: 包含 research_plan 和 search_queries 的字典
     """
@@ -164,31 +129,30 @@ def planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
 
 
 def researcher_node(state: ResearchState,
-                    web_search_tool: WebSearchTool) -> dict:
+                    web_search_tool: WebSearchTool) -> dict[str, Any]:
+    """已废弃，请使用 async_researcher_node"""
     raise NotImplementedError("请使用 async_researcher_node")
 
 
-async def async_researcher_node(state: ResearchState,
-                                web_search_tool: WebSearchTool,
-                                es_search_tool: ESSearchTool,
-                                reranker_tool: RerankerTool = None) -> dict:
+async def async_researcher_node(
+        state: ResearchState,
+        web_search_tool: WebSearchTool,
+        es_search_tool: ESSearchTool,
+        reranker_tool: RerankerTool = None) -> dict[str, Any]:
     """
     异步节点2: 执行搜索研究
-    
     从状态中获取 search_queries，使用搜索工具收集相关信息
     优先使用向量检索，如果失败则回退到文本搜索
     使用重排序工具对搜索结果进行优化
-    
     Args:
         state: 研究状态，包含 search_queries
         web_search_tool: 网络搜索工具
         es_search_tool: Elasticsearch搜索工具
         reranker_tool: 重排序工具（可选）
-        
     Returns:
         dict: 包含 gathered_data 的字典
     """
-    logger.info(f"🔍 Researcher节点接收到的完整状态:")
+    logger.info("🔍 Researcher节点接收到的完整状态:")
     logger.debug(f"  - topic: {state.get('topic', 'N/A')}")
     logger.debug(
         f"  - current_chapter_index: {state.get('current_chapter_index', 'N/A')}"
@@ -225,6 +189,11 @@ async def async_researcher_node(state: ResearchState,
             embedding_client = None
     else:
         logger.warning("❌ 未找到 embedding 配置，将使用文本搜索")
+
+    # 获取配置参数
+    doc_config = settings.get_document_config(fast_mode=False)
+    initial_top_k = doc_config.get('vector_recall_size', 10)
+    final_top_k = doc_config.get('rerank_size', 5)
 
     # 使用传入的ES工具，不再内部创建
     for i, query in enumerate(search_queries, 1):
@@ -266,7 +235,7 @@ async def async_researcher_node(state: ResearchState,
                             )
                             query_vector = None
                     except json.JSONDecodeError:
-                        logger.warning(f"⚠️  JSON解析失败，使用文本搜索")
+                        logger.warning("⚠️  JSON解析失败，使用文本搜索")
                         query_vector = None
 
                     if query_vector and len(query_vector) == 1536:
@@ -276,28 +245,20 @@ async def async_researcher_node(state: ResearchState,
                         # 使用新的搜索和重排序功能
                         search_query = query if query.strip() else "相关文档"
 
-                        # 获取配置参数
-                        doc_config = settings.get_document_config(
-                            fast_mode=False)
-                        initial_top_k = doc_config.get('vector_recall_size',
-                                                       10)
-                        final_top_k = doc_config.get('rerank_size', 5)
-
                         _, reranked_results, formatted_es_results = await search_and_rerank(
                             es_search_tool=es_search_tool,
                             query=search_query,
                             query_vector=query_vector,
                             reranker_tool=reranker_tool,
-                            initial_top_k=initial_top_k,  # 使用配置的向量召回数量
-                            final_top_k=final_top_k,  # 使用配置的重排序数量
-                            config=doc_config  # 传递配置参数
-                        )
+                            initial_top_k=initial_top_k,
+                            final_top_k=final_top_k,
+                            config=doc_config)
                         es_results = formatted_es_results
                         logger.info(
                             f"✅ 向量检索+重排序执行成功，结果长度: {len(formatted_es_results)}"
                         )
                     else:
-                        logger.warning(f"❌ 向量生成失败，使用文本搜索")
+                        logger.warning("❌ 向量生成失败，使用文本搜索")
                         # 回退到文本搜索
                         _, reranked_results, formatted_es_results = await search_and_rerank(
                             es_search_tool=es_search_tool,
@@ -328,11 +289,6 @@ async def async_researcher_node(state: ResearchState,
             else:
                 # 没有embedding客户端，直接使用文本搜索
                 logger.info("📝 使用文本搜索")
-
-                # 获取配置参数
-                doc_config = settings.get_document_config(fast_mode=False)
-                initial_top_k = doc_config.get('hybrid_recall_size', 10)
-                final_top_k = doc_config.get('rerank_size', 5)
 
                 _, reranked_results, formatted_es_results = await search_and_rerank(
                     es_search_tool=es_search_tool,
@@ -376,16 +332,13 @@ async def async_researcher_node(state: ResearchState,
     return {"gathered_data": gathered_data}
 
 
-def writer_node(state: ResearchState, llm_client: LLMClient) -> dict:
+def writer_node(state: ResearchState, llm_client: LLMClient) -> dict[str, Any]:
     """
     章节写作节点
-    
     基于当前章节的研究数据和已完成章节的上下文，生成当前章节的内容
-    
     Args:
         state: 研究状态，包含章节信息、研究数据和已完成章节
         llm_client: LLM客户端实例
-        
     Returns:
         dict: 包含当前章节内容的字典
     """

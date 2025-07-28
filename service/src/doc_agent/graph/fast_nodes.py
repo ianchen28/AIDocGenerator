@@ -6,20 +6,22 @@
 
 import json
 import pprint
+
 from loguru import logger
-from typing import Dict, Any
+
+from core.config import settings
+
+from ..fast_prompts import (
+    FAST_OUTLINE_GENERATION_PROMPT,
+    FAST_PLANNER_PROMPT,
+)
 from ..llm_clients.base import LLMClient
 from ..llm_clients.providers import EmbeddingClient
-from ..tools.web_search import WebSearchTool
 from ..tools.es_search import ESSearchTool
 from ..tools.reranker import RerankerTool
+from ..tools.web_search import WebSearchTool
 from ..utils.search_utils import search_and_rerank
-from ..utils.content_processor import process_research_data
 from .state import ResearchState
-from core.config import settings
-from ..fast_prompts import (FAST_OUTLINE_GENERATION_PROMPT,
-                            FAST_PLANNER_PROMPT, FAST_WRITER_PROMPT,
-                            FAST_SUPERVISOR_PROMPT)
 
 
 async def fast_initial_research_node(state: ResearchState,
@@ -29,7 +31,6 @@ async def fast_initial_research_node(state: ResearchState,
                                      llm_client: LLMClient = None) -> dict:
     """
     快速初始研究节点 - 简化版本
-    
     执行快速的研究，收集关于主题的概览信息
     """
     topic = state.get("topic", "")
@@ -162,9 +163,6 @@ def fast_outline_generation_node(state: ResearchState,
         max_tokens = min(outline_config.max_tokens, 1000)  # 限制最大token
         extra_params = outline_config.extra_params
 
-    # 导入快速提示词模板
-    from ..fast_prompts import FAST_OUTLINE_GENERATION_PROMPT
-
     # 构建提示词
     prompt = FAST_OUTLINE_GENERATION_PROMPT.format(
         topic=topic,
@@ -258,7 +256,6 @@ def fast_outline_generation_node(state: ResearchState,
 def fast_planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
     """
     快速规划节点 - 简化版本
-    
     从状态中获取 topic 和当前章节信息，创建简化的研究计划
     """
     topic = state.get("topic", "")
@@ -284,9 +281,6 @@ def fast_planner_node(state: ResearchState, llm_client: LLMClient) -> dict:
     task_planner_config = settings.get_agent_component_config("task_planner")
     if not task_planner_config:
         raise ValueError("Task planner configuration not found")
-
-    # 导入快速提示词模板
-    from ..fast_prompts import FAST_PLANNER_PROMPT
 
     # 创建简化的研究计划生成的 prompt
     prompt = FAST_PLANNER_PROMPT.format(
@@ -339,7 +333,6 @@ async def fast_researcher_node(state: ResearchState,
                                reranker_tool: RerankerTool = None) -> dict:
     """
     快速研究节点 - 简化版本
-    
     从状态中获取 search_queries，使用搜索工具收集相关信息
     """
     search_queries = state.get("search_queries", [])
@@ -439,7 +432,6 @@ async def fast_researcher_node(state: ResearchState,
 def fast_writer_node(state: ResearchState, llm_client: LLMClient) -> dict:
     """
     快速章节写作节点 - 简化版本
-    
     基于当前章节的研究数据，生成简洁的章节内容
     """
     # 获取基本信息
@@ -544,7 +536,6 @@ def fast_writer_node(state: ResearchState, llm_client: LLMClient) -> dict:
 def fast_supervisor_router(state: ResearchState, llm_client: LLMClient) -> str:
     """
     快速监督器路由 - 简化版本
-    
     评估收集的研究数据是否足够撰写文档，降低要求
     """
     logger.info("🚀 ====== 进入快速 supervisor_router 路由节点 ======")
@@ -584,7 +575,7 @@ def fast_supervisor_router(state: ResearchState, llm_client: LLMClient) -> str:
         # 调用 LLM 客户端
         max_tokens = 10
 
-        logger.info(f"🤖 调用 LLM 进行快速决策判断...")
+        logger.info("🤖 调用 LLM 进行快速决策判断...")
         logger.debug(f"📝 Prompt 长度: {len(prompt)} 字符")
 
         # 添加重试机制

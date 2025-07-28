@@ -1,17 +1,23 @@
-import uuid
 import json
+import uuid
 from datetime import datetime
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from loguru import logger
 
 # 导入数据模型
-from ..src.doc_agent.schemas import (CreateContextRequest,
-                                     ContextStatusResponse, CreateJobRequest,
-                                     JobResponse, OutlineResponse,
-                                     UpdateOutlineRequest, Outline)
+from src.doc_agent.schemas import (
+    ContextStatusResponse,
+    CreateContextRequest,
+    CreateJobRequest,
+    JobResponse,
+    Outline,
+    OutlineResponse,
+    UpdateOutlineRequest,
+)
 
 # 导入Redis客户端和worker任务
-from ..workers.tasks import get_redis_client, generate_outline_task, run_main_workflow
+from workers.tasks import generate_outline_task, get_redis_client, run_main_workflow
 
 # 创建API路由器实例
 router = APIRouter()
@@ -102,7 +108,7 @@ async def create_context(request: CreateContextRequest,
     except Exception as e:
         logger.error(f"创建上下文失败: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"创建上下文失败: {str(e)}")
+                            detail=f"创建上下文失败: {str(e)}") from e
 
 
 @router.post("/jobs",
@@ -185,7 +191,7 @@ async def generate_outline(job_id: str, background_tasks: BackgroundTasks):
     except Exception as e:
         logger.error(f"启动大纲生成失败: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"启动大纲生成失败: {str(e)}")
+                            detail=f"启动大纲生成失败: {str(e)}") from e
 
 
 @router.get("/jobs/{job_id}/outline", response_model=OutlineResponse)
@@ -243,7 +249,7 @@ async def get_outline(job_id: str):
     except Exception as e:
         logger.error(f"获取大纲失败: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"获取大纲失败: {str(e)}")
+                            detail=f"获取大纲失败: {str(e)}") from e
 
 
 @router.put("/jobs/{job_id}/outline", status_code=status.HTTP_200_OK)
@@ -264,8 +270,7 @@ async def update_outline(job_id: str, request: UpdateOutlineRequest,
                                 detail=f"作业 {job_id} 不存在")
 
         # 存储更新后的大纲
-        updated_outline_json = request.outline.model_dump_json(
-            ensure_ascii=False)
+        updated_outline_json = request.outline.model_dump_json()
 
         await redis.hset(f"job:{job_id}:outline",
                          mapping={
@@ -289,7 +294,7 @@ async def update_outline(job_id: str, request: UpdateOutlineRequest,
     except Exception as e:
         logger.error(f"更新大纲失败: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"更新大纲失败: {str(e)}")
+                            detail=f"更新大纲失败: {str(e)}") from e
 
 
 @router.get("/health")

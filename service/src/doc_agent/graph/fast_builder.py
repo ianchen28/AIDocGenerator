@@ -3,13 +3,16 @@
 快速版本的图构建器
 使用简化的节点和配置，目标：3-5分钟内完成文档生成
 """
-
+from langgraph.graph import END, StateGraph
 from loguru import logger
-import pprint
-from langgraph.graph import StateGraph, END
+
+from .fast_nodes import (
+    fast_planner_node,
+    fast_researcher_node,
+    fast_supervisor_router,
+    fast_writer_node,
+)
 from .state import ResearchState
-from .fast_nodes import (fast_planner_node, fast_researcher_node,
-                         fast_writer_node, fast_supervisor_router)
 
 
 def build_fast_chapter_workflow(planner_node, researcher_node, writer_node,
@@ -47,14 +50,15 @@ def build_fast_main_workflow(web_search_tool=None,
                              reranker_tool=None,
                              llm_client=None):
     """构建快速主工作流图"""
-    from .main_orchestrator.builder import (create_chapter_processing_node,
-                                            chapter_decision_function,
-                                            finalize_document_node)
-    from .fast_nodes import (fast_initial_research_node,
-                             fast_outline_generation_node)
-
     # 绑定依赖到快速节点
     from functools import partial
+
+    from .fast_nodes import fast_initial_research_node, fast_outline_generation_node
+    from .main_orchestrator.builder import (
+        chapter_decision_function,
+        create_chapter_processing_node,
+        finalize_document_node,
+    )
 
     fast_initial_research_node_bound = partial(fast_initial_research_node,
                                                web_search_tool=web_search_tool,
@@ -120,7 +124,7 @@ def build_fast_main_workflow(web_search_tool=None,
 def fast_split_chapters_node(state: ResearchState) -> dict:
     """
     快速章节拆分节点 - 简化版本
-    
+
     将文档大纲拆分为独立的章节任务列表，限制章节数量
     """
     document_outline = state.get("document_outline", {})
@@ -128,7 +132,7 @@ def fast_split_chapters_node(state: ResearchState) -> dict:
     if not document_outline or "chapters" not in document_outline:
         raise ValueError("文档大纲不存在或格式无效")
 
-    logger.info(f"📂 开始快速拆分章节任务")
+    logger.info("📂 开始快速拆分章节任务")
 
     # 从大纲中提取章节信息
     chapters = document_outline.get("chapters", [])
@@ -160,7 +164,7 @@ def fast_split_chapters_node(state: ResearchState) -> dict:
     logger.info(f"✅ 成功创建 {len(chapters_to_process)} 个快速章节任务")
 
     # 打印章节列表
-    for i, chapter in enumerate(chapters_to_process):
+    for _i, chapter in enumerate(chapters_to_process):
         logger.info(
             f"  📄 第{chapter['chapter_number']}章: {chapter['chapter_title']}")
 

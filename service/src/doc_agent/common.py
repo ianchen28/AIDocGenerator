@@ -2,11 +2,12 @@
 通用工具模块，提供导入路径管理和配置访问
 """
 
-import sys
 import json
-from pathlib import Path
-from typing import Any, Tuple, List
 import re
+import sys
+from pathlib import Path
+from typing import Any
+
 from loguru import logger
 
 
@@ -47,10 +48,8 @@ def setup_import_paths():
 def get_settings():
     """
     动态获取settings配置
-    
     Returns:
         配置对象
-        
     Raises:
         ImportError: 如果无法找到配置模块
     """
@@ -63,17 +62,15 @@ def get_settings():
         return settings
     except ImportError as e:
         logger.error(f"无法导入配置模块: {e}")
-        raise ImportError(f"无法导入配置模块: {e}. 请确保在正确的目录中运行。")
+        raise ImportError(f"无法导入配置模块: {e}. 请确保在正确的目录中运行。") from e
 
 
 def safe_import(module_path: str, default: Any = None):
     """
     安全导入模块或对象
-    
     Args:
         module_path: 模块路径，如 'core.config.settings'
         default: 导入失败时的默认值
-        
     Returns:
         导入的对象或默认值
     """
@@ -94,7 +91,7 @@ def safe_import(module_path: str, default: Any = None):
 
 
 def parse_llm_json_response(response: str,
-                            required_fields: List[str] = None) -> dict:
+                            required_fields: list[str] = None) -> dict:
     """
     解析 LLM 的 JSON 响应
     支持 markdown 代码块包裹、各种换行和空格
@@ -122,23 +119,20 @@ def parse_llm_json_response(response: str,
     except json.JSONDecodeError as e:
         logger.error(f"JSON解析错误: {e}")
         logger.debug(f"响应内容: {response[:200]}...")
-        raise ValueError(f"Failed to parse JSON response: {e}")
+        raise ValueError(f"Failed to parse JSON response: {e}") from e
     except Exception as e:
         logger.error(f"响应解析错误: {e}")
         logger.debug(f"响应内容: {response[:200]}...")
-        raise ValueError(f"Failed to parse response: {e}")
+        raise ValueError(f"Failed to parse response: {e}") from e
 
 
-def parse_planner_response(response: str) -> Tuple[str, List[str]]:
+def parse_planner_response(response: str) -> tuple[str, list[str]]:
     """
     解析规划器的响应，提取研究计划和搜索查询
-    
     Args:
         response: LLM 的原始响应
-        
     Returns:
         tuple: (研究计划, 搜索查询列表)
-        
     Raises:
         ValueError: 当 JSON 解析失败时
     """
@@ -197,4 +191,4 @@ def parse_planner_response(response: str) -> Tuple[str, List[str]]:
 
     except Exception as e:
         logger.error(f"规划器响应解析错误: {e}")
-        raise ValueError(f"Failed to parse planner response: {e}")
+        raise ValueError(f"Failed to parse planner response: {e}") from e
