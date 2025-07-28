@@ -68,6 +68,12 @@ class UpdateOutlineRequest(BaseModel):
     outline: Outline
 
 
+class UpdateOutlineResponse(BaseModel):
+    """更新大纲响应模型"""
+    job_id: str
+    message: str
+
+
 # --- Legacy Models (保持向后兼容) ---
 class GenerationRequest(BaseModel):
     """API请求体"""

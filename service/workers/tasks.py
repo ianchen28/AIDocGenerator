@@ -31,25 +31,23 @@ def get_container():
         return container
 
 
-# Redis客户端实例
-redis_client: Optional[redis.Redis] = None
+# Redis连接现在每次都创建新的，避免连接超时问题
 
 
 async def get_redis_client() -> redis.Redis:
     """获取Redis客户端实例"""
-    global redis_client
-    if redis_client is None:
-        try:
-            redis_client = redis.from_url("redis://localhost:6379",
-                                          encoding="utf-8",
-                                          decode_responses=True)
-            # 测试连接
-            await redis_client.ping()
-            logger.info("Redis客户端连接成功")
-        except Exception as e:
-            logger.error(f"Redis连接失败: {e}")
-            raise
-    return redis_client
+    try:
+        # 每次都创建新的连接，避免连接超时问题
+        redis_client = redis.from_url("redis://localhost:6379",
+                                      encoding="utf-8",
+                                      decode_responses=True)
+        # 测试连接
+        await redis_client.ping()
+        logger.info("Redis客户端连接成功")
+        return redis_client
+    except Exception as e:
+        logger.error(f"Redis连接失败: {e}")
+        raise
 
 
 @celery_app.task

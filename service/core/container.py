@@ -3,20 +3,19 @@ import sys
 from functools import partial
 from pathlib import Path
 
+from loguru import logger
+
 # 添加项目根目录到Python路径
+# 添加src目录到Python路径
 current_file = Path(__file__)
 service_dir = current_file.parent.parent  # 获取 service 目录
-if str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
-
-# 添加src目录到Python路径
 src_dir = service_dir / "src"
 if str(src_dir) not in sys.path:
     sys.path.insert(0, str(src_dir))
+if str(service_dir) not in sys.path:
+    sys.path.insert(0, str(service_dir))
 
 # 确保环境变量已加载
-from loguru import logger
-
 from core.config import settings
 from core.env_loader import setup_environment
 from core.logging_config import setup_logging
@@ -33,6 +32,7 @@ try:
     from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
     from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
     from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
+    from doc_agent.graph.fast_builder import build_fast_main_workflow
     from doc_agent.llm_clients import get_llm_client
     from doc_agent.tools import (
         get_all_tools,
@@ -40,23 +40,11 @@ try:
         get_reranker_tool,
         get_web_search_tool,
     )
+    from doc_agent.graph.callbacks import create_redis_callback_handler
 except ImportError as e:
     print(f"❌ 导入 doc_agent 模块失败: {e}")
     print(f"当前 Python 路径: {sys.path[:3]}")
     raise
-from doc_agent.graph.callbacks import create_redis_callback_handler
-from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
-from doc_agent.graph.chapter_workflow import router as chapter_router
-from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
-from doc_agent.graph.fast_builder import build_fast_main_workflow
-from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
-from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
-from doc_agent.tools import (
-    get_all_tools,
-    get_es_search_tool,
-    get_reranker_tool,
-    get_web_search_tool,
-)
 
 
 class Container:
@@ -68,10 +56,6 @@ class Container:
     def __init__(self):
         print("🚀 Initializing Container...")
 
-        # --- 3. 实例化所有单例服务 (保持不变) ---
-        # 这里的具体模型可以从配置中读取，为清晰起见，我们暂时硬编码
-        from core.config import settings
-        # 读取 default_llm
         default_llm = None
         if hasattr(settings, '_yaml_config') and settings._yaml_config:
             agent_cfg = settings._yaml_config.get('agent_config', {})
@@ -85,12 +69,7 @@ class Container:
         self.tools = get_all_tools()
         print("   - LLM Client and Tools are ready.")
 
-        # --- 4. 构建 "章节生成" 子工作流 (Chapter Workflow) ---
-        # 原理: 这个子图是一个可复用的"工人"，专门负责处理单个章节的 "规划->研究->写作" 流程。
-        # 我们先用 partial 将它需要的依赖（llm_client, tools）绑定好。
         print("   - Binding dependencies for Chapter Workflow...")
-
-        # 为子工作流的节点和路由绑定依赖
         chapter_planner_node = partial(chapter_nodes.planner_node,
                                        llm_client=self.llm_client)
         chapter_researcher_node = partial(chapter_nodes.async_researcher_node,
@@ -111,7 +90,7 @@ class Container:
             supervisor_router_func=chapter_supervisor_router)
         print("   - Chapter Workflow Graph compiled successfully.")
 
-        # --- 5. 构建 "总控" 主工作流 (Main Orchestrator) ---
+        # 构建 "总控" 主工作流 (Main Orchestrator)
         # 原理: 这是项目的"总指挥"，它负责进行初步研究、生成大纲，然后循环调用上面的"工人"（子图）来处理每个章节。
         print("   - Binding dependencies for Main Orchestrator Workflow...")
 
@@ -150,10 +129,10 @@ class Container:
     def get_graph_runnable_for_job(self, job_id: str):
         """
         为指定作业获取带有Redis回调处理器的图执行器
-        
+
         Args:
             job_id: 作业ID，用于创建特定的回调处理器
-            
+
         Returns:
             配置了Redis回调处理器的图执行器
         """

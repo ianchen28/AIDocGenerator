@@ -52,15 +52,6 @@ celery_app.config_from_object({
 # 自动发现任务 - 支持从根目录和 service 目录运行
 celery_app.autodiscover_tasks(['service.workers', 'workers'])
 
-# 手动导入任务模块以确保注册
-try:
-    import workers.tasks
-except ImportError:
-    try:
-        import service.workers.tasks
-    except ImportError:
-        pass
-
 # 可选：配置任务路由 - 支持从根目录和 service 目录运行
 celery_app.conf.task_routes = {
     'workers.tasks.*': {

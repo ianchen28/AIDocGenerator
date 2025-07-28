@@ -16,6 +16,7 @@ from src.doc_agent.schemas import (
     Outline,
     OutlineResponse,
     UpdateOutlineRequest,
+    UpdateOutlineResponse,
 )
 
 # 导入Redis客户端和worker任务
@@ -152,7 +153,7 @@ async def create_job(request: CreateJobRequest):
     except Exception as e:
         logger.error(f"创建作业失败: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"创建作业失败: {str(e)}")
+                            detail=f"创建作业失败: {str(e)}") from e
 
 
 @router.post("/jobs/{job_id}/outline", status_code=status.HTTP_202_ACCEPTED)
@@ -216,9 +217,9 @@ async def get_outline(job_id: str):
         outline_data = await redis.hgetall(f"job:{job_id}:outline")
 
         if not outline_data:
-            # 大纲尚未开始生成
+            # 大纲尚未开始生成，返回FAILED状态
             return OutlineResponse(job_id=job_id,
-                                   outline_status="PENDING",
+                                   outline_status="FAILED",
                                    outline=None)
 
         outline_status = outline_data.get("outline_status", "PENDING")
@@ -254,7 +255,9 @@ async def get_outline(job_id: str):
                             detail=f"获取大纲失败: {str(e)}") from e
 
 
-@router.put("/jobs/{job_id}/outline", status_code=status.HTTP_200_OK)
+@router.put("/jobs/{job_id}/outline",
+            status_code=status.HTTP_200_OK,
+            response_model=UpdateOutlineResponse)
 async def update_outline(job_id: str, request: UpdateOutlineRequest,
                          background_tasks: BackgroundTasks):
     """
@@ -284,8 +287,8 @@ async def update_outline(job_id: str, request: UpdateOutlineRequest,
         # 获取任务提示，准备启动最终文档生成
         task_prompt = job_data.get("task_prompt", "")
 
-        # 启动最终文档生成工作流
-        background_tasks.add_task(run_main_workflow, job_id, task_prompt)
+        # 启动最终文档生成工作流 - 使用Celery任务
+        run_main_workflow.delay(job_id, task_prompt)
 
         logger.info(f"大纲已更新，最终文档生成已启动: {job_id}")
 

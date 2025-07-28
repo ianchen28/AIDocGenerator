@@ -57,8 +57,11 @@ async def initial_research_node(state: ResearchState,
 
     # 生成初始搜索查询 - 更通用和广泛的查询
     initial_queries = [
-        f"{topic} 概述", f"{topic} 主要内容", f"{topic} 关键要点", f"{topic} 最新发展",
-        f"{topic} 重要性"
+        f"{topic} 概述",
+        f"{topic} 主要内容",
+        f"{topic} 关键要点",
+        f"{topic} 最新发展",
+        f"{topic} 重要性",
     ]
 
     all_results = []

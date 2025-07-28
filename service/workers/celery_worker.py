@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Celery Worker 启动脚本 - 从根目录运行
+Celery Worker 启动脚本 - 从service/workers目录运行
 """
 
 import sys
@@ -8,12 +8,12 @@ from pathlib import Path
 
 # 添加 service 目录到 Python 路径
 current_file = Path(__file__)
-service_dir = current_file / "service"
+service_dir = current_file.parent.parent  # 现在需要向上两级到service目录
 if str(service_dir) not in sys.path:
     sys.path.insert(0, str(service_dir))
 
 # 导入 Celery 应用
-from service.workers.celery_app import celery_app
+from workers.celery_app import celery_app
 
 if __name__ == '__main__':
     # 启动 Celery worker
