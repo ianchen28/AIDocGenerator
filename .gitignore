@@ -57,3 +57,6 @@ __pycache__/
 output/
 generated/
 transfer/
+
+# Reference code (removed from git)
+reference_code/
