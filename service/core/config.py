@@ -144,6 +144,13 @@ class LoggingSettings(BaseSettings):
     retention: str = Field("7 days", alias="LOGGING_RETENTION")
 
 
+class SearchConfig(BaseSettings):
+    """搜索配置"""
+    max_queries: int = 5
+    max_results_per_query: int = 5
+    max_search_rounds: int = 5
+
+
 class AppSettings(BaseSettings):
     """应用的主配置类"""
     model_config = SettingsConfigDict(env_file=".env",
@@ -169,12 +176,13 @@ class AppSettings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._load_yaml_config()
+        self._search_config = None  # 初始化搜索配置缓存
 
     def _load_yaml_config(self):
         """加载YAML配置文件"""
         config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
         if os.path.exists(config_path):
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, encoding='utf-8') as f:
                 self._yaml_config = yaml.safe_load(f)
         else:
             self._yaml_config = {}
@@ -222,6 +230,17 @@ class AppSettings(BaseSettings):
                 self._elasticsearch_config = ElasticsearchConfig(
                     hosts=["localhost:9200"], username="", password="")
         return self._elasticsearch_config
+
+    @property
+    def search_config(self) -> SearchConfig:
+        """获取搜索配置"""
+        if self._search_config is None:
+            if self._yaml_config and 'search_config' in self._yaml_config:
+                self._search_config = SearchConfig(
+                    **self._yaml_config['search_config'])
+            else:
+                self._search_config = SearchConfig()  # 使用默认配置
+        return self._search_config
 
     @property
     def tavily_config(self) -> TavilyConfig:

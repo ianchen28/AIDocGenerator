@@ -70,10 +70,18 @@ def build_chapter_workflow_graph(
     if reflection_node is not None:
         workflow.add_node("reflector", reflection_node)
 
-    # 为 writer 节点添加日志
+    # 为 writer 节点添加日志和输出处理
     def writer_with_log(*args, **kwargs):
         logger.info("📝 进入章节 writer 节点，撰写当前章节内容")
-        return writer_node(*args, **kwargs)
+        result = writer_node(*args, **kwargs)
+
+        # 确保 cited_sources_in_chapter 被正确传递
+        if "cited_sources_in_chapter" in result:
+            logger.info(
+                f"📚 Writer节点返回了 {len(result['cited_sources_in_chapter'])} 个引用源"
+            )
+
+        return result
 
     workflow.add_node("writer", writer_with_log)
 

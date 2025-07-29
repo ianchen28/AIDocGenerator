@@ -14,6 +14,17 @@ genres:
       reflection: "v1_default"
       # ... etc
 
+  # 简化测试策略
+  simple:
+    name: "简化文档"
+    description: "适用于快速测试和简化任务。"
+    prompt_versions:
+      planner: "v1_simple"
+      supervisor: "v1_simple"
+      writer: "v2_simple_citations"
+      outline_generation: "v1_simple"
+      reflection: "v1_default"
+
   # 工作报告策略
   work_report:
     name: "工作报告"
@@ -36,4 +47,4 @@ genres:
       outline_generation: "v3_keynote_style"
       reflection: "v1_exploratory" # 使用探索性更强的 reflection prompt
 
-  # ...可以继续添加 “论文写作”、“市场调研” 等...
+  # ...可以继续添加 "论文写作"、"市场调研" 等...

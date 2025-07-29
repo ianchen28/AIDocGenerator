@@ -352,3 +352,19 @@ agent_config:
     extra_params:
       connect_timeout: 60
       read_timeout: 180
+
+# ================================================
+# 搜索配置
+# ================================================
+search_config:
+  # 搜索轮数配置
+  max_search_rounds: 1  # 简化测试模式：2轮搜索
+  # max_search_rounds: 5  # 正常模式：5轮搜索
+  
+  # 每次搜索的查询数量
+  max_queries: 1  # 简化测试模式：每个planner最多生成3个查询
+  # max_queries: 5  # 正常模式：每个planner最多生成5个查询
+  
+  # 每个查询返回的结果数量
+  max_results_per_query: 3  # 简化测试模式：每个查询最多3个结果
+  # max_results_per_query: 5  # 正常模式：每个查询最多5个结果

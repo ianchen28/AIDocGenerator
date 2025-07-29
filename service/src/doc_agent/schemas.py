@@ -4,6 +4,17 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
+# --- Source Models ---
+class Source(BaseModel):
+    """信息源模型，用于追踪和引用信息来源"""
+    id: int = Field(..., description="唯一顺序标识符，用于引用（如 1, 2, 3...）")
+    source_type: str = Field(
+        ..., description="信息源类型（如 'webpage', 'document', 'es_result'）")
+    title: str = Field(..., description="信息源标题")
+    url: Optional[str] = Field(None, description="信息源URL，如果可用")
+    content: str = Field(..., description="信息源的实际文本内容片段")
+
+
 # --- Context Models ---
 class ContextFile(BaseModel):
     """上下文文件模型"""

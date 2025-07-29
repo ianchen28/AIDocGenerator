@@ -8,7 +8,7 @@ Prompts 模块
 from .outline_generation import V1_DEFAULT as OUTLINE_GENERATION_PROMPT
 from .planner import V1_DEFAULT as PLANNER_PROMPT
 from .writer import V1_DEFAULT as WRITER_PROMPT, V1_SIMPLE as WRITER_PROMPT_SIMPLE
-from .supervisor import V1_DEFAULT as SUPERVISOR_PROMPT
+from .supervisor import V1_METADATA_BASED as SUPERVISOR_PROMPT
 from .content_processor import (V1_DEFAULT_RESEARCH_DATA_SUMMARY,
                                 V1_DEFAULT_KEY_POINTS_EXTRACTION,
                                 V1_DEFAULT_CONTENT_COMPRESSION)

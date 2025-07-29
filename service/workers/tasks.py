@@ -230,7 +230,8 @@ async def _run_main_workflow_async(job_id: str,
         initial_state = {
             "topic": topic,
             "messages": [],
-            "initial_gathered_data": "",  # 将在图执行中填充
+            "initial_sources": [],  # 将在图执行中填充
+            "initial_gathered_data": "",  # 保持向后兼容
             "document_outline": document_outline or {},  # 使用现有大纲或空字典
             "chapters_to_process": [],  # 将在图执行中填充
             "current_chapter_index": 0,
@@ -238,7 +239,8 @@ async def _run_main_workflow_async(job_id: str,
             "final_document": "",
             "research_plan": "",
             "search_queries": [],
-            "gathered_data": ""
+            "gathered_sources": [],  # 将在图执行中填充
+            "gathered_data": ""  # 保持向后兼容
         }
 
         logger.info(f"Job {job_id}: 初始状态构建完成")

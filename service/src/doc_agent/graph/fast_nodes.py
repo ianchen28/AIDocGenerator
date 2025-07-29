@@ -64,7 +64,8 @@ async def fast_initial_research_node(state: ResearchState,
         # 网络搜索
         web_results = ""
         try:
-            web_results = web_search_tool.search(query)
+            # 使用异步搜索方法
+            web_results = await web_search_tool.search_async(query)
             if "模拟" in web_results or "mock" in web_results.lower():
                 web_results = ""
         except Exception as e:
@@ -364,7 +365,8 @@ async def fast_researcher_node(state: ResearchState,
         # 网络搜索
         web_results = ""
         try:
-            web_results = web_search_tool.search(query)
+            # 使用异步搜索方法
+            web_results = await web_search_tool.search_async(query)
             if "模拟" in web_results or "mock" in web_results.lower():
                 web_results = ""
         except Exception as e:

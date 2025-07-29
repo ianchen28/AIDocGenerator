@@ -97,6 +97,17 @@ class Container:
                     "outline_generation": "v1_default",
                     "reflection": "v1_default"
                 }
+            },
+            "simple": {
+                "name": "简化文档",
+                "description": "适用于快速测试和简化任务。",
+                "prompt_versions": {
+                    "planner": "v1_simple",
+                    "supervisor": "v1_simple",
+                    "writer": "v2_simple_citations",
+                    "outline_generation": "v1_simple",
+                    "reflection": "v1_default"
+                }
             }
         }
 
@@ -248,11 +259,16 @@ class Container:
                                   prompt_selector=self.prompt_selector,
                                   genre=genre)
 
+        # 创建researcher_node绑定（使用现有的绑定）
+        chapter_researcher_node = partial(chapter_nodes.async_researcher_node,
+                                          web_search_tool=self.web_search_tool,
+                                          es_search_tool=self.es_search_tool,
+                                          reranker_tool=self.reranker_tool)
+
         # 创建chapter workflow graph
         chapter_graph = build_chapter_workflow_graph(
             planner_node=chapter_planner_node,
-            researcher_node=self.chapter_graph.
-            nodes["researcher_node"],  # 使用现有的researcher_node
+            researcher_node=chapter_researcher_node,
             writer_node=chapter_writer_node,
             supervisor_router_func=chapter_supervisor_router,
             reflection_node=reflection_node)  # 添加 reflection_node
@@ -264,14 +280,27 @@ class Container:
             prompt_selector=self.prompt_selector,
             genre=genre)
 
+        # 创建initial_research_node绑定（使用现有的绑定）
+        main_initial_research_node = partial(
+            main_orchestrator_nodes.initial_research_node,
+            web_search_tool=self.web_search_tool,
+            es_search_tool=self.es_search_tool,
+            reranker_tool=self.reranker_tool)
+
+        # 创建split_chapters_node绑定（使用现有的绑定）
+        main_split_chapters_node = partial(
+            main_orchestrator_nodes.split_chapters_node)
+
+        # 创建bibliography_node绑定
+        bibliography_node = partial(main_orchestrator_nodes.bibliography_node)
+
         # 创建main orchestrator graph
         main_graph = build_main_orchestrator_graph(
-            initial_research_node=self.main_graph.
-            nodes["initial_research_node"],  # 使用现有的initial_research_node
+            initial_research_node=main_initial_research_node,
             outline_generation_node=main_outline_generation_node,
-            split_chapters_node=self.main_graph.
-            nodes["split_chapters_node"],  # 使用现有的split_chapters_node
-            chapter_workflow_graph=chapter_graph)
+            split_chapters_node=main_split_chapters_node,
+            chapter_workflow_graph=chapter_graph,
+            bibliography_node_func=bibliography_node)
 
         # 使用回调处理器配置图
         configured_graph = main_graph.with_config(

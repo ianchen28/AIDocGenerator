@@ -59,7 +59,8 @@ def create_chapter_processing_node(chapter_workflow_graph):
             completed_chapters_content,  # 关键：传递上下文
             "search_queries": [],  # 初始化搜索查询，planner节点会生成
             "research_plan": "",  # 初始化研究计划，planner节点会生成
-            "gathered_data": "",  # 初始化收集的数据，researcher节点会填充
+            "gathered_sources": [],  # 初始化收集的源数据，researcher节点会填充
+            "gathered_data": "",  # 保持向后兼容
             "messages": []  # 新的消息历史
         }
 
@@ -73,15 +74,21 @@ def create_chapter_processing_node(chapter_workflow_graph):
             chapter_result = await chapter_workflow_graph.ainvoke(
                 chapter_workflow_input)
 
-            # 从结果中提取章节内容
-            # 注意：章节工作流应该返回 final_document 字段
+            # 调试：打印章节工作流的完整输出
+            logger.info(f"📊 章节工作流输出键: {list(chapter_result.keys())}")
+            logger.info(f"📊 章节工作流输出: {chapter_result}")
+
+            # 从结果中提取章节内容和引用源
             chapter_content = chapter_result.get("final_document", "")
+            cited_sources_in_chapter = chapter_result.get(
+                "cited_sources_in_chapter", [])
 
             if not chapter_content:
                 logger.warning(f"⚠️  章节工作流未返回内容，使用默认内容")
                 chapter_content = f"## {chapter_title}\n\n章节内容生成失败。"
 
             logger.info(f"✅ 章节处理完成，内容长度: {len(chapter_content)} 字符")
+            logger.info(f"📚 章节引用源数量: {len(cited_sources_in_chapter)}")
 
             # 更新已完成章节列表
             updated_completed_chapters = completed_chapters_content.copy()
@@ -90,13 +97,25 @@ def create_chapter_processing_node(chapter_workflow_graph):
             # 更新章节索引
             updated_chapter_index = current_chapter_index + 1
 
+            # 更新全局引用源
+            current_cited_sources = state.get("cited_sources", {})
+            updated_cited_sources = current_cited_sources.copy()
+
+            # 将章节的引用源添加到全局引用源中
+            for source in cited_sources_in_chapter:
+                if hasattr(source, 'id'):
+                    updated_cited_sources[source.id] = source
+                    logger.debug(f"📚 添加引用源到全局: [{source.id}] {source.title}")
+
             logger.info(
                 f"📊 进度: {updated_chapter_index}/{len(chapters_to_process)} 章节已完成"
             )
+            logger.info(f"📚 全局引用源总数: {len(updated_cited_sources)}")
 
             return {
                 "completed_chapters_content": updated_completed_chapters,
-                "current_chapter_index": updated_chapter_index
+                "current_chapter_index": updated_chapter_index,
+                "cited_sources": updated_cited_sources
             }
 
         except Exception as e:
@@ -255,7 +274,8 @@ def build_main_orchestrator_graph(initial_research_node,
                                   outline_generation_node,
                                   split_chapters_node,
                                   chapter_workflow_graph,
-                                  finalize_document_node_func=None):
+                                  finalize_document_node_func=None,
+                                  bibliography_node_func=None):
     """
     构建主编排器图
     
@@ -263,6 +283,7 @@ def build_main_orchestrator_graph(initial_research_node,
     1. 初始研究 -> 生成大纲 -> 拆分章节
     2. 循环处理每个章节（调用章节子工作流）
     3. 所有章节完成后，生成最终文档
+    4. 生成参考文献
     
     Args:
         initial_research_node: 已绑定依赖的初始研究节点
@@ -270,6 +291,7 @@ def build_main_orchestrator_graph(initial_research_node,
         split_chapters_node: 章节拆分节点
         chapter_workflow_graph: 编译后的章节工作流图
         finalize_document_node_func: 可选的文档最终化节点函数
+        bibliography_node_func: 可选的参考文献生成节点函数
         
     Returns:
         CompiledGraph: 编译后的主编排器图
@@ -285,12 +307,17 @@ def build_main_orchestrator_graph(initial_research_node,
     if finalize_document_node_func is None:
         finalize_document_node_func = finalize_document_node
 
+    # 使用提供的或默认的参考文献生成节点
+    if bibliography_node_func is None:
+        bibliography_node_func = nodes.bibliography_node
+
     # 注册所有节点
     workflow.add_node("initial_research", initial_research_node)
     workflow.add_node("outline_generation", outline_generation_node)
     workflow.add_node("split_chapters", split_chapters_node)
     workflow.add_node("chapter_processing", chapter_processing_node)
     workflow.add_node("finalize_document", finalize_document_node_func)
+    workflow.add_node("generate_bibliography", bibliography_node_func)
 
     # 设置入口点
     workflow.set_entry_point("initial_research")
@@ -315,8 +342,11 @@ def build_main_orchestrator_graph(initial_research_node,
             "finalize_document": "finalize_document"  # 所有章节完成
         })
 
-    # 最终化后结束
-    workflow.add_edge("finalize_document", END)
+    # 最终化后进入参考文献生成
+    workflow.add_edge("finalize_document", "generate_bibliography")
+
+    # 参考文献生成后结束
+    workflow.add_edge("generate_bibliography", END)
 
     # 编译并返回图
     logger.info("🏗️  主编排器图构建完成")

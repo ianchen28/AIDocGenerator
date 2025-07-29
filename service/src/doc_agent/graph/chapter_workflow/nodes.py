@@ -1,6 +1,7 @@
 # service/src/doc_agent/graph/chapter_workflow/nodes.py
 import pprint
 import sys
+import re
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,7 @@ from ...tools.reranker import RerankerTool
 from ...tools.web_search import WebSearchTool
 from ...utils.search_utils import search_and_rerank
 from ..state import ResearchState
+from ...schemas import Source
 
 
 def planner_node(state: ResearchState,
@@ -125,9 +127,20 @@ def planner_node(state: ResearchState,
 
         logger.debug(f"🔍 LLM原始响应: {repr(response)}")
         logger.debug(f"📝 响应长度: {len(response)} 字符")
+        logger.info(f"🔍 LLM响应内容:\n{response}")
 
         # 解析 JSON 响应
         research_plan, search_queries = parse_planner_response(response)
+
+        # 应用搜索轮数限制
+        max_search_rounds = getattr(settings.search_config,
+                                    'max_search_rounds', 5)
+        logger.info(f"📊 planner_node 当前搜索轮数配置: {max_search_rounds}")
+
+        if len(search_queries) > max_search_rounds:
+            logger.info(
+                f"📊 限制搜索查询数量: {len(search_queries)} -> {max_search_rounds}")
+            search_queries = search_queries[:max_search_rounds]
 
         logger.info(f"✅ 生成研究计划: {len(search_queries)} 个搜索查询")
         for i, query in enumerate(search_queries, 1):
@@ -183,7 +196,7 @@ async def async_researcher_node(
         es_search_tool: Elasticsearch搜索工具
         reranker_tool: 重排序工具（可选）
     Returns:
-        dict: 包含 gathered_data 的字典
+        dict: 包含 gathered_sources 的字典，包含 Source 对象列表
     """
     logger.info("🔍 Researcher节点接收到的完整状态:")
     logger.debug(f"  - topic: {state.get('topic', 'N/A')}")
@@ -204,9 +217,10 @@ async def async_researcher_node(
 
     if not search_queries:
         logger.warning("❌ 没有搜索查询，返回默认消息")
-        return {"gathered_data": "没有搜索查询需要执行"}
+        return {"gathered_sources": []}
 
-    all_results = []
+    all_sources = []  # 存储所有 Source 对象
+    source_id_counter = 1  # 源ID计数器
 
     # 获取embedding配置
     embedding_config = settings.supported_models.get("gte_qwen")
@@ -235,7 +249,8 @@ async def async_researcher_node(
         # 网络搜索
         web_results = ""
         try:
-            web_results = web_search_tool.search(query)
+            # 使用异步搜索方法
+            web_results = await web_search_tool.search_async(query)
             if "模拟" in web_results or "mock" in web_results.lower():
                 logger.info(f"网络搜索返回模拟结果，跳过: {query}")
                 web_results = ""
@@ -339,30 +354,37 @@ async def async_researcher_node(
             logger.error(f"❌ ES搜索失败: {str(e)}")
             es_results = f"ES搜索失败: {str(e)}"
 
-        # 聚合结果
-        query_results = f"=== 搜索查询 {i}: {query} ===\n\n"
-        if web_results:
-            query_results += f"网络搜索结果:\n{web_results}\n\n"
-        if es_results:
-            query_results += f"知识库搜索结果:\n{es_results}\n\n"
-        if not web_results and not es_results:
-            query_results += "未找到相关搜索结果\n\n"
-        all_results.append(query_results)
+        # 处理网络搜索结果
+        if web_results and web_results.strip():
+            try:
+                # 解析网络搜索结果，创建 Source 对象
+                web_sources = _parse_web_search_results(
+                    web_results, query, source_id_counter)
+                all_sources.extend(web_sources)
+                source_id_counter += len(web_sources)
+                logger.info(f"✅ 从网络搜索中提取到 {len(web_sources)} 个源")
+            except Exception as e:
+                logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
 
-    # 合并所有搜索结果
-    if all_results:
-        gathered_data = "\\n\\n".join(all_results)
-        logger.info(f"✅ 收集到 {len(all_results)} 条搜索结果")
-        logger.info(f"📊 总数据长度: {len(gathered_data)} 字符")
-        # 只显示前200字符作为预览，避免日志过长
-        preview = gathered_data[:200] + "..." if len(
-            gathered_data) > 200 else gathered_data
-        logger.debug(f"📝 数据预览: {preview}")
-    else:
-        gathered_data = "未收集到任何搜索结果"
-        logger.warning("❌ 未收集到任何搜索结果")
+        # 处理ES搜索结果
+        if es_results and es_results.strip():
+            try:
+                # 解析ES搜索结果，创建 Source 对象
+                es_sources = _parse_es_search_results(es_results, query,
+                                                      source_id_counter)
+                all_sources.extend(es_sources)
+                source_id_counter += len(es_sources)
+                logger.info(f"✅ 从ES搜索中提取到 {len(es_sources)} 个源")
+            except Exception as e:
+                logger.error(f"❌ 解析ES搜索结果失败: {str(e)}")
 
-    return {"gathered_data": gathered_data}
+    # 返回结构化的源列表
+    logger.info(f"✅ 总共收集到 {len(all_sources)} 个信息源")
+    for i, source in enumerate(all_sources[:5], 1):  # 只显示前5个源作为预览
+        logger.debug(
+            f"  {i}. [{source.id}] {source.title} ({source.source_type})")
+
+    return {"gathered_sources": all_sources}
 
 
 def writer_node(state: ResearchState,
@@ -372,13 +394,14 @@ def writer_node(state: ResearchState,
     """
     章节写作节点
     基于当前章节的研究数据和已完成章节的上下文，生成当前章节的内容
+    支持引用工作流，自动处理引用标记和源追踪
     Args:
         state: 研究状态，包含章节信息、研究数据和已完成章节
         llm_client: LLM客户端实例
         prompt_selector: PromptSelector实例，用于获取prompt模板
         genre: genre类型，默认为"default"
     Returns:
-        dict: 包含当前章节内容的字典
+        dict: 包含当前章节内容和引用源的字典
     """
     # 获取基本信息
     topic = state.get("topic", "")
@@ -396,15 +419,34 @@ def writer_node(state: ResearchState,
     chapter_description = current_chapter.get("description", "")
 
     # 从状态中获取研究数据
-    gathered_data = state.get("gathered_data", "")
+    gathered_sources = state.get("gathered_sources", [])
+    gathered_data = state.get("gathered_data", "")  # 保持向后兼容
 
     if not chapter_title:
         raise ValueError("章节标题不能为空")
 
-    if not gathered_data:
+    # 如果没有收集到源数据，尝试使用旧的 gathered_data
+    if not gathered_sources and not gathered_data:
         return {
-            "final_document": f"## {chapter_title}\n\n由于没有收集到相关数据，无法生成章节内容。"
+            "final_document": f"## {chapter_title}\n\n由于没有收集到相关数据，无法生成章节内容。",
+            "cited_sources_in_chapter": set()
         }
+
+    # 格式化可用信息源列表
+    available_sources_text = ""
+    if gathered_sources:
+        available_sources_text = "可用信息源列表:\n\n"
+        for source in gathered_sources:
+            available_sources_text += f"[Source {source.id}] {source.title}\n"
+            available_sources_text += f"  类型: {source.source_type}\n"
+            if source.url:
+                available_sources_text += f"  URL: {source.url}\n"
+            available_sources_text += f"  内容: {source.content[:200]}...\n\n"
+
+        # 同时保持向后兼容的 gathered_data
+        gathered_data = _format_sources_to_text(gathered_sources)
+    elif not gathered_data:
+        gathered_data = "没有收集到相关数据"
 
     # 获取文档生成器配置
     document_writer_config = settings.get_agent_component_config(
@@ -429,13 +471,25 @@ def writer_node(state: ResearchState,
 
     # 使用 PromptSelector 获取 prompt 模板
     try:
-        prompt_template = prompt_selector.get_prompt("prompts", "writer",
-                                                     genre)
-        logger.debug(f"✅ 成功获取 writer prompt 模板，genre: {genre}")
+        # 优先使用支持引用的版本
+        # 直接导入 writer 模块来获取 v2_with_citations 版本
+        from ...prompts.writer import PROMPTS
+        if "v2_with_citations" in PROMPTS:
+            prompt_template = PROMPTS["v2_with_citations"]
+            logger.debug(f"✅ 成功获取 writer v2_with_citations prompt 模板")
+        else:
+            raise KeyError("v2_with_citations 版本不存在")
     except Exception as e:
-        logger.error(f"❌ 获取 writer prompt 模板失败: {e}")
-        # 使用默认的 prompt 模板作为备用
-        prompt_template = """
+        logger.warning(f"⚠️  获取 v2_with_citations prompt 失败: {e}")
+        try:
+            # 回退到默认版本
+            prompt_template = prompt_selector.get_prompt(
+                "prompts", "writer", genre)
+            logger.debug(f"✅ 成功获取 writer prompt 模板，genre: {genre}")
+        except Exception as e2:
+            logger.error(f"❌ 获取 writer prompt 模板失败: {e2}")
+            # 使用默认的 prompt 模板作为备用
+            prompt_template = """
 你是一个专业的文档写作专家。请基于提供的研究数据，为指定章节撰写高质量的内容。
 
 **文档主题:** {topic}
@@ -470,7 +524,8 @@ def writer_node(state: ResearchState,
         total_chapters=len(chapters_to_process),
         previous_chapters_context=previous_chapters_context
         if previous_chapters_context else "这是第一章，没有前置内容。",
-        gathered_data=gathered_data)
+        gathered_data=gathered_data,
+        available_sources=available_sources_text)
 
     # 限制 prompt 长度
     max_prompt_length = 30000
@@ -491,15 +546,21 @@ def writer_node(state: ResearchState,
         if len(gathered_data) > 15000:
             gathered_data = gathered_data[:15000] + "\n\n... (研究数据已截断)"
 
-        # 重新构建prompt - 使用简化版本
+        # 重新构建prompt - 优先使用支持引用的版本
         try:
-            # 对于长 prompt 截断，使用默认 genre 的简化版本
-            simple_prompt_template = prompt_selector.get_prompt(
-                "prompts", "writer", "default")
-            logger.debug("✅ 成功获取 writer simple prompt 模板")
+            # 对于长 prompt 截断，优先使用支持引用的简化版本
+            from ...prompts.writer import PROMPTS
+            if "v2_simple_citations" in PROMPTS:
+                simple_prompt_template = PROMPTS["v2_simple_citations"]
+                logger.debug("✅ 成功获取 writer v2_simple_citations prompt 模板")
+            else:
+                # 回退到默认版本
+                simple_prompt_template = prompt_selector.get_prompt(
+                    "prompts", "writer", "default")
+                logger.debug("✅ 成功获取 writer default prompt 模板")
         except Exception as e:
-            logger.error(f"❌ 获取 writer simple prompt 模板失败: {e}")
-            # 使用简化的备用模板
+            logger.error(f"❌ 获取 writer prompt 模板失败: {e}")
+            # 使用简化的备用模板（支持引用）
             simple_prompt_template = """
 你是一个专业的文档写作专家。请基于提供的研究数据，为指定章节撰写内容。
 
@@ -508,10 +569,21 @@ def writer_node(state: ResearchState,
 **章节描述:** {chapter_description}
 **章节编号:** {chapter_number}/{total_chapters}
 
+**可用信息源:**
+{available_sources}
+
 **研究数据:**
 {gathered_data}
 
-请撰写章节内容，确保信息准确性和完整性。
+**写作要求:**
+1. 基于研究数据撰写内容，确保信息准确性和完整性
+2. 保持章节结构清晰，逻辑连贯
+3. 使用专业但易懂的语言
+4. 在写作时，如果使用了某个信息源的内容，请使用特殊标记：<sources>[源ID]</sources>
+5. 例如：<sources>[1]</sources> 这里使用了源1的信息
+6. 如果是自己的综合总结，使用：<sources>[]</sources>
+
+请立即开始撰写章节内容。
 """
 
         prompt = simple_prompt_template.format(
@@ -539,8 +611,21 @@ def writer_node(state: ResearchState,
             # 如果没有二级标题，添加章节标题
             response = f"## {chapter_title}\n\n{response}"
 
-        # 返回当前章节的内容
-        return {"final_document": response}
+        # 处理引用标记
+        # 获取全局已引用的源
+        global_cited_sources = state.get("cited_sources", {})
+        processed_response, cited_sources = _process_citations(
+            response, gathered_sources, global_cited_sources)
+
+        logger.info(f"✅ 章节生成完成，引用了 {len(cited_sources)} 个信息源")
+        for source in cited_sources:
+            logger.debug(f"  📚 引用源: [{source.id}] {source.title}")
+
+        # 返回当前章节的内容和引用源
+        return {
+            "final_document": processed_response,
+            "cited_sources_in_chapter": cited_sources
+        }
 
     except Exception as e:
         # 如果LLM调用失败，返回错误信息
@@ -557,7 +642,10 @@ def writer_node(state: ResearchState,
 
 请检查系统配置或稍后重试。
 """
-        return {"final_document": error_content}
+        return {
+            "final_document": error_content,
+            "cited_sources_in_chapter": set()
+        }
 
 
 async def reflection_node(state: ResearchState,
@@ -796,3 +884,303 @@ def _parse_reflection_response(response: str) -> list[str]:
     except Exception as e:
         logger.error(f"解析 reflection 响应失败: {e}")
         return []
+
+
+def _parse_web_search_results(web_results: str, query: str,
+                              start_id: int) -> list[Source]:
+    """
+    解析网络搜索结果，创建 Source 对象列表
+    
+    Args:
+        web_results: 网络搜索的原始结果字符串
+        query: 搜索查询
+        start_id: 起始ID
+        
+    Returns:
+        list[Source]: Source 对象列表
+    """
+    sources = []
+    current_id = start_id
+
+    try:
+        # 简单的解析逻辑：按行分割，提取标题和URL
+        lines = web_results.split('\n')
+        current_title = ""
+        current_url = ""
+        current_content = ""
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # 尝试提取标题和URL
+            if line.startswith('http') or line.startswith('https'):
+                # 这是一个URL
+                if current_title and current_content:
+                    # 创建前一个源
+                    source = Source(
+                        id=current_id,
+                        source_type="webpage",
+                        title=current_title,
+                        url=current_url,
+                        content=current_content[:500] + "..."
+                        if len(current_content) > 500 else current_content)
+                    sources.append(source)
+                    current_id += 1
+
+                current_url = line
+                current_title = ""
+                current_content = ""
+            elif line.startswith('标题:') or line.startswith('Title:'):
+                current_title = line.split(':', 1)[1].strip()
+            elif line.startswith('内容:') or line.startswith('Content:'):
+                current_content = line.split(':', 1)[1].strip()
+            elif not current_title and len(
+                    line) > 10 and not line.startswith('==='):
+                # 可能是标题
+                current_title = line
+            elif current_title and len(line) > 20:
+                # 可能是内容
+                current_content += " " + line
+
+        # 处理最后一个源
+        if current_title and current_content:
+            source = Source(
+                id=current_id,
+                source_type="webpage",
+                title=current_title,
+                url=current_url,
+                content=current_content[:500] +
+                "..." if len(current_content) > 500 else current_content)
+            sources.append(source)
+
+        # 如果没有解析到任何源，创建一个默认源
+        if not sources:
+            source = Source(id=current_id,
+                            source_type="webpage",
+                            title=f"网络搜索结果 - {query}",
+                            url="",
+                            content=web_results[:500] +
+                            "..." if len(web_results) > 500 else web_results)
+            sources.append(source)
+
+    except Exception as e:
+        logger.error(f"解析网络搜索结果失败: {str(e)}")
+        # 创建默认源
+        source = Source(id=start_id,
+                        source_type="webpage",
+                        title=f"网络搜索结果 - {query}",
+                        url="",
+                        content=web_results[:500] +
+                        "..." if len(web_results) > 500 else web_results)
+        sources.append(source)
+
+    return sources
+
+
+def _process_citations(
+        raw_text: str,
+        available_sources: list[Source],
+        global_cited_sources: dict = None) -> tuple[str, list[Source]]:
+    """
+    处理LLM输出中的引用标记，提取引用的源并格式化文本
+    
+    Args:
+        raw_text: LLM的原始输出文本
+        available_sources: 可用的信息源列表
+        global_cited_sources: 全局已引用的源字典，用于连续编号
+        
+    Returns:
+        tuple[str, list[Source]]: (处理后的文本, 引用的源列表)
+    """
+    processed_text = raw_text
+    cited_sources = []
+
+    if global_cited_sources is None:
+        global_cited_sources = {}
+
+    try:
+        # 创建源ID到源对象的映射
+        source_map = {source.id: source for source in available_sources}
+
+        # 查找所有 <sources>[...]</sources> 标签
+        sources_pattern = r'<sources>\[([^\]]*)\]</sources>'
+        matches = re.findall(sources_pattern, processed_text)
+
+        logger.debug(f"🔍 找到 {len(matches)} 个引用标记")
+
+        for match in matches:
+            if not match.strip():  # 空标签 <sources>[]</sources>
+                # 替换为空字符串（综合分析，不需要引用）
+                processed_text = processed_text.replace(
+                    f'<sources>[{match}]</sources>', '', 1)
+                logger.debug("  📝 处理空引用标记（综合分析）")
+                continue
+
+            # 解析源ID列表
+            try:
+                source_ids = [
+                    int(id.strip()) for id in match.split(',')
+                    if id.strip().isdigit()
+                ]
+                logger.debug(f"  📚 解析到源ID: {source_ids}")
+
+                # 收集引用的源并分配全局编号
+                citation_markers = []
+                for source_id in source_ids:
+                    if source_id in source_map:
+                        source = source_map[source_id]
+                        cited_sources.append(source)
+
+                        # 分配全局编号
+                        if source_id not in global_cited_sources:
+                            global_cited_sources[source_id] = source
+
+                        # 使用全局编号
+                        global_number = list(
+                            global_cited_sources.keys()).index(source_id) + 1
+                        citation_markers.append(f"[{global_number}]")
+
+                        logger.debug(
+                            f"    ✅ 添加引用源: [{global_number}] {source.title}")
+                    else:
+                        logger.warning(f"    ⚠️  未找到源ID: {source_id}")
+
+                # 替换为格式化的引用标记
+                formatted_citation = "".join(citation_markers)
+                processed_text = processed_text.replace(
+                    f'<sources>[{match}]</sources>', formatted_citation, 1)
+
+            except ValueError as e:
+                logger.error(f"❌ 解析源ID失败: {e}")
+                # 移除无效的标签
+                processed_text = processed_text.replace(
+                    f'<sources>[{match}]</sources>', '', 1)
+
+        logger.info(f"✅ 引用处理完成，引用了 {len(cited_sources)} 个信息源")
+
+    except Exception as e:
+        logger.error(f"❌ 处理引用时发生错误: {e}")
+        # 如果处理失败，返回原始文本和空列表
+        return raw_text, []
+
+    return processed_text, cited_sources
+
+
+def _format_sources_to_text(sources: list[Source]) -> str:
+    """
+    将 Source 对象列表格式化为文本格式，用于向后兼容
+    
+    Args:
+        sources: Source 对象列表
+        
+    Returns:
+        str: 格式化的文本
+    """
+    if not sources:
+        return "没有收集到相关数据"
+
+    formatted_text = "收集到的信息源:\n\n"
+
+    for i, source in enumerate(sources, 1):
+        formatted_text += f"=== 信息源 {i} ===\n"
+        formatted_text += f"标题: {source.title}\n"
+        if source.url:
+            formatted_text += f"URL: {source.url}\n"
+        formatted_text += f"类型: {source.source_type}\n"
+        formatted_text += f"内容: {source.content}\n\n"
+
+    return formatted_text
+
+
+def _parse_es_search_results(es_results: str, query: str,
+                             start_id: int) -> list[Source]:
+    """
+    解析ES搜索结果，创建 Source 对象列表
+    
+    Args:
+        es_results: ES搜索的原始结果字符串
+        query: 搜索查询
+        start_id: 起始ID
+        
+    Returns:
+        list[Source]: Source 对象列表
+    """
+    sources = []
+    current_id = start_id
+
+    try:
+        # 解析ES搜索结果
+        lines = es_results.split('\n')
+        current_title = ""
+        current_content = ""
+        current_url = ""
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # 尝试提取文档信息
+            if line.startswith('文档标题:') or line.startswith('Title:'):
+                current_title = line.split(':', 1)[1].strip()
+            elif line.startswith('文档内容:') or line.startswith('Content:'):
+                current_content = line.split(':', 1)[1].strip()
+            elif line.startswith('文档URL:') or line.startswith('URL:'):
+                current_url = line.split(':', 1)[1].strip()
+            elif line.startswith('---') or line.startswith('==='):
+                # 分隔符，处理前一个文档
+                if current_title and current_content:
+                    source = Source(
+                        id=current_id,
+                        source_type="es_result",
+                        title=current_title,
+                        url=current_url,
+                        content=current_content[:500] + "..."
+                        if len(current_content) > 500 else current_content)
+                    sources.append(source)
+                    current_id += 1
+                    current_title = ""
+                    current_content = ""
+                    current_url = ""
+            elif not current_title and len(line) > 10:
+                # 可能是标题
+                current_title = line
+            elif current_title and len(line) > 20:
+                # 可能是内容
+                current_content += " " + line
+
+        # 处理最后一个文档
+        if current_title and current_content:
+            source = Source(
+                id=current_id,
+                source_type="es_result",
+                title=current_title,
+                url=current_url,
+                content=current_content[:500] +
+                "..." if len(current_content) > 500 else current_content)
+            sources.append(source)
+
+        # 如果没有解析到任何源，创建一个默认源
+        if not sources:
+            source = Source(id=start_id,
+                            source_type="es_result",
+                            title=f"知识库搜索结果 - {query}",
+                            url="",
+                            content=es_results[:500] +
+                            "..." if len(es_results) > 500 else es_results)
+            sources.append(source)
+
+    except Exception as e:
+        logger.error(f"解析ES搜索结果失败: {str(e)}")
+        # 创建默认源
+        source = Source(id=start_id,
+                        source_type="es_result",
+                        title=f"知识库搜索结果 - {query}",
+                        url="",
+                        content=es_results[:500] +
+                        "..." if len(es_results) > 500 else es_results)
+        sources.append(source)
+
+    return sources

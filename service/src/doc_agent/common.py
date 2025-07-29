@@ -140,11 +140,24 @@ def parse_planner_response(response: str) -> tuple[str, list[str]]:
     logger.debug(f"响应内容长度: {len(response)} 字符")
 
     try:
-        # 使用通用 JSON 解析函数
-        data = parse_llm_json_response(response,
-                                       ["research_plan", "search_queries"])
+        # 使用通用 JSON 解析函数，不强制要求特定字段
+        data = parse_llm_json_response(response)
 
-        research_plan = data["research_plan"]
+        # 兼容两种格式：research_plan 和 research_questions
+        if "research_plan" in data:
+            research_plan = data["research_plan"]
+        elif "research_questions" in data:
+            # 将 research_questions 转换为 research_plan 格式
+            questions = data["research_questions"]
+            if isinstance(questions, list):
+                research_plan = "研究问题：\n" + "\n".join(
+                    [f"- {q}" for q in questions])
+            else:
+                research_plan = str(questions)
+        else:
+            # 如果没有找到研究计划，使用默认值
+            research_plan = "基于主题进行深入研究"
+
         search_queries = data["search_queries"]
 
         logger.debug(f"提取的研究计划类型: {type(research_plan)}")
@@ -190,5 +203,8 @@ def parse_planner_response(response: str) -> tuple[str, list[str]]:
         return research_plan, search_queries
 
     except Exception as e:
-        logger.error(f"规划器响应解析错误: {e}")
+        logger.error(f"规划器响应解析错误: {str(e)}")
+        logger.error(f"错误类型: {type(e)}")
+        import traceback
+        logger.error(f"完整错误信息: {traceback.format_exc()}")
         raise ValueError(f"Failed to parse planner response: {e}") from e

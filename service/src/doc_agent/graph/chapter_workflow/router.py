@@ -28,24 +28,33 @@ def supervisor_router(
     """
     logger.info("🚀 ====== 进入 supervisor_router 路由节点 ======")
 
-    # 1. 从状态中提取 topic 和 gathered_data
+    # 1. 从状态中提取 topic 和研究数据
     topic = state.get("topic", "")
-    gathered_data = state.get("gathered_data", "")
+    gathered_sources = state.get("gathered_sources", [])
+    gathered_data = state.get("gathered_data", "")  # 保持向后兼容
 
     if not topic:
         # 如果没有主题，默认需要重新研究
         logger.warning("❌ 没有主题，返回 rerun_researcher")
         return "rerun_researcher"
 
-    if not gathered_data:
+    # 检查是否有研究数据（优先检查 gathered_sources）
+    if not gathered_sources and not gathered_data:
         # 如果没有收集到数据，需要重新研究
         logger.warning("❌ 没有收集到数据，返回 rerun_researcher")
         return "rerun_researcher"
 
     # 2. 预分析步骤：计算元数据
-    # 计算来源数量（通过 "===" 分隔符计数）
-    num_sources = gathered_data.count("===")
-    total_length = len(gathered_data)
+    if gathered_sources:
+        # 使用新的 Source 对象格式
+        num_sources = len(gathered_sources)
+        total_length = sum(len(source.content) for source in gathered_sources)
+        logger.info(f"📊 使用 gathered_sources 格式，来源数量: {num_sources}")
+    else:
+        # 使用旧的字符串格式（向后兼容）
+        num_sources = gathered_data.count("===")
+        total_length = len(gathered_data)
+        logger.info(f"📊 使用 gathered_data 格式，来源数量: {num_sources}")
 
     logger.info(f"📋 Topic: {topic}")
     logger.info(f"📊 Gathered data 长度: {total_length} 字符")
