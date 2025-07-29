@@ -9,6 +9,7 @@
 ### 1. 导入 PromptSelector
 
 **新增导入:**
+
 ```python
 from doc_agent.common.prompt_selector import PromptSelector
 ```
@@ -16,6 +17,7 @@ from doc_agent.common.prompt_selector import PromptSelector
 ### 2. Container 初始化
 
 **新增 PromptSelector 实例化:**
+
 ```python
 # 初始化 PromptSelector
 self.prompt_selector = PromptSelector()
@@ -26,6 +28,7 @@ self.prompt_selector = PromptSelector()
 #### 章节工作流节点
 
 **更新前:**
+
 ```python
 chapter_planner_node = partial(chapter_nodes.planner_node,
                                llm_client=self.llm_client)
@@ -36,6 +39,7 @@ chapter_supervisor_router = partial(chapter_router.supervisor_router,
 ```
 
 **更新后:**
+
 ```python
 chapter_planner_node = partial(chapter_nodes.planner_node,
                                llm_client=self.llm_client,
@@ -54,6 +58,7 @@ chapter_supervisor_router = partial(chapter_router.supervisor_router,
 #### 主工作流节点
 
 **更新前:**
+
 ```python
 main_outline_generation_node = partial(
     main_orchestrator_nodes.outline_generation_node,
@@ -61,6 +66,7 @@ main_outline_generation_node = partial(
 ```
 
 **更新后:**
+
 ```python
 main_outline_generation_node = partial(
     main_orchestrator_nodes.outline_generation_node,
@@ -76,6 +82,7 @@ main_outline_generation_node = partial(
 ### 1. planner_node
 
 **更新签名:**
+
 ```python
 def planner_node(state: ResearchState,
                  llm_client: LLMClient,
@@ -84,12 +91,14 @@ def planner_node(state: ResearchState,
 ```
 
 **更新逻辑:**
+
 - 使用 `prompt_selector.get_prompt("chapter_workflow", "planner", prompt_version)` 获取 prompt
 - 添加错误处理和备用 prompt 模板
 
 ### 2. writer_node
 
 **更新签名:**
+
 ```python
 def writer_node(state: ResearchState, 
                  llm_client: LLMClient,
@@ -98,6 +107,7 @@ def writer_node(state: ResearchState,
 ```
 
 **更新逻辑:**
+
 - 使用 `prompt_selector.get_prompt("prompts", "writer", prompt_version)` 获取 prompt
 - 支持简化版本 `v1_simple` 用于长 prompt 截断
 - 添加错误处理和备用 prompt 模板
@@ -105,6 +115,7 @@ def writer_node(state: ResearchState,
 ### 3. supervisor_router
 
 **更新签名:**
+
 ```python
 def supervisor_router(
     state: ResearchState, 
@@ -115,12 +126,14 @@ def supervisor_router(
 ```
 
 **更新逻辑:**
+
 - 使用 `prompt_selector.get_prompt("prompts", "supervisor", prompt_version)` 获取 prompt
 - 添加错误处理和备用 prompt 模板
 
 ### 4. outline_generation_node
 
 **更新签名:**
+
 ```python
 def outline_generation_node(state: ResearchState,
                             llm_client: LLMClient,
@@ -129,6 +142,7 @@ def outline_generation_node(state: ResearchState,
 ```
 
 **更新逻辑:**
+
 - 使用 `prompt_selector.get_prompt("prompts", "outline_generation", prompt_version)` 获取 prompt
 - 添加错误处理和备用 prompt 模板
 
@@ -137,12 +151,14 @@ def outline_generation_node(state: ResearchState,
 ### 1. 添加 PromptSelector 导入
 
 **章节工作流:**
+
 ```python
 # service/src/doc_agent/graph/chapter_workflow/router.py
 from ...common.prompt_selector import PromptSelector
 ```
 
 **主工作流:**
+
 ```python
 # service/src/doc_agent/graph/main_orchestrator/nodes.py
 from ...common.prompt_selector import PromptSelector
@@ -152,12 +168,12 @@ from ...common.prompt_selector import PromptSelector
 
 所有测试都成功通过：
 
-```
+```plaintext
 🎉 测试完成！通过: 6/6
 ✅ 所有测试通过！
 ```
 
-### 测试详情：
+### 测试详情
 
 1. **Container PromptSelector 初始化测试**:
    - ✅ 成功初始化 PromptSelector 实例
@@ -224,6 +240,7 @@ except Exception as e:
 ### 2. 版本不存在处理
 
 当请求的版本不存在时，系统会：
+
 - 记录错误日志
 - 使用备用 prompt 模板
 - 继续执行而不中断流程
@@ -282,4 +299,4 @@ def some_node(state, llm_client, prompt_selector, prompt_version="v1_default"):
 5. ✅ 创建了全面的测试覆盖
 6. ✅ 验证了与现有系统的集成
 
-Container 现在完全支持版本化的 prompt 管理，为整个系统提供了灵活的 prompt 选择机制！🎉 
+Container 现在完全支持版本化的 prompt 管理，为整个系统提供了灵活的 prompt 选择机制！🎉

@@ -157,7 +157,7 @@ async def _generate_outline_task_async(job_id: str) -> str:
 
 
 @celery_app.task
-def run_main_workflow(job_id: str, topic: str) -> str:
+def run_main_workflow(job_id: str, topic: str, genre: str = "default") -> str:
     """
     主要的异步工作流函数
     使用真实的图执行器和Redis回调处理器
@@ -165,21 +165,24 @@ def run_main_workflow(job_id: str, topic: str) -> str:
     Args:
         job_id: 任务ID
         topic: 文档主题
+        genre: 文档类型，用于选择相应的prompt策略
 
     Returns:
         任务状态
     """
-    logger.info(f"主工作流开始 - Job ID: {job_id}, Topic: {topic}")
+    logger.info(f"主工作流开始 - Job ID: {job_id}, Topic: {topic}, Genre: {genre}")
 
     try:
         # 使用同步方式运行异步函数
-        return asyncio.run(_run_main_workflow_async(job_id, topic))
+        return asyncio.run(_run_main_workflow_async(job_id, topic, genre))
     except Exception as e:
         logger.error(f"主工作流任务失败: {e}")
         return "FAILED"
 
 
-async def _run_main_workflow_async(job_id: str, topic: str) -> str:
+async def _run_main_workflow_async(job_id: str,
+                                   topic: str,
+                                   genre: str = "default") -> str:
     """异步主工作流任务的内部实现"""
     try:
         # 获取Redis客户端
@@ -190,13 +193,14 @@ async def _run_main_workflow_async(job_id: str, topic: str) -> str:
                          mapping={
                              "status": "processing",
                              "topic": topic,
+                             "genre": genre,
                              "started_at": str(asyncio.get_event_loop().time())
                          })
 
         # 1. 获取带有Redis回调处理器的图执行器
         logger.info(f"Job {job_id}: 获取图执行器...")
         container = get_container()
-        runnable = container.get_graph_runnable_for_job(job_id)
+        runnable = container.get_graph_runnable_for_job(job_id, genre)
 
         # 2. 从Redis获取初始状态数据
         logger.info(f"Job {job_id}: 获取初始状态数据...")

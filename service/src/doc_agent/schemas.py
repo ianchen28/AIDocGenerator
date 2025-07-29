@@ -10,6 +10,7 @@ class ContextFile(BaseModel):
     file_id: str
     file_name: str
     storage_url: str
+    file_type: Literal["content", "style", "requirements"]  # 新增字段，区分文件类型
 
 
 class CreateContextRequest(BaseModel):
@@ -28,6 +29,7 @@ class CreateJobRequest(BaseModel):
     """创建作业请求"""
     context_id: Optional[str] = None
     task_prompt: str = Field(..., description="用户的核心任务指令")
+    genre: str = Field("default", description="文档类型，用于选择相应的prompt策略")
 
 
 class JobResponse(BaseModel):

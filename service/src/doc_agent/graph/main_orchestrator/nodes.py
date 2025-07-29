@@ -239,7 +239,7 @@ async def initial_research_node(state: ResearchState,
 def outline_generation_node(state: ResearchState,
                             llm_client: LLMClient,
                             prompt_selector: PromptSelector,
-                            prompt_version: str = "v1_default") -> dict:
+                            genre: str = "default") -> dict:
     """
     大纲生成节点
     
@@ -249,7 +249,7 @@ def outline_generation_node(state: ResearchState,
         state: 研究状态，包含 topic 和 initial_gathered_data
         llm_client: LLM客户端实例
         prompt_selector: PromptSelector实例，用于获取prompt模板
-        prompt_version: prompt版本，默认为"v1_default"
+        genre: genre类型，默认为"default"
         
     Returns:
         dict: 包含 document_outline 的字典
@@ -280,9 +280,8 @@ def outline_generation_node(state: ResearchState,
     try:
         prompt_template = prompt_selector.get_prompt("prompts",
                                                      "outline_generation",
-                                                     prompt_version)
-        logger.debug(
-            f"✅ 成功获取 outline_generation prompt 模板，版本: {prompt_version}")
+                                                     genre)
+        logger.debug(f"✅ 成功获取 outline_generation prompt 模板，genre: {genre}")
     except Exception as e:
         logger.error(f"❌ 获取 outline_generation prompt 模板失败: {e}")
         # 使用默认的 prompt 模板作为备用

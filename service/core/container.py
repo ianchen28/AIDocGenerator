@@ -3,6 +3,7 @@ import sys
 from functools import partial
 from pathlib import Path
 
+import yaml
 from loguru import logger
 
 # 添加项目根目录到Python路径
@@ -54,8 +55,57 @@ class Container:
     现在负责实例化和组装主、子两个工作流。
     """
 
+    def _load_genre_strategies(self):
+        """
+        加载 genre 策略配置
+
+        Returns:
+            dict: genre 策略字典
+        """
+        try:
+            # 尝试从 service/core/genres.yaml 加载
+            genres_file = Path(__file__).parent / "genres.yaml"
+            if not genres_file.exists():
+                logger.warning(f"genres.yaml 文件不存在: {genres_file}")
+                return self._get_default_genre_strategies()
+
+            with open(genres_file, encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                strategies = data.get('genres', {})
+                logger.info(f"成功加载 {len(strategies)} 个 genre 策略")
+                return strategies
+
+        except Exception as e:
+            logger.error(f"加载 genre 策略失败: {e}")
+            return self._get_default_genre_strategies()
+
+    def _get_default_genre_strategies(self):
+        """
+        获取默认的 genre 策略
+        
+        Returns:
+            dict: 默认的 genre 策略字典
+        """
+        return {
+            "default": {
+                "name": "通用文档",
+                "description": "适用于大多数标准报告和分析。",
+                "prompt_versions": {
+                    "planner": "v1_default",
+                    "supervisor": "v1_metadata_based",
+                    "writer": "v1_default",
+                    "outline_generation": "v1_default",
+                    "reflection": "v1_default"
+                }
+            }
+        }
+
     def __init__(self):
         print("🚀 Initializing Container...")
+
+        # 加载 genre 策略
+        self.genre_strategies = self._load_genre_strategies()
+        logger.info(f"加载了 {len(self.genre_strategies)} 个 genre 策略")
 
         default_llm = None
         if hasattr(settings, '_yaml_config') and settings._yaml_config:
@@ -69,8 +119,8 @@ class Container:
         self.reranker_tool = get_reranker_tool()
         self.tools = get_all_tools()
 
-        # 初始化 PromptSelector
-        self.prompt_selector = PromptSelector()
+        # 使用加载的 genre 策略初始化 PromptSelector
+        self.prompt_selector = PromptSelector(self.genre_strategies)
 
         print("   - LLM Client, Tools and PromptSelector are ready.")
 
@@ -78,7 +128,7 @@ class Container:
         chapter_planner_node = partial(chapter_nodes.planner_node,
                                        llm_client=self.llm_client,
                                        prompt_selector=self.prompt_selector,
-                                       prompt_version="v1_default")
+                                       genre="default")
         chapter_researcher_node = partial(chapter_nodes.async_researcher_node,
                                           web_search_tool=self.web_search_tool,
                                           es_search_tool=self.es_search_tool,
@@ -86,12 +136,12 @@ class Container:
         chapter_writer_node = partial(chapter_nodes.writer_node,
                                       llm_client=self.llm_client,
                                       prompt_selector=self.prompt_selector,
-                                      prompt_version="v1_default")
+                                      genre="default")
         chapter_supervisor_router = partial(
             chapter_router.supervisor_router,
             llm_client=self.llm_client,
             prompt_selector=self.prompt_selector,
-            prompt_version="v1_default")
+            genre="default")
 
         # 编译子工作流图，得到一个可执行的 Runnable 对象
         # 这个 compiled_chapter_graph 本身也是一个"工具"，将被主流程调用
@@ -117,7 +167,7 @@ class Container:
             main_orchestrator_nodes.outline_generation_node,
             llm_client=self.llm_client,
             prompt_selector=self.prompt_selector,
-            prompt_version="v1_default")
+            genre="default")
         # split_chapters_node 是纯逻辑节点，通常不需要外部依赖
         main_split_chapters_node = main_orchestrator_nodes.split_chapters_node
 
@@ -140,12 +190,13 @@ class Container:
         print("   - Fast Main Orchestrator Graph compiled successfully.")
         print("✅ Container initialization complete.")
 
-    def get_graph_runnable_for_job(self, job_id: str):
+    def get_graph_runnable_for_job(self, job_id: str, genre: str = "default"):
         """
         为指定作业获取带有Redis回调处理器的图执行器
 
         Args:
             job_id: 作业ID，用于创建特定的回调处理器
+            genre: 文档类型，用于选择相应的prompt策略
 
         Returns:
             配置了Redis回调处理器的图执行器
@@ -153,11 +204,71 @@ class Container:
         # 创建Redis回调处理器
         redis_handler = create_redis_callback_handler(job_id)
 
-        # 使用回调处理器配置主图
-        configured_graph = self.main_graph.with_config(
+        # 根据genre创建相应的节点绑定
+        configured_graph = self._get_genre_aware_graph(genre, redis_handler)
+
+        logger.info(f"为作业 {job_id} (genre: {genre}) 创建了带回调处理器的图执行器")
+        return configured_graph
+
+    def _get_genre_aware_graph(self, genre: str, redis_handler):
+        """
+        根据genre获取相应的图执行器
+
+        Args:
+            genre: 文档类型
+            redis_handler: Redis回调处理器
+
+        Returns:
+            配置了回调处理器的图执行器
+        """
+        # 验证genre是否存在
+        if genre not in self.genre_strategies:
+            logger.warning(f"Genre '{genre}' 不存在，使用默认genre")
+            genre = "default"
+
+        # 根据genre创建节点绑定
+        chapter_planner_node = partial(chapter_nodes.planner_node,
+                                       llm_client=self.llm_client,
+                                       prompt_selector=self.prompt_selector,
+                                       genre=genre)
+        chapter_writer_node = partial(chapter_nodes.writer_node,
+                                      llm_client=self.llm_client,
+                                      prompt_selector=self.prompt_selector,
+                                      genre=genre)
+        chapter_supervisor_router = partial(
+            chapter_router.supervisor_router,
+            llm_client=self.llm_client,
+            prompt_selector=self.prompt_selector,
+            genre=genre)
+
+        # 创建chapter workflow graph
+        chapter_graph = build_chapter_workflow_graph(
+            planner_node=chapter_planner_node,
+            researcher_node=self.chapter_graph.
+            nodes["researcher_node"],  # 使用现有的researcher_node
+            writer_node=chapter_writer_node,
+            supervisor_router_func=chapter_supervisor_router)
+
+        # 创建main orchestrator节点绑定
+        main_outline_generation_node = partial(
+            main_orchestrator_nodes.outline_generation_node,
+            llm_client=self.llm_client,
+            prompt_selector=self.prompt_selector,
+            genre=genre)
+
+        # 创建main orchestrator graph
+        main_graph = build_main_orchestrator_graph(
+            initial_research_node=self.main_graph.
+            nodes["initial_research_node"],  # 使用现有的initial_research_node
+            outline_generation_node=main_outline_generation_node,
+            split_chapters_node=self.main_graph.
+            nodes["split_chapters_node"],  # 使用现有的split_chapters_node
+            chapter_workflow_graph=chapter_graph)
+
+        # 使用回调处理器配置图
+        configured_graph = main_graph.with_config(
             {"callbacks": [redis_handler]})
 
-        logger.info(f"为作业 {job_id} 创建了带回调处理器的图执行器")
         return configured_graph
 
     def get_fast_graph_runnable_for_job(self, job_id: str):

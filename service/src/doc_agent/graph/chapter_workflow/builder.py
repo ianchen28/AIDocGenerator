@@ -40,6 +40,7 @@ def build_chapter_workflow_graph(
     researcher_node,
     writer_node,
     supervisor_router_func,
+    reflection_node=None,
 ):
     """
     构建章节工作流图
@@ -47,12 +48,14 @@ def build_chapter_workflow_graph(
     1. planner: 为当前章节制定研究计划
     2. researcher: 执行研究收集数据
     3. supervisor_router: 决定是否需要更多研究
-    4. writer: 基于研究数据和上下文撰写章节内容
+    4. reflector: 智能查询扩展节点（新增）
+    5. writer: 基于研究数据和上下文撰写章节内容
     Args:
         planner_node: 已绑定依赖的规划节点函数
         researcher_node: 已绑定依赖的研究节点函数
         writer_node: 已绑定依赖的写作节点函数
         supervisor_router_func: 已绑定依赖的路由决策函数
+        reflection_node: 已绑定依赖的智能查询扩展节点函数（可选，必须提供）
     Returns:
         CompiledGraph: 编译后的章节工作流图
     """
@@ -62,6 +65,11 @@ def build_chapter_workflow_graph(
     # 注册节点
     workflow.add_node("planner", planner_node)
     workflow.add_node("researcher", researcher_node)
+
+    # 注册反思节点
+    if reflection_node is None:
+        raise ValueError("必须提供 reflection_node 参数")
+    workflow.add_node("reflector", reflection_node)
 
     # 为 writer 节点添加日志
     def writer_with_log(*args, **kwargs):
@@ -77,11 +85,14 @@ def build_chapter_workflow_graph(
     workflow.add_edge("planner", "researcher")
 
     # 添加条件路由
-    # supervisor_router 决定是继续研究还是开始写作
+    # supervisor_router 决定是继续研究、反思，还是开始写作
     workflow.add_conditional_edges("researcher", supervisor_router_func, {
         "continue_to_writer": "writer",
-        "rerun_researcher": "researcher"
+        "rerun_researcher": "reflector"
     })
+
+    # reflector 节点无条件回到 researcher
+    workflow.add_edge("reflector", "researcher")
 
     # writer 完成后结束
     workflow.add_edge("writer", END)

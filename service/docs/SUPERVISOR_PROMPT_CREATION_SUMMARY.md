@@ -9,6 +9,7 @@
 ### `service/src/doc_agent/graph/chapter_workflow/supervisor.py`
 
 **文件内容:**
+
 ```python
 # service/src/doc_agent/graph/chapter_workflow/supervisor.py
 """
@@ -42,6 +43,7 @@ PROMPTS = {
 ### `service/src/doc_agent/common/prompt_selector.py`
 
 **更新内容:**
+
 - 在 `list_available_nodes()` 方法中添加了 `"supervisor"` 节点
 - 在 `list_available_versions()` 方法中修复了 `chapter_workflow` 的模块路径
 - 添加了 `"v1_metadata_based"` 到默认版本列表中
@@ -51,6 +53,7 @@ PROMPTS = {
 ### `service/tests/test_supervisor_prompt.py`
 
 创建了全面的测试用例，包括：
+
 - ✅ **Prompt 选择器测试**: 验证 PromptSelector 可以正确获取 supervisor prompt
 - ✅ **版本测试**: 验证不同版本的 prompt 可以正常工作
 - ✅ **验证测试**: 验证 prompt 验证功能正常工作
@@ -60,12 +63,12 @@ PROMPTS = {
 
 所有测试都成功通过：
 
-```
+```plaintext
 🎉 测试完成！通过: 4/4
 ✅ 所有测试通过！
 ```
 
-### 测试详情：
+### 测试详情
 
 1. **Prompt 选择器测试**:
    - ✅ 成功获取 supervisor prompt 模板
@@ -92,16 +95,19 @@ PROMPTS = {
 ### V1_METADATA_BASED 版本
 
 **功能:**
+
 - 基于元数据的决策逻辑
 - 使用来源数量和总字符数作为决策依据
 - 提供清晰的决策标准
 
 **决策标准:**
+
 - 如果来源数量 >= 3 且总字符数 >= 200，返回 "FINISH"
 - 如果来源数量 >= 2 且总字符数 >= 500，返回 "FINISH"  
 - 其他情况返回 "CONTINUE"
 
 **占位符:**
+
 - `{topic}`: 文档主题
 - `{num_sources}`: 来源数量
 - `{total_length}`: 总字符数
@@ -128,15 +134,18 @@ formatted_prompt = prompt_template.format(
 ## 与现有系统的集成
 
 ### 1. PromptSelector 支持
+
 - ✅ 已添加到 `chapter_workflow` 工作流的节点列表中
 - ✅ 支持版本选择功能
 - ✅ 提供验证和列表功能
 
 ### 2. 模块路径
+
 - ✅ 使用正确的模块路径: `src.doc_agent.graph.chapter_workflow.supervisor`
 - ✅ 与现有的 planner 和 writer 模块保持一致
 
 ### 3. 版本管理
+
 - ✅ 使用 `PROMPTS` 字典进行版本管理
 - ✅ 支持 `v1_metadata_based` 版本
 - ✅ 易于扩展新版本
@@ -159,4 +168,4 @@ formatted_prompt = prompt_template.format(
 4. ✅ 创建了全面的测试覆盖
 5. ✅ 验证了与现有系统的集成
 
-新的 supervisor prompt 模块已经准备就绪，可以用于章节工作流的监督器逻辑！ 
+新的 supervisor prompt 模块已经准备就绪，可以用于章节工作流的监督器逻辑！

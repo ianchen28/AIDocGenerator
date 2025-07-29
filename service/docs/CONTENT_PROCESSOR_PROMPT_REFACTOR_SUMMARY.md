@@ -9,6 +9,7 @@
 ### 1. 变量重命名
 
 **重构前:**
+
 ```python
 DEFAULT_RESEARCH_DATA_SUMMARY = """..."""
 DEFAULT_KEY_POINTS_EXTRACTION = """..."""
@@ -19,6 +20,7 @@ CONTENT_COMPRESSION_PROMPTS = {"default": DEFAULT_CONTENT_COMPRESSION}
 ```
 
 **重构后:**
+
 ```python
 V1_DEFAULT_RESEARCH_DATA_SUMMARY = """..."""
 V1_DEFAULT_KEY_POINTS_EXTRACTION = """..."""
@@ -43,11 +45,13 @@ PROMPTS = {"v1_default": 统一版本}
 更新了 `service/src/doc_agent/prompts/__init__.py` 中的导入：
 
 **更新的导入:**
+
 - `DEFAULT_RESEARCH_DATA_SUMMARY` → `V1_DEFAULT_RESEARCH_DATA_SUMMARY`
 - `DEFAULT_KEY_POINTS_EXTRACTION` → `V1_DEFAULT_KEY_POINTS_EXTRACTION`
 - `DEFAULT_CONTENT_COMPRESSION` → `V1_DEFAULT_CONTENT_COMPRESSION`
 
 **向后兼容性:**
+
 - 创建了别名以保持向后兼容
 - 所有现有的导入仍然有效
 
@@ -55,12 +59,12 @@ PROMPTS = {"v1_default": 统一版本}
 
 所有测试都成功通过：
 
-```
+```plaintext
 🎉 测试完成！通过: 6/6
 ✅ 所有测试通过！
 ```
 
-### 测试详情：
+### 测试详情
 
 1. **Prompt 选择器测试**:
    - ✅ 成功获取 content_processor prompt 模板
@@ -95,17 +99,20 @@ PROMPTS = {"v1_default": 统一版本}
 ### V1_DEFAULT 版本
 
 **功能:**
+
 - 研究数据分析师角色
 - 信息提取专家角色
 - 内容压缩专家角色
 - 完整的内容处理功能
 
 **占位符:**
+
 - `{research_data}`: 研究数据
 - `{key_points_count}`: 关键要点数量
 - `{target_length}`: 目标长度
 
 **输出要求:**
+
 - 结构化的总结
 - 关键要点列表
 - 压缩后的内容
@@ -153,15 +160,18 @@ formatted_prompt = prompt_template.format(
 ## 与现有系统的集成
 
 ### 1. PromptSelector 支持
+
 - ✅ 已支持 `prompts.content_processor` 工作流
 - ✅ 支持版本选择功能
 - ✅ 提供验证和列表功能
 
 ### 2. 模块路径
+
 - ✅ 使用正确的模块路径: `src.doc_agent.prompts.content_processor`
 - ✅ 与现有的其他 prompt 模块保持一致
 
 ### 3. 版本管理
+
 - ✅ 使用 `PROMPTS` 字典进行版本管理
 - ✅ 支持 `v1_default` 版本
 - ✅ 易于扩展新版本
@@ -187,4 +197,4 @@ formatted_prompt = prompt_template.format(
 6. ✅ 验证了与现有系统的集成
 7. ✅ 统一了三个子功能的 prompt 模板
 
-重构后的 content_processor prompt 模块已经准备就绪，支持版本化管理！🎉 
+重构后的 content_processor prompt 模块已经准备就绪，支持版本化管理！🎉

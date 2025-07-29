@@ -1,0 +1,39 @@
+# service/core/genres.yaml
+
+genres:
+  # 默认通用策略
+  default:
+    name: "通用文档"
+    description: "适用于大多数标准报告和分析。"
+    # 指定每个节点使用的 prompt 版本
+    prompt_versions:
+      planner: "v1_default"
+      supervisor: "v1_metadata_based"
+      writer: "v1_default"
+      outline_generation: "v1_default"
+      reflection: "v1_default"
+      # ... etc
+
+  # 工作报告策略
+  work_report:
+    name: "工作报告"
+    description: "生成结构严谨、语言正式的工作报告或周报。"
+    prompt_versions:
+      planner: "v1_work_report" # 使用专门为工作报告设计的 planner prompt
+      supervisor: "v1_metadata_based"
+      writer: "v2_formal_style" # 使用文风更正式的 writer prompt
+      outline_generation: "v2_structured" # 使用更结构化的大纲 prompt
+      reflection: "v1_analytical" # 使用分析性更强的 reflection prompt
+
+  # 讲话稿策略
+  speech_draft:
+    name: "讲话稿"
+    description: "生成富有感染力、口语化的讲话稿。"
+    prompt_versions:
+      planner: "v1_speech"
+      supervisor: "v1_metadata_based"
+      writer: "v3_conversational"
+      outline_generation: "v3_keynote_style"
+      reflection: "v1_exploratory" # 使用探索性更强的 reflection prompt
+
+  # ...可以继续添加 “论文写作”、“市场调研” 等...

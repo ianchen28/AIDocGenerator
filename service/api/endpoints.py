@@ -133,6 +133,7 @@ async def create_job(request: CreateJobRequest):
         job_data = {
             "job_id": job_id,
             "task_prompt": request.task_prompt,
+            "genre": request.genre,
             "status": "CREATED",
             "created_at": datetime.now().isoformat()
         }
@@ -141,6 +142,8 @@ async def create_job(request: CreateJobRequest):
         if request.context_id:
             job_data["context_id"] = request.context_id
             logger.info(f"作业 {job_id} 关联上下文: {request.context_id}")
+
+        logger.info(f"作业 {job_id} 使用 genre: {request.genre}")
 
         await redis.hset(f"job:{job_id}", mapping=job_data)
 
@@ -284,11 +287,12 @@ async def update_outline(job_id: str, request: UpdateOutlineRequest,
                              "updated_at": datetime.now().isoformat()
                          })
 
-        # 获取任务提示，准备启动最终文档生成
+        # 获取任务提示和genre，准备启动最终文档生成
         task_prompt = job_data.get("task_prompt", "")
+        genre = job_data.get("genre", "default")
 
         # 启动最终文档生成工作流 - 使用Celery任务
-        run_main_workflow.delay(job_id, task_prompt)
+        run_main_workflow.delay(job_id, task_prompt, genre)
 
         logger.info(f"大纲已更新，最终文档生成已启动: {job_id}")
 

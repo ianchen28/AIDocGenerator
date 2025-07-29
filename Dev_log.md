@@ -29,7 +29,8 @@ Week1 检查点
   - ✅ **演示系统**: 完整的API演示和事件流监听脚本
 
 - **新增API端点**:
-  ```
+
+  ```bash
   POST /api/v1/contexts          # 创建文件上下文
   POST /api/v1/jobs              # 创建文档生成作业  
   POST /api/v1/jobs/{id}/outline # 触发大纲生成

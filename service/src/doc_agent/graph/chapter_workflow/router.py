@@ -13,7 +13,7 @@ def supervisor_router(
     state: ResearchState,
     llm_client: LLMClient,
     prompt_selector: PromptSelector,
-    prompt_version: str = "v1_default"
+    genre: str = "default"
 ) -> Literal["continue_to_writer", "rerun_researcher"]:
     """
     条件路由: 决策下一步走向
@@ -22,7 +22,7 @@ def supervisor_router(
         state: 研究状态，包含 topic 和 gathered_data
         llm_client: LLM客户端实例
         prompt_selector: PromptSelector实例，用于获取prompt模板
-        prompt_version: prompt版本，默认为"v1_default"
+        genre: genre类型，默认为"default"
     Returns:
         str: "continue_to_writer" 如果数据充足，"rerun_researcher" 如果需要更多研究
     """
@@ -54,8 +54,8 @@ def supervisor_router(
     # 使用 PromptSelector 获取 prompt 模板
     try:
         prompt_template = prompt_selector.get_prompt("prompts", "supervisor",
-                                                     prompt_version)
-        logger.debug(f"✅ 成功获取 supervisor prompt 模板，版本: {prompt_version}")
+                                                     genre)
+        logger.debug(f"✅ 成功获取 supervisor prompt 模板，genre: {genre}")
     except Exception as e:
         logger.error(f"❌ 获取 supervisor prompt 模板失败: {e}")
         # 使用默认的 prompt 模板作为备用

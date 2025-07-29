@@ -2,12 +2,14 @@
 Prompt Selector 模块
 
 本模块提供了 PromptSelector 类，用于动态导入 prompt 模块
-并选择特定版本的 prompt。
+并选择特定版本的 prompt。现在支持 genre-aware 功能。
 """
 
 import importlib
+from pathlib import Path
 from typing import Any, Optional
 
+import yaml
 from loguru import logger
 
 
@@ -16,26 +18,82 @@ class PromptSelector:
     用于动态导入 prompt 模块并选择特定版本 prompt 的类。
 
     该类通过基于工作流类型、节点名称和版本动态导入 prompt 模块，
-    实现灵活的 prompt 管理。
+    实现灵活的 prompt 管理。现在支持 genre-aware 功能。
     """
 
-    def __init__(self):
+    def __init__(self, genre_strategies: Optional[dict] = None):
         """
         初始化 PromptSelector。
 
-        目前为空，但可以在将来扩展配置选项或缓存机制。
+        Args:
+            genre_strategies (Optional[Dict]): genre 策略字典，如果为 None 则从 genres.yaml 加载
         """
-        pass
+        if genre_strategies is None:
+            self.genre_strategies = self._load_genre_strategies()
+        else:
+            self.genre_strategies = genre_strategies
 
-    def get_prompt(self, workflow_type: str, node_name: str,
-                   version: str) -> str:
+        logger.debug(
+            f"PromptSelector 初始化完成，加载了 {len(self.genre_strategies)} 个 genre 策略"
+        )
+
+    def _load_genre_strategies(self) -> dict:
         """
-        基于工作流类型、节点名称和版本获取特定的 prompt。
+        从 genres.yaml 文件加载 genre 策略。
+
+        Returns:
+            Dict: genre 策略字典
+        """
+        try:
+            # 尝试从 service/core/genres.yaml 加载
+            genres_file = Path(
+                __file__).parent.parent.parent.parent / "core" / "genres.yaml"
+            if not genres_file.exists():
+                # 如果不存在，返回默认策略
+                logger.warning(f"genres.yaml 文件不存在: {genres_file}")
+                return self._get_default_genre_strategies()
+
+            with open(genres_file, encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                strategies = data.get('genres', {})
+                logger.info(f"成功加载 {len(strategies)} 个 genre 策略")
+                return strategies
+
+        except Exception as e:
+            logger.error(f"加载 genre 策略失败: {e}")
+            return self._get_default_genre_strategies()
+
+    def _get_default_genre_strategies(self) -> dict:
+        """
+        获取默认的 genre 策略。
+
+        Returns:
+            Dict: 默认的 genre 策略字典
+        """
+        return {
+            "default": {
+                "name": "通用文档",
+                "description": "适用于大多数标准报告和分析。",
+                "prompt_versions": {
+                    "planner": "v1_default",
+                    "supervisor": "v1_metadata_based",
+                    "writer": "v1_default",
+                    "outline_generation": "v1_default"
+                }
+            }
+        }
+
+    def get_prompt(self,
+                   workflow_type: str,
+                   node_name: str,
+                   genre: str = "default") -> str:
+        """
+        基于工作流类型、节点名称和 genre 获取特定的 prompt。
 
         Args:
             workflow_type (str): 工作流类型（例如："chapter_workflow", "fast_prompts"）
             node_name (str): 节点名称（例如："writer", "planner", "supervisor"）
-            version (str): prompt 版本（例如："v1_default", "simple"）
+            genre (str): genre 类型（例如："work_report", "speech_draft"），默认为 "default"
 
         Returns:
             str: 请求的 prompt 模板
@@ -44,9 +102,29 @@ class PromptSelector:
             ImportError: 如果模块无法导入
             KeyError: 如果版本在模块中不存在
             AttributeError: 如果模块中不存在 PROMPTS 字典
+            ValueError: 如果 genre 或节点在策略中不存在
         """
         try:
-            # 构建模块路径
+            # 1. 获取 genre 策略
+            if genre not in self.genre_strategies:
+                available_genres = list(self.genre_strategies.keys())
+                raise ValueError(
+                    f"未找到 genre '{genre}'。可用 genres: {available_genres}")
+
+            genre_strategy = self.genre_strategies[genre]
+            prompt_versions = genre_strategy.get('prompt_versions', {})
+
+            # 2. 获取该节点在指定 genre 下的 prompt 版本
+            if node_name not in prompt_versions:
+                available_nodes = list(prompt_versions.keys())
+                raise ValueError(
+                    f"在 genre '{genre}' 中未找到节点 '{node_name}'。可用节点: {available_nodes}"
+                )
+
+            version = prompt_versions[node_name]
+            logger.debug(f"Genre '{genre}' 为节点 '{node_name}' 选择版本: {version}")
+
+            # 3. 构建模块路径
             if workflow_type == "chapter_workflow":
                 module_path = f"src.doc_agent.graph.chapter_workflow.{node_name}"
             else:
@@ -54,10 +132,10 @@ class PromptSelector:
 
             logger.debug(f"尝试导入模块: {module_path}")
 
-            # 动态导入模块
+            # 4. 动态导入模块
             module = importlib.import_module(module_path)
 
-            # 首先，尝试从模块中获取 PROMPTS 字典
+            # 5. 首先，尝试从模块中获取 PROMPTS 字典
             if hasattr(module, 'PROMPTS'):
                 prompts_dict = module.PROMPTS
 
@@ -71,7 +149,8 @@ class PromptSelector:
                 # 返回请求的 prompt
                 prompt = prompts_dict[version]
                 logger.debug(
-                    f"成功获取 prompt: {workflow_type}.{node_name}.{version}")
+                    f"成功获取 prompt: {workflow_type}.{node_name}.{version} (genre: {genre})"
+                )
                 return prompt
             else:
                 # 备用方案：查找独立的 prompt 变量
@@ -85,7 +164,8 @@ class PromptSelector:
                         # 返回第一个可用的 prompt
                         first_prompt = list(available_prompts.values())[0]
                         logger.debug(
-                            f"为 {workflow_type}.{node_name} 使用第一个可用的 prompt")
+                            f"为 {workflow_type}.{node_name} (genre: {genre}) 使用第一个可用的 prompt"
+                        )
                         return first_prompt
                     else:
                         raise AttributeError(
@@ -100,9 +180,55 @@ class PromptSelector:
         except KeyError as e:
             logger.error(f"在模块 {module_path} 中未找到版本 {version}: {e}")
             raise
+        except ValueError as e:
+            logger.error(f"Genre 或节点配置错误: {e}")
+            raise
         except Exception as e:
             logger.error(f"获取 prompt 时发生意外错误: {e}")
             raise
+
+    def get_genre_info(self, genre: str) -> dict:
+        """
+        获取指定 genre 的信息。
+
+        Args:
+            genre (str): genre 名称
+
+        Returns:
+            Dict: genre 信息字典，包含 name, description, prompt_versions
+        """
+        if genre not in self.genre_strategies:
+            available_genres = list(self.genre_strategies.keys())
+            raise ValueError(
+                f"未找到 genre '{genre}'。可用 genres: {available_genres}")
+
+        return self.genre_strategies[genre]
+
+    def list_available_genres(self) -> list:
+        """
+        列出所有可用的 genres。
+
+        Returns:
+            list: 可用 genres 的列表
+        """
+        return list(self.genre_strategies.keys())
+
+    def list_available_nodes_for_genre(self, genre: str) -> list:
+        """
+        列出指定 genre 中可用的节点。
+
+        Args:
+            genre (str): genre 名称
+
+        Returns:
+            list: 可用节点的列表
+        """
+        if genre not in self.genre_strategies:
+            return []
+
+        genre_strategy = self.genre_strategies[genre]
+        prompt_versions = genre_strategy.get('prompt_versions', {})
+        return list(prompt_versions.keys())
 
     def _get_prompt_variables(self, module: Any,
                               version: str) -> Optional[str]:
@@ -258,38 +384,42 @@ class PromptSelector:
         except ImportError:
             return []
 
-    def validate_prompt(self, workflow_type: str, node_name: str,
-                        version: str) -> bool:
+    def validate_prompt(self,
+                        workflow_type: str,
+                        node_name: str,
+                        genre: str = "default") -> bool:
         """
         验证给定参数的 prompt 是否存在。
 
         Args:
             workflow_type (str): 工作流类型
             node_name (str): 节点名称
-            version (str): 版本
+            genre (str): genre 类型，默认为 "default"
 
         Returns:
             bool: 如果 prompt 存在则返回 True，否则返回 False
         """
         try:
-            self.get_prompt(workflow_type, node_name, version)
+            self.get_prompt(workflow_type, node_name, genre)
             return True
-        except (ImportError, KeyError, AttributeError):
+        except (ImportError, KeyError, AttributeError, ValueError):
             return False
 
 
 # 便捷函数，用于轻松访问
-def get_prompt(workflow_type: str, node_name: str, version: str) -> str:
+def get_prompt(workflow_type: str,
+               node_name: str,
+               genre: str = "default") -> str:
     """
     便捷函数，无需创建 PromptSelector 实例即可获取 prompt。
 
     Args:
         workflow_type (str): 工作流类型
         node_name (str): 节点名称
-        version (str): 版本
+        genre (str): genre 类型，默认为 "default"
 
     Returns:
         str: 请求的 prompt 模板
     """
     selector = PromptSelector()
-    return selector.get_prompt(workflow_type, node_name, version)
+    return selector.get_prompt(workflow_type, node_name, genre)
