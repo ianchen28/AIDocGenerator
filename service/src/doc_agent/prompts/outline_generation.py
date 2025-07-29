@@ -3,7 +3,7 @@
 大纲生成提示词模板
 """
 
-OUTLINE_GENERATION_PROMPT = """
+V1_DEFAULT = """
 你是一位专业的文档结构设计专家。基于提供的初始研究数据，为主题生成一个详细的文档大纲。
 
 **主题**: {topic}
@@ -51,3 +51,6 @@ OUTLINE_GENERATION_PROMPT = """
 - 描述应该详细说明该章节将涵盖的内容
 - 必须输出有效的JSON格式
 """
+
+# 支持版本选择的PROMPTS字典
+PROMPTS = {"v1_default": V1_DEFAULT}

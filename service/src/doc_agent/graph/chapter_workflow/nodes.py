@@ -25,8 +25,9 @@ if service_dir:
 
 # 导入项目内部模块
 from core.config import settings
-from doc_agent.common import parse_planner_response
-from doc_agent.utils.search_utils import search_and_rerank
+from ...common import parse_planner_response
+from ...common.prompt_selector import PromptSelector
+from ...utils.search_utils import search_and_rerank
 
 from ...llm_clients.base import LLMClient
 from ...llm_clients.providers import EmbeddingClient
@@ -37,13 +38,17 @@ from ..state import ResearchState
 
 
 def planner_node(state: ResearchState,
-                 llm_client: LLMClient) -> dict[str, Any]:
+                 llm_client: LLMClient,
+                 prompt_selector: PromptSelector,
+                 prompt_version: str = "v1_default") -> dict[str, Any]:
     """
     节点1: 规划研究步骤
     从状态中获取 topic 和当前章节信息，创建 prompt 调用 LLM 生成研究计划和搜索查询
     Args:
         state: 研究状态，包含 topic 和当前章节信息
         llm_client: LLM客户端实例
+        prompt_selector: PromptSelector实例，用于获取prompt模板
+        prompt_version: prompt版本，默认为"v1_default"
     Returns:
         dict: 包含 research_plan 和 search_queries 的字典
     """
@@ -72,13 +77,41 @@ def planner_node(state: ResearchState,
     if not task_planner_config:
         raise ValueError("Task planner configuration not found")
 
-    # 导入提示词模板
-    from ...prompts import PLANNER_PROMPT
+    # 使用 PromptSelector 获取 prompt 模板
+    try:
+        prompt_template = prompt_selector.get_prompt("chapter_workflow",
+                                                     "planner", prompt_version)
+        logger.debug(f"✅ 成功获取 planner prompt 模板，版本: {prompt_version}")
+    except Exception as e:
+        logger.error(f"❌ 获取 planner prompt 模板失败: {e}")
+        # 使用默认的 prompt 模板作为备用
+        prompt_template = """
+你是一个专业的研究规划专家。请为以下章节制定详细的研究计划和搜索策略。
+
+**文档主题:** {topic}
+
+**当前章节信息:**
+- 章节标题: {chapter_title}
+- 章节描述: {chapter_description}
+
+**任务要求:**
+1. 分析章节主题，确定研究重点和方向
+2. 制定详细的研究计划，包括研究步骤和方法
+3. 生成5-8个高质量的搜索查询，用于收集相关信息
+4. 确保搜索查询具有针对性和全面性
+
+**输出格式:**
+请以JSON格式返回结果，包含以下字段：
+- research_plan: 详细的研究计划
+- search_queries: 搜索查询列表（数组）
+
+请立即开始制定研究计划。
+"""
 
     # 创建研究计划生成的 prompt，要求 JSON 格式响应
-    prompt = PLANNER_PROMPT.format(topic=topic,
-                                   chapter_title=chapter_title,
-                                   chapter_description=chapter_description)
+    prompt = prompt_template.format(topic=topic,
+                                    chapter_title=chapter_title,
+                                    chapter_description=chapter_description)
 
     logger.debug(f"Invoking LLM with prompt:\n{pprint.pformat(prompt)}")
 
@@ -332,13 +365,18 @@ async def async_researcher_node(
     return {"gathered_data": gathered_data}
 
 
-def writer_node(state: ResearchState, llm_client: LLMClient) -> dict[str, Any]:
+def writer_node(state: ResearchState,
+                llm_client: LLMClient,
+                prompt_selector: PromptSelector,
+                prompt_version: str = "v1_default") -> dict[str, Any]:
     """
     章节写作节点
     基于当前章节的研究数据和已完成章节的上下文，生成当前章节的内容
     Args:
         state: 研究状态，包含章节信息、研究数据和已完成章节
         llm_client: LLM客户端实例
+        prompt_selector: PromptSelector实例，用于获取prompt模板
+        prompt_version: prompt版本，默认为"v1_default"
     Returns:
         dict: 包含当前章节内容的字典
     """
@@ -389,11 +427,42 @@ def writer_node(state: ResearchState, llm_client: LLMClient) -> dict[str, Any]:
             for i, content in enumerate(completed_chapters_content)
         ])
 
-    # 导入提示词模板
-    from ...prompts import WRITER_PROMPT, WRITER_PROMPT_SIMPLE
+    # 使用 PromptSelector 获取 prompt 模板
+    try:
+        prompt_template = prompt_selector.get_prompt("prompts", "writer",
+                                                     prompt_version)
+        logger.debug(f"✅ 成功获取 writer prompt 模板，版本: {prompt_version}")
+    except Exception as e:
+        logger.error(f"❌ 获取 writer prompt 模板失败: {e}")
+        # 使用默认的 prompt 模板作为备用
+        prompt_template = """
+你是一个专业的文档写作专家。请基于提供的研究数据，为指定章节撰写高质量的内容。
+
+**文档主题:** {topic}
+
+**章节信息:**
+- 章节标题: {chapter_title}
+- 章节描述: {chapter_description}
+- 章节编号: {chapter_number}/{total_chapters}
+
+**上下文信息:**
+{previous_chapters_context}
+
+**研究数据:**
+{gathered_data}
+
+**写作要求:**
+1. 基于研究数据撰写内容，确保信息准确性和完整性
+2. 保持章节结构清晰，逻辑连贯
+3. 使用专业但易懂的语言
+4. 适当引用研究数据中的关键信息
+5. 确保内容与章节描述相符
+
+请立即开始撰写章节内容。
+"""
 
     # 构建高质量的提示词
-    prompt = WRITER_PROMPT.format(
+    prompt = prompt_template.format(
         topic=topic,
         chapter_title=chapter_title,
         chapter_description=chapter_description,
@@ -422,15 +491,34 @@ def writer_node(state: ResearchState, llm_client: LLMClient) -> dict[str, Any]:
         if len(gathered_data) > 15000:
             gathered_data = gathered_data[:15000] + "\n\n... (研究数据已截断)"
 
-        # 重新构建prompt
-        prompt = WRITER_PROMPT_SIMPLE.format(
+        # 重新构建prompt - 使用简化版本
+        try:
+            simple_prompt_template = prompt_selector.get_prompt(
+                "prompts", "writer", "v1_simple")
+            logger.debug(f"✅ 成功获取 writer simple prompt 模板")
+        except Exception as e:
+            logger.error(f"❌ 获取 writer simple prompt 模板失败: {e}")
+            # 使用简化的备用模板
+            simple_prompt_template = """
+你是一个专业的文档写作专家。请基于提供的研究数据，为指定章节撰写内容。
+
+**文档主题:** {topic}
+**章节标题:** {chapter_title}
+**章节描述:** {chapter_description}
+**章节编号:** {chapter_number}/{total_chapters}
+
+**研究数据:**
+{gathered_data}
+
+请撰写章节内容，确保信息准确性和完整性。
+"""
+
+        prompt = simple_prompt_template.format(
             topic=topic,
             chapter_title=chapter_title,
             chapter_description=chapter_description,
             chapter_number=current_chapter_index + 1,
             total_chapters=len(chapters_to_process),
-            previous_chapters_context=previous_chapters_context
-            if previous_chapters_context else "这是第一章，没有前置内容。",
             gathered_data=gathered_data)
         logger.info(f"📝 截断后 writer prompt 长度: {len(prompt)} 字符")
 

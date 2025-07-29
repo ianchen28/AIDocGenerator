@@ -3,7 +3,7 @@
 内容处理器提示词模板
 """
 
-RESEARCH_DATA_SUMMARY_PROMPT = """
+V1_DEFAULT_RESEARCH_DATA_SUMMARY = """
 你是一位专业的研究数据分析师。请对以下研究数据进行总结和分析。
 
 **研究数据:**
@@ -25,7 +25,7 @@ RESEARCH_DATA_SUMMARY_PROMPT = """
 请确保总结简洁明了，突出重点信息。
 """
 
-KEY_POINTS_EXTRACTION_PROMPT = """
+V1_DEFAULT_KEY_POINTS_EXTRACTION = """
 你是一位专业的信息提取专家。请从以下研究数据中提取关键要点。
 
 **研究数据:**
@@ -47,7 +47,7 @@ KEY_POINTS_EXTRACTION_PROMPT = """
 请提取{key_points_count}个最重要的要点。
 """
 
-CONTENT_COMPRESSION_PROMPT = """
+V1_DEFAULT_CONTENT_COMPRESSION = """
 你是一位专业的内容压缩专家。请对以下研究数据进行智能压缩，保留最重要的信息。
 
 **原始研究数据:**
@@ -69,3 +69,24 @@ CONTENT_COMPRESSION_PROMPT = """
 
 请直接输出压缩后的内容，不要添加额外的说明。
 """
+
+# 支持版本选择的PROMPTS字典
+DATA_SUMMARY_PROMPTS = {
+    "v1_default": V1_DEFAULT_RESEARCH_DATA_SUMMARY,
+}
+
+KEY_POINTS_EXTRACTION_PROMPTS = {
+    "v1_default": V1_DEFAULT_KEY_POINTS_EXTRACTION,
+}
+
+CONTENT_COMPRESSION_PROMPTS = {
+    "v1_default": V1_DEFAULT_CONTENT_COMPRESSION,
+}
+
+# 统一的PROMPTS字典，用于PromptSelector
+# 包含所有三个prompt的内容，以支持完整的content_processor功能
+PROMPTS = {
+    "v1_default":
+    V1_DEFAULT_RESEARCH_DATA_SUMMARY + "\n\n" +
+    V1_DEFAULT_KEY_POINTS_EXTRACTION + "\n\n" + V1_DEFAULT_CONTENT_COMPRESSION,
+}

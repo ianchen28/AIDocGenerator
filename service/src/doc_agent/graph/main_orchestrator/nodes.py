@@ -9,6 +9,7 @@ from ...tools.web_search import WebSearchTool
 from ...tools.es_search import ESSearchTool
 from ...tools.reranker import RerankerTool
 from ...llm_clients.providers import EmbeddingClient, RerankerClient
+from ...common.prompt_selector import PromptSelector
 
 # 添加配置导入
 import sys
@@ -236,7 +237,9 @@ async def initial_research_node(state: ResearchState,
 
 
 def outline_generation_node(state: ResearchState,
-                            llm_client: LLMClient) -> dict:
+                            llm_client: LLMClient,
+                            prompt_selector: PromptSelector,
+                            prompt_version: str = "v1_default") -> dict:
     """
     大纲生成节点
     
@@ -245,6 +248,8 @@ def outline_generation_node(state: ResearchState,
     Args:
         state: 研究状态，包含 topic 和 initial_gathered_data
         llm_client: LLM客户端实例
+        prompt_selector: PromptSelector实例，用于获取prompt模板
+        prompt_version: prompt版本，默认为"v1_default"
         
     Returns:
         dict: 包含 document_outline 的字典
@@ -271,11 +276,47 @@ def outline_generation_node(state: ResearchState,
         max_tokens = outline_config.max_tokens
         extra_params = outline_config.extra_params
 
-    # 导入提示词模板
-    from ...prompts import OUTLINE_GENERATION_PROMPT
+    # 使用 PromptSelector 获取 prompt 模板
+    try:
+        prompt_template = prompt_selector.get_prompt("prompts",
+                                                     "outline_generation",
+                                                     prompt_version)
+        logger.debug(
+            f"✅ 成功获取 outline_generation prompt 模板，版本: {prompt_version}")
+    except Exception as e:
+        logger.error(f"❌ 获取 outline_generation prompt 模板失败: {e}")
+        # 使用默认的 prompt 模板作为备用
+        prompt_template = """
+你是一个专业的文档结构规划专家。请基于提供的研究数据，为指定主题生成一个结构化的文档大纲。
+
+**文档主题:** {topic}
+
+**研究数据摘要:**
+{initial_gathered_data}
+
+**任务要求:**
+1. 分析研究数据，识别主要主题和关键信息
+2. 设计一个逻辑清晰、结构合理的文档大纲
+3. 确保大纲涵盖主题的各个方面
+4. 每个章节应该有明确的标题和描述
+5. 考虑章节之间的逻辑关系和层次结构
+
+**输出格式:**
+请以JSON格式返回结果，包含以下字段：
+- title: 文档标题
+- summary: 文档摘要
+- chapters: 章节列表，每个章节包含：
+  - chapter_number: 章节编号
+  - chapter_title: 章节标题
+  - description: 章节描述
+  - key_points: 关键要点列表
+  - estimated_sections: 预估小节数量
+
+请立即开始生成文档大纲。
+"""
 
     # 构建提示词
-    prompt = OUTLINE_GENERATION_PROMPT.format(
+    prompt = prompt_template.format(
         topic=topic,
         initial_gathered_data=initial_gathered_data[:8000]  # 限制输入长度
     )

@@ -5,11 +5,15 @@ from typing import Literal
 from loguru import logger
 
 from ...llm_clients.base import LLMClient
+from ...common.prompt_selector import PromptSelector
 from ..state import ResearchState
 
 
 def supervisor_router(
-    state: ResearchState, llm_client: LLMClient
+    state: ResearchState,
+    llm_client: LLMClient,
+    prompt_selector: PromptSelector,
+    prompt_version: str = "v1_default"
 ) -> Literal["continue_to_writer", "rerun_researcher"]:
     """
     条件路由: 决策下一步走向
@@ -17,6 +21,8 @@ def supervisor_router(
     Args:
         state: 研究状态，包含 topic 和 gathered_data
         llm_client: LLM客户端实例
+        prompt_selector: PromptSelector实例，用于获取prompt模板
+        prompt_version: prompt版本，默认为"v1_default"
     Returns:
         str: "continue_to_writer" 如果数据充足，"rerun_researcher" 如果需要更多研究
     """
@@ -45,13 +51,34 @@ def supervisor_router(
     logger.info(f"📊 Gathered data 长度: {total_length} 字符")
     logger.info(f"🔍 来源数量: {num_sources}")
 
-    # 导入提示词模板
-    from ...prompts import SUPERVISOR_PROMPT
+    # 使用 PromptSelector 获取 prompt 模板
+    try:
+        prompt_template = prompt_selector.get_prompt("prompts", "supervisor",
+                                                     prompt_version)
+        logger.debug(f"✅ 成功获取 supervisor prompt 模板，版本: {prompt_version}")
+    except Exception as e:
+        logger.error(f"❌ 获取 supervisor prompt 模板失败: {e}")
+        # 使用默认的 prompt 模板作为备用
+        prompt_template = """**角色：** 你是一个高效的决策机器人。
+**任务：** 根据下方的数据摘要，判断是否可以开始为「{topic}」撰写一个章节。
+
+**决策标准：**
+- 如果来源数量 >= 3 且总字符数 >= 200，返回 "FINISH"
+- 如果来源数量 >= 2 且总字符数 >= 500，返回 "FINISH"
+- 其他情况返回 "CONTINUE"
+
+**数据摘要：**
+- 来源数量: {num_sources}
+- 总字符数: {total_length}
+
+**你的决策：**
+你的回答只能是一个单词："FINISH" 或 "CONTINUE"。
+"""
 
     # 3. 构建简化的评估提示词
-    prompt = SUPERVISOR_PROMPT.format(topic=topic,
-                                      num_sources=num_sources,
-                                      total_length=total_length)
+    prompt = prompt_template.format(topic=topic,
+                                    num_sources=num_sources,
+                                    total_length=total_length)
 
     logger.debug(
         f"Invoking LLM with supervisor prompt:\n{pprint.pformat(prompt)}")

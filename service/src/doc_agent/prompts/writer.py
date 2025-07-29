@@ -3,7 +3,7 @@
 写作器提示词模板
 """
 
-WRITER_PROMPT = """
+V1_DEFAULT = """
 **角色:** 你是一位专业的研究员和文档撰写专家，负责撰写高质量的章节内容。
 
 **文档主题:** {topic}
@@ -51,7 +51,7 @@ WRITER_PROMPT = """
 """
 
 # 简化版本的写作器prompt（用于长度限制时）
-WRITER_PROMPT_SIMPLE = """
+V1_SIMPLE = """
 **角色:** 你是一位专业的研究员和文档撰写专家，负责撰写高质量的章节内容。
 
 **文档主题:** {topic}
@@ -70,3 +70,6 @@ WRITER_PROMPT_SIMPLE = """
 **写作任务:**
 基于研究数据撰写当前章节，确保与前面章节连贯，使用Markdown格式，以##开始章节标题。
 """
+
+# 支持版本选择的PROMPTS字典
+PROMPTS = {"v1_default": V1_DEFAULT, "v1_simple": V1_SIMPLE}

@@ -27,12 +27,14 @@ setup_logging(settings)
 
 # 在设置路径后导入 doc_agent 模块
 try:
+    from doc_agent.common.prompt_selector import PromptSelector
+    from doc_agent.graph.callbacks import create_redis_callback_handler
     from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
     from doc_agent.graph.chapter_workflow import router as chapter_router
     from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
+    from doc_agent.graph.fast_builder import build_fast_main_workflow
     from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
     from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
-    from doc_agent.graph.fast_builder import build_fast_main_workflow
     from doc_agent.llm_clients import get_llm_client
     from doc_agent.tools import (
         get_all_tools,
@@ -40,7 +42,6 @@ try:
         get_reranker_tool,
         get_web_search_tool,
     )
-    from doc_agent.graph.callbacks import create_redis_callback_handler
 except ImportError as e:
     print(f"❌ 导入 doc_agent 模块失败: {e}")
     print(f"当前 Python 路径: {sys.path[:3]}")
@@ -67,19 +68,30 @@ class Container:
         self.es_search_tool = get_es_search_tool()
         self.reranker_tool = get_reranker_tool()
         self.tools = get_all_tools()
-        print("   - LLM Client and Tools are ready.")
+
+        # 初始化 PromptSelector
+        self.prompt_selector = PromptSelector()
+
+        print("   - LLM Client, Tools and PromptSelector are ready.")
 
         print("   - Binding dependencies for Chapter Workflow...")
         chapter_planner_node = partial(chapter_nodes.planner_node,
-                                       llm_client=self.llm_client)
+                                       llm_client=self.llm_client,
+                                       prompt_selector=self.prompt_selector,
+                                       prompt_version="v1_default")
         chapter_researcher_node = partial(chapter_nodes.async_researcher_node,
                                           web_search_tool=self.web_search_tool,
                                           es_search_tool=self.es_search_tool,
                                           reranker_tool=self.reranker_tool)
         chapter_writer_node = partial(chapter_nodes.writer_node,
-                                      llm_client=self.llm_client)
-        chapter_supervisor_router = partial(chapter_router.supervisor_router,
-                                            llm_client=self.llm_client)
+                                      llm_client=self.llm_client,
+                                      prompt_selector=self.prompt_selector,
+                                      prompt_version="v1_default")
+        chapter_supervisor_router = partial(
+            chapter_router.supervisor_router,
+            llm_client=self.llm_client,
+            prompt_selector=self.prompt_selector,
+            prompt_version="v1_default")
 
         # 编译子工作流图，得到一个可执行的 Runnable 对象
         # 这个 compiled_chapter_graph 本身也是一个"工具"，将被主流程调用
@@ -103,7 +115,9 @@ class Container:
             llm_client=self.llm_client)
         main_outline_generation_node = partial(
             main_orchestrator_nodes.outline_generation_node,
-            llm_client=self.llm_client)
+            llm_client=self.llm_client,
+            prompt_selector=self.prompt_selector,
+            prompt_version="v1_default")
         # split_chapters_node 是纯逻辑节点，通常不需要外部依赖
         main_split_chapters_node = main_orchestrator_nodes.split_chapters_node
 
