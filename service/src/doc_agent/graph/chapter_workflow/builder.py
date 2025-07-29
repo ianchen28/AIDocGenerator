@@ -66,10 +66,9 @@ def build_chapter_workflow_graph(
     workflow.add_node("planner", planner_node)
     workflow.add_node("researcher", researcher_node)
 
-    # 注册反思节点
-    if reflection_node is None:
-        raise ValueError("必须提供 reflection_node 参数")
-    workflow.add_node("reflector", reflection_node)
+    # 注册反思节点（可选）
+    if reflection_node is not None:
+        workflow.add_node("reflector", reflection_node)
 
     # 为 writer 节点添加日志
     def writer_with_log(*args, **kwargs):
@@ -86,13 +85,20 @@ def build_chapter_workflow_graph(
 
     # 添加条件路由
     # supervisor_router 决定是继续研究、反思，还是开始写作
-    workflow.add_conditional_edges("researcher", supervisor_router_func, {
-        "continue_to_writer": "writer",
-        "rerun_researcher": "reflector"
-    })
-
-    # reflector 节点无条件回到 researcher
-    workflow.add_edge("reflector", "researcher")
+    if reflection_node is not None:
+        # 如果有 reflection_node，使用反思流程
+        workflow.add_conditional_edges("researcher", supervisor_router_func, {
+            "continue_to_writer": "writer",
+            "rerun_researcher": "reflector"
+        })
+        # reflector 节点无条件回到 researcher
+        workflow.add_edge("reflector", "researcher")
+    else:
+        # 如果没有 reflection_node，直接回到 researcher
+        workflow.add_conditional_edges("researcher", supervisor_router_func, {
+            "continue_to_writer": "writer",
+            "rerun_researcher": "researcher"
+        })
 
     # writer 完成后结束
     workflow.add_edge("writer", END)

@@ -149,7 +149,8 @@ class Container:
             planner_node=chapter_planner_node,
             researcher_node=chapter_researcher_node,
             writer_node=chapter_writer_node,
-            supervisor_router_func=chapter_supervisor_router)
+            supervisor_router_func=chapter_supervisor_router,
+            reflection_node=None)  # 在初始化时不使用 reflection_node
         print("   - Chapter Workflow Graph compiled successfully.")
 
         # 构建 "总控" 主工作流 (Main Orchestrator)
@@ -241,13 +242,20 @@ class Container:
             prompt_selector=self.prompt_selector,
             genre=genre)
 
+        # 创建reflection_node绑定
+        reflection_node = partial(chapter_nodes.reflection_node,
+                                  llm_client=self.llm_client,
+                                  prompt_selector=self.prompt_selector,
+                                  genre=genre)
+
         # 创建chapter workflow graph
         chapter_graph = build_chapter_workflow_graph(
             planner_node=chapter_planner_node,
             researcher_node=self.chapter_graph.
             nodes["researcher_node"],  # 使用现有的researcher_node
             writer_node=chapter_writer_node,
-            supervisor_router_func=chapter_supervisor_router)
+            supervisor_router_func=chapter_supervisor_router,
+            reflection_node=reflection_node)  # 添加 reflection_node
 
         # 创建main orchestrator节点绑定
         main_outline_generation_node = partial(

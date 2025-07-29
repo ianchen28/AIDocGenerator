@@ -126,7 +126,8 @@ class PromptSelector:
 
             # 3. 构建模块路径
             if workflow_type == "chapter_workflow":
-                module_path = f"src.doc_agent.graph.chapter_workflow.{node_name}"
+                # chapter_workflow 的 prompt 模块在 prompts 目录下
+                module_path = f"src.doc_agent.prompts.{node_name}"
             else:
                 module_path = f"src.doc_agent.{workflow_type}.{node_name}"
 
