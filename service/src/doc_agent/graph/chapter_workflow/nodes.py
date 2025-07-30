@@ -237,10 +237,16 @@ async def async_researcher_node(
     else:
         logger.warning("❌ 未找到 embedding 配置，将使用文本搜索")
 
-    # 获取配置参数
-    doc_config = settings.get_document_config(fast_mode=False)
+    # 获取配置参数 - 使用快速模式以加快测试
+    doc_config = settings.get_document_config(fast_mode=True)
     initial_top_k = doc_config.get('vector_recall_size', 10)
     final_top_k = doc_config.get('rerank_size', 5)
+
+    # 限制搜索查询数量以加快测试
+    max_queries = settings.search_config.max_queries
+    if len(search_queries) > max_queries:
+        logger.info(f"🔧 限制搜索查询数量从 {len(search_queries)} 到 {max_queries}")
+        search_queries = search_queries[:max_queries]
 
     # 使用传入的ES工具，不再内部创建
     for i, query in enumerate(search_queries, 1):
@@ -390,7 +396,8 @@ async def async_researcher_node(
 def writer_node(state: ResearchState,
                 llm_client: LLMClient,
                 prompt_selector: PromptSelector,
-                genre: str = "default") -> dict[str, Any]:
+                genre: str = "default",
+                prompt_version: str = "v3_context_aware") -> dict[str, Any]:
     """
     章节写作节点
     基于当前章节的研究数据和已完成章节的上下文，生成当前章节的内容
@@ -408,6 +415,7 @@ def writer_node(state: ResearchState,
     current_chapter_index = state.get("current_chapter_index", 0)
     chapters_to_process = state.get("chapters_to_process", [])
     completed_chapters_content = state.get("completed_chapters_content", [])
+    completed_chapters = state.get("completed_chapters", [])
 
     # 验证当前章节索引
     if current_chapter_index >= len(chapters_to_process):
@@ -424,6 +432,38 @@ def writer_node(state: ResearchState,
 
     if not chapter_title:
         raise ValueError("章节标题不能为空")
+
+    # 构建滑动窗口 + 全局摘要上下文
+    context_for_writing = ""
+    if completed_chapters:
+        # 获取最后一章的完整内容（滑动窗口）
+        last_chapter = completed_chapters[-1]
+        if isinstance(last_chapter, dict) and "content" in last_chapter:
+            context_for_writing += f"**Context from the previous chapter (Full Text):**\n{last_chapter['content']}\n\n"
+            logger.info(
+                f"📖 添加前一章完整内容到上下文，长度: {len(last_chapter['content'])} 字符")
+
+        # 如果有更多章节，获取早期章节的摘要（全局摘要）
+        if len(completed_chapters) > 1:
+            earlier_summaries = []
+            for chapter in completed_chapters[:-1]:  # 除了最后一章的所有章节
+                if isinstance(chapter, dict) and "summary" in chapter:
+                    earlier_summaries.append(chapter["summary"])
+                elif isinstance(chapter, dict) and "content" in chapter:
+                    # 如果没有摘要，使用内容的前200字符作为摘要
+                    content = chapter["content"]
+                    summary = content[:200] + "..." if len(
+                        content) > 200 else content
+                    earlier_summaries.append(summary)
+
+            if earlier_summaries:
+                context_for_writing += f"**Context from earlier chapters (Summaries):**\n" + "\n\n".join(
+                    earlier_summaries)
+                logger.info(f"📚 添加 {len(earlier_summaries)} 个早期章节摘要到上下文")
+
+    if not context_for_writing:
+        context_for_writing = "这是第一章，没有前置内容。"
+        logger.info("📝 这是第一章，使用默认上下文")
 
     # 如果没有收集到源数据，尝试使用旧的 gathered_data
     if not gathered_sources and not gathered_data:
@@ -469,18 +509,41 @@ def writer_node(state: ResearchState,
             for i, content in enumerate(completed_chapters_content)
         ])
 
+    # 获取样式指南内容
+    style_guide_content = state.get("style_guide_content")
+
     # 使用 PromptSelector 获取 prompt 模板
     try:
-        # 优先使用支持引用的版本
-        # 直接导入 writer 模块来获取 v2_with_citations 版本
+        # 根据指定的 prompt_version 获取模板
         from ...prompts.writer import PROMPTS
-        if "v2_with_citations" in PROMPTS:
-            prompt_template = PROMPTS["v2_with_citations"]
-            logger.debug(f"✅ 成功获取 writer v2_with_citations prompt 模板")
+
+        # 如果有样式指南，优先使用 v4_with_style_guide 版本
+        if style_guide_content and style_guide_content.strip():
+            if "v4_with_style_guide" in PROMPTS:
+                prompt_template = PROMPTS["v4_with_style_guide"]
+                logger.info(f"✅ 使用 v4_with_style_guide 版本，检测到样式指南")
+            else:
+                # 如果没有 v4 版本，回退到指定版本
+                prompt_template = PROMPTS.get(prompt_version,
+                                              PROMPTS.get("v3_context_aware"))
+                logger.warning(
+                    f"⚠️  v4_with_style_guide 版本不存在，回退到 {prompt_version}")
         else:
-            raise KeyError("v2_with_citations 版本不存在")
+            # 没有样式指南，使用指定版本
+            if prompt_version in PROMPTS:
+                prompt_template = PROMPTS[prompt_version]
+                logger.debug(f"✅ 成功获取 writer {prompt_version} prompt 模板")
+            elif "v3_context_aware" in PROMPTS:
+                prompt_template = PROMPTS["v3_context_aware"]
+                logger.debug(f"✅ 回退到 writer v3_context_aware prompt 模板")
+            elif "v2_with_citations" in PROMPTS:
+                prompt_template = PROMPTS["v2_with_citations"]
+                logger.debug(f"✅ 回退到 writer v2_with_citations prompt 模板")
+            else:
+                raise KeyError(
+                    f"指定的 prompt_version '{prompt_version}' 和备用版本都不存在")
     except Exception as e:
-        logger.warning(f"⚠️  获取 v2_with_citations prompt 失败: {e}")
+        logger.warning(f"⚠️  获取 {prompt_version} prompt 失败: {e}")
         try:
             # 回退到默认版本
             prompt_template = prompt_selector.get_prompt(
@@ -516,16 +579,40 @@ def writer_node(state: ResearchState,
 """
 
     # 构建高质量的提示词
-    prompt = prompt_template.format(
-        topic=topic,
-        chapter_title=chapter_title,
-        chapter_description=chapter_description,
-        chapter_number=current_chapter_index + 1,
-        total_chapters=len(chapters_to_process),
-        previous_chapters_context=previous_chapters_context
-        if previous_chapters_context else "这是第一章，没有前置内容。",
-        gathered_data=gathered_data,
-        available_sources=available_sources_text)
+    if style_guide_content and style_guide_content.strip():
+        # 格式化样式指南内容
+        formatted_style_guide = f"""
+**样式指南示例:**
+{style_guide_content}
+
+"""
+        prompt = prompt_template.format(
+            topic=topic,
+            chapter_title=chapter_title,
+            chapter_description=chapter_description,
+            chapter_number=current_chapter_index + 1,
+            total_chapters=len(chapters_to_process),
+            previous_chapters_context=previous_chapters_context
+            if previous_chapters_context else "这是第一章，没有前置内容。",
+            gathered_data=gathered_data,
+            available_sources=available_sources_text,
+            context_for_writing=context_for_writing,
+            style_guide_content=formatted_style_guide)
+        logger.info(f"📝 包含样式指南的写作，样式指南长度: {len(style_guide_content)} 字符")
+    else:
+        # 不包含样式指南的版本
+        prompt = prompt_template.format(
+            topic=topic,
+            chapter_title=chapter_title,
+            chapter_description=chapter_description,
+            chapter_number=current_chapter_index + 1,
+            total_chapters=len(chapters_to_process),
+            previous_chapters_context=previous_chapters_context
+            if previous_chapters_context else "这是第一章，没有前置内容。",
+            gathered_data=gathered_data,
+            available_sources=available_sources_text,
+            context_for_writing=context_for_writing)
+        logger.info(f"📝 标准写作，未包含样式指南")
 
     # 限制 prompt 长度
     max_prompt_length = 30000
@@ -734,6 +821,7 @@ async def reflection_node(state: ResearchState,
     topic = state.get("topic", "")
     original_search_queries = state.get("search_queries", [])
     gathered_data = state.get("gathered_data", "")
+    gathered_sources = state.get("gathered_sources", [])
     current_chapter_index = state.get("current_chapter_index", 0)
     chapters_to_process = state.get("chapters_to_process", [])
 
@@ -747,10 +835,18 @@ async def reflection_node(state: ResearchState,
     chapter_description = current_chapter.get("description",
                                               "") if current_chapter else ""
 
+    # 优先使用 gathered_sources 的数据，如果没有则使用 gathered_data
+    if gathered_sources and not gathered_data:
+        gathered_data = _format_sources_to_text(gathered_sources)
+        logger.info(
+            f"📊 从 gathered_sources 转换为 gathered_data，长度: {len(gathered_data)} 字符"
+        )
+
     logger.info("🤔 开始智能查询扩展分析")
     logger.info(f"📋 章节: {chapter_title}")
     logger.info(f"🔍 原始查询数量: {len(original_search_queries)}")
     logger.info(f"📊 已收集数据长度: {len(gathered_data)} 字符")
+    logger.info(f"📚 已收集源数量: {len(gathered_sources)}")
 
     # 验证输入数据
     if not topic:
@@ -761,7 +857,11 @@ async def reflection_node(state: ResearchState,
         logger.warning("❌ 没有原始查询，无法进行扩展")
         return {"search_queries": []}
 
-    if not gathered_data or len(gathered_data.strip()) < 50:
+    # 检查是否有足够的数据进行分析
+    has_sufficient_data = ((gathered_data and len(gathered_data.strip()) >= 50)
+                           or (gathered_sources and len(gathered_sources) > 0))
+
+    if not has_sufficient_data:
         logger.warning("❌ 收集的数据不足，无法进行有效分析")
         return {"search_queries": original_search_queries}
 

@@ -21,7 +21,8 @@ class ContextFile(BaseModel):
     file_id: str
     file_name: str
     storage_url: str
-    file_type: Literal["content", "style", "requirements"]  # 新增字段，区分文件类型
+    file_type: Literal["content", "style",
+                       "requirements"] = "content"  # 新增字段，区分文件类型，默认为content
 
 
 class CreateContextRequest(BaseModel):

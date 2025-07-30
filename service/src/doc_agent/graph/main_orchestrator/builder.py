@@ -5,6 +5,8 @@ from typing import Dict, Any
 from langgraph.graph import StateGraph, END
 from ..state import ResearchState
 from . import nodes
+from ...llm_clients.base import LLMClient
+from ...llm_clients import get_llm_client
 
 
 def create_chapter_processing_node(chapter_workflow_graph):
@@ -33,8 +35,7 @@ def create_chapter_processing_node(chapter_workflow_graph):
         # 获取当前状态信息
         current_chapter_index = state.get("current_chapter_index", 0)
         chapters_to_process = state.get("chapters_to_process", [])
-        completed_chapters_content = state.get("completed_chapters_content",
-                                               [])
+        completed_chapters = state.get("completed_chapters", [])
         topic = state.get("topic", "")
 
         # 验证索引
@@ -51,6 +52,14 @@ def create_chapter_processing_node(chapter_workflow_graph):
 
         # 准备子工作流的输入状态
         # 关键：传递已完成章节的内容以保持连贯性
+        # 将新的 completed_chapters 结构转换为旧的 completed_chapters_content 格式以保持兼容性
+        completed_chapters_content = []
+        for chapter in completed_chapters:
+            if isinstance(chapter, dict):
+                completed_chapters_content.append(chapter.get("content", ""))
+            else:
+                completed_chapters_content.append(str(chapter))
+
         chapter_workflow_input = {
             "topic": topic,
             "current_chapter_index": current_chapter_index,
@@ -61,7 +70,10 @@ def create_chapter_processing_node(chapter_workflow_graph):
             "research_plan": "",  # 初始化研究计划，planner节点会生成
             "gathered_sources": [],  # 初始化收集的源数据，researcher节点会填充
             "gathered_data": "",  # 保持向后兼容
-            "messages": []  # 新的消息历史
+            "messages": [],  # 新的消息历史
+            # 传递风格指南和需求文档到章节工作流
+            "style_guide_content": state.get("style_guide_content"),
+            "requirements_content": state.get("requirements_content")
         }
 
         logger.debug(
@@ -89,6 +101,34 @@ def create_chapter_processing_node(chapter_workflow_graph):
 
             logger.info(f"✅ 章节处理完成，内容长度: {len(chapter_content)} 字符")
             logger.info(f"📚 章节引用源数量: {len(cited_sources_in_chapter)}")
+
+            # 生成章节摘要
+            logger.info(f"📝 开始生成章节摘要: {chapter_title}")
+            try:
+                # 获取 LLM 客户端
+                llm_client = get_llm_client()
+
+                # 创建摘要提示
+                summary_prompt = f"""请为以下章节内容生成一个简洁的摘要，控制在200字以内：
+
+章节标题：{chapter_title}
+
+章节内容：
+{chapter_content}
+
+请生成一个简洁的摘要，突出章节的主要观点和关键信息："""
+
+                # 调用 LLM 生成摘要
+                current_chapter_summary = llm_client.invoke(summary_prompt,
+                                                            temperature=0.3,
+                                                            max_tokens=300)
+
+                logger.info(
+                    f"✅ 章节摘要生成完成，长度: {len(current_chapter_summary)} 字符")
+
+            except Exception as e:
+                logger.warning(f"⚠️  章节摘要生成失败: {str(e)}")
+                current_chapter_summary = f"章节摘要生成失败: {str(e)}"
 
             # 更新章节索引
             updated_chapter_index = current_chapter_index + 1
@@ -157,9 +197,17 @@ def create_chapter_processing_node(chapter_workflow_graph):
                     f"📝 替换引用: 位置{match.span()} 第{citation_index+1}个引用 -> [{global_id}] (源索引:{source_index})"
                 )
 
-            # 更新已完成章节列表，使用更新后的内容
-            updated_completed_chapters = completed_chapters_content.copy()
-            updated_completed_chapters.append(updated_chapter_content)
+            # 创建新完成的章节字典
+            newly_completed_chapter = {
+                "title": chapter_title,
+                "content": updated_chapter_content,
+                "summary": current_chapter_summary
+            }
+
+            # 获取现有的已完成章节列表
+            completed_chapters = state.get("completed_chapters", [])
+            updated_completed_chapters = completed_chapters.copy()
+            updated_completed_chapters.append(newly_completed_chapter)
 
             # 更新 writer_steps 计数器
             current_writer_steps = state.get("writer_steps", 0)
@@ -172,7 +220,7 @@ def create_chapter_processing_node(chapter_workflow_graph):
             logger.info(f"✍️  Writer步骤计数: {updated_writer_steps}")
 
             return {
-                "completed_chapters_content": updated_completed_chapters,
+                "completed_chapters": updated_completed_chapters,
                 "current_chapter_index": updated_chapter_index,
                 "cited_sources": updated_cited_sources,
                 "writer_steps": updated_writer_steps
@@ -185,14 +233,22 @@ def create_chapter_processing_node(chapter_workflow_graph):
             current_writer_steps = state.get("writer_steps", 0)
             updated_writer_steps = current_writer_steps + 1
 
+            # 创建失败章节的字典
+            failed_chapter = {
+                "title": chapter_title,
+                "content": f"## {chapter_title}\n\n章节处理失败: {str(e)}",
+                "summary": f"章节处理失败: {str(e)}"
+            }
+
+            # 获取现有的已完成章节列表
+            completed_chapters = state.get("completed_chapters", [])
+            updated_completed_chapters = completed_chapters.copy()
+            updated_completed_chapters.append(failed_chapter)
+
             return {
-                "completed_chapters_content":
-                completed_chapters_content +
-                [f"## {chapter_title}\n\n章节处理失败: {str(e)}"],
-                "current_chapter_index":
-                current_chapter_index + 1,
-                "writer_steps":
-                updated_writer_steps
+                "completed_chapters": updated_completed_chapters,
+                "current_chapter_index": current_chapter_index + 1,
+                "writer_steps": updated_writer_steps
             }
 
     return chapter_processing_node
@@ -236,13 +292,21 @@ def finalize_document_node(state: ResearchState) -> dict:
     """
     topic = state.get("topic", "")
     document_outline = state.get("document_outline", {})
-    completed_chapters_content = state.get("completed_chapters_content", [])
+    completed_chapters = state.get("completed_chapters", [])
 
     logger.info(f"\n📑 开始生成最终文档")
 
     # 获取文档标题和摘要
     doc_title = document_outline.get("title", topic)
     doc_summary = document_outline.get("summary", "")
+
+    # 从新的 completed_chapters 结构中提取内容
+    completed_chapters_content = []
+    for chapter in completed_chapters:
+        if isinstance(chapter, dict):
+            completed_chapters_content.append(chapter.get("content", ""))
+        else:
+            completed_chapters_content.append(str(chapter))
 
     # 构建最终文档
     final_document_parts = []
@@ -340,6 +404,7 @@ def build_main_orchestrator_graph(initial_research_node,
                                   outline_generation_node,
                                   split_chapters_node,
                                   chapter_workflow_graph,
+                                  fusion_editor_node=None,
                                   finalize_document_node_func=None,
                                   bibliography_node_func=None):
     """
@@ -348,14 +413,16 @@ def build_main_orchestrator_graph(initial_research_node,
     主工作流程：
     1. 初始研究 -> 生成大纲 -> 拆分章节
     2. 循环处理每个章节（调用章节子工作流）
-    3. 所有章节完成后，生成最终文档
-    4. 生成参考文献
+    3. 所有章节完成后，进入融合编辑器进行润色
+    4. 融合编辑后，生成最终文档
+    5. 生成参考文献
     
     Args:
         initial_research_node: 已绑定依赖的初始研究节点
         outline_generation_node: 已绑定依赖的大纲生成节点
         split_chapters_node: 章节拆分节点
         chapter_workflow_graph: 编译后的章节工作流图
+        fusion_editor_node: 可选的融合编辑器节点函数
         finalize_document_node_func: 可选的文档最终化节点函数
         bibliography_node_func: 可选的参考文献生成节点函数
         
@@ -373,6 +440,10 @@ def build_main_orchestrator_graph(initial_research_node,
     if finalize_document_node_func is None:
         finalize_document_node_func = finalize_document_node
 
+    # 使用提供的或默认的融合编辑器节点
+    if fusion_editor_node is None:
+        fusion_editor_node = nodes.fusion_editor_node
+
     # 使用提供的或默认的参考文献生成节点
     if bibliography_node_func is None:
         bibliography_node_func = nodes.bibliography_node
@@ -383,6 +454,7 @@ def build_main_orchestrator_graph(initial_research_node,
     workflow.add_node("split_chapters", split_chapters_node)
     workflow.add_node("chapter_processing", chapter_processing_node)
     workflow.add_node("finalize_document", finalize_document_node_func)
+    workflow.add_node("fusion_editor", fusion_editor_node)
     workflow.add_node("generate_bibliography", bibliography_node_func)
 
     # 设置入口点
@@ -405,8 +477,11 @@ def build_main_orchestrator_graph(initial_research_node,
         chapter_decision_function,
         {
             "process_chapter": "chapter_processing",  # 继续处理下一章
-            "finalize_document": "finalize_document"  # 所有章节完成
+            "finalize_document": "fusion_editor"  # 所有章节完成，进入融合编辑
         })
+
+    # 融合编辑后进入文档最终化
+    workflow.add_edge("fusion_editor", "finalize_document")
 
     # 最终化后进入参考文献生成
     workflow.add_edge("finalize_document", "generate_bibliography")

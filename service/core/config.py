@@ -77,6 +77,7 @@ class DocumentLengthConfig(BaseSettings):
 class FastTestModeConfig(BaseSettings):
     """快速测试模式配置"""
     enabled: bool = False
+    chapter_count: int = 2
     total_target_words: int = 3000
     chapter_target_words: int = 600
     vector_recall_size: int = 10
@@ -342,6 +343,7 @@ class AppSettings(BaseSettings):
         if fast_mode and config.fast_test_mode.enabled:
             # 使用快速测试模式配置
             return {
+                'chapter_count': config.fast_test_mode.chapter_count,
                 'total_target_words': config.fast_test_mode.total_target_words,
                 'chapter_target_words':
                 config.fast_test_mode.chapter_target_words,

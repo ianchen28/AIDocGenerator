@@ -211,6 +211,41 @@ async def _run_main_workflow_async(job_id: str,
             logger.error(f"Job {job_id}: 作业数据不存在")
             return "FAILED"
 
+        # 检查是否存在 context_id
+        context_id = job_data.get("context_id")
+        style_guide_content = None
+        requirements_content = None
+
+        if context_id:
+            logger.info(f"Job {job_id}: 找到 context_id: {context_id}")
+
+            # 获取上下文数据
+            context_key = f"context:{context_id}"
+            context_data = await redis.hgetall(context_key)
+
+            if context_data:
+                # 获取样式指南内容
+                style_guide_content = context_data.get("style_guide_content")
+                if style_guide_content:
+                    logger.info(
+                        f"Job {job_id}: 找到样式指南内容，长度: {len(style_guide_content)} 字符"
+                    )
+                else:
+                    logger.info(f"Job {job_id}: 未找到样式指南内容")
+
+                # 获取需求文档内容
+                requirements_content = context_data.get("requirements_content")
+                if requirements_content:
+                    logger.info(
+                        f"Job {job_id}: 找到需求文档内容，长度: {len(requirements_content)} 字符"
+                    )
+                else:
+                    logger.info(f"Job {job_id}: 未找到需求文档内容")
+            else:
+                logger.warning(f"Job {job_id}: context_id 存在但未找到对应的上下文数据")
+        else:
+            logger.info(f"Job {job_id}: 未找到 context_id，将使用默认设置")
+
         # 获取大纲数据（如果存在）
         outline_data = await redis.hgetall(f"job:{job_id}:outline")
         document_outline = None
@@ -229,6 +264,8 @@ async def _run_main_workflow_async(job_id: str,
         # 3. 构建初始状态
         initial_state = {
             "topic": topic,
+            "style_guide_content": style_guide_content,  # 新增：样式指南内容
+            "requirements_content": requirements_content,  # 新增：需求文档内容
             "messages": [],
             "initial_sources": [],  # 将在图执行中填充
             "initial_gathered_data": "",  # 保持向后兼容
@@ -439,3 +476,116 @@ def generate_document_celery(job_id: str, topic: str) -> dict:
     except Exception as e:
         logger.error(f"Celery 文档生成任务失败: {job_id}, 错误: {e}")
         return {"job_id": job_id, "status": "failed", "error": str(e)}
+
+
+@celery_app.task
+def process_files_task(context_id: str, files: list[dict]) -> str:
+    """
+    处理上传文件的异步任务
+    
+    Args:
+        context_id: 上下文ID
+        files: 文件列表，每个文件包含 file_id, file_name, storage_url, file_type
+        
+    Returns:
+        任务状态
+    """
+    logger.info(f"文件处理任务开始 - Context ID: {context_id}, 文件数量: {len(files)}")
+
+    try:
+        # 使用同步方式运行异步函数
+        return asyncio.run(_process_files_task_async(context_id, files))
+    except Exception as e:
+        logger.error(f"文件处理任务失败: {e}")
+        return "FAILED"
+
+
+async def _process_files_task_async(context_id: str, files: list[dict]) -> str:
+    """异步文件处理任务的内部实现"""
+    try:
+        # 获取Redis客户端
+        redis_client = await get_redis_client()
+
+        # 初始化内容列表
+        style_contents = []
+        requirements_contents = []
+
+        # 遍历所有文件
+        for file_info in files:
+            file_id = file_info.get("file_id")
+            file_name = file_info.get("file_name")
+            storage_url = file_info.get("storage_url")
+            file_type = file_info.get("file_type", "content")  # 默认为content
+
+            logger.info(f"处理文件: {file_name} (类型: {file_type})")
+
+            if file_type == "content":
+                # 保持现有的向量索引逻辑
+                logger.info(f"处理内容文件: {file_name}")
+                # TODO: 实现向量索引逻辑
+                # 这里应该调用现有的向量索引处理函数
+
+            elif file_type == "style":
+                # 读取样式指南内容
+                logger.info(f"处理样式指南文件: {file_name}")
+                try:
+                    content = read_file_content(storage_url)
+                    style_contents.append(content)
+                    logger.info(f"样式指南文件处理完成: {file_name}")
+                except Exception as e:
+                    logger.error(f"处理样式指南文件失败: {file_name}, 错误: {e}")
+
+            elif file_type == "requirements":
+                # 读取需求文档内容
+                logger.info(f"处理需求文档文件: {file_name}")
+                try:
+                    content = read_file_content(storage_url)
+                    requirements_contents.append(content)
+                    logger.info(f"需求文档文件处理完成: {file_name}")
+                except Exception as e:
+                    logger.error(f"处理需求文档文件失败: {file_name}, 错误: {e}")
+
+            else:
+                logger.warning(f"未知文件类型: {file_type}, 文件: {file_name}")
+
+        # 存储样式指南内容到Redis
+        if style_contents:
+            style_guide_content = "\n\n".join(style_contents)
+            await redis_client.hset(f"context:{context_id}",
+                                    "style_guide_content", style_guide_content)
+            logger.info(f"样式指南内容已存储到Redis, 长度: {len(style_guide_content)} 字符")
+
+        # 存储需求文档内容到Redis
+        if requirements_contents:
+            requirements_content = "\n\n".join(requirements_contents)
+            await redis_client.hset(f"context:{context_id}",
+                                    "requirements_content",
+                                    requirements_content)
+            logger.info(f"需求文档内容已存储到Redis, 长度: {len(requirements_content)} 字符")
+
+        # 更新上下文状态为就绪
+        await redis_client.hset(f"context:{context_id}", "status", "READY")
+
+        logger.info(f"文件处理任务完成 - Context ID: {context_id}")
+        return "SUCCESS"
+
+    except Exception as e:
+        logger.error(f"文件处理任务失败 - Context ID: {context_id}, 错误: {e}")
+        return "FAILED"
+
+
+def read_file_content(storage_url: str) -> str:
+    """
+    读取文件内容的工具函数
+    
+    Args:
+        storage_url: 文件存储URL
+        
+    Returns:
+        文件内容字符串
+    """
+    # TODO: 实现实际的文件读取逻辑
+    # 这里应该根据storage_url读取文件内容
+    # 暂时返回模拟内容
+    logger.info(f"读取文件内容: {storage_url}")
+    return f"模拟文件内容 - {storage_url}"

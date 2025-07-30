@@ -272,11 +272,36 @@ def outline_generation_node(state: ResearchState,
         max_tokens = outline_config.max_tokens
         extra_params = outline_config.extra_params
 
+    # 获取需求文档内容
+    requirements_content = state.get("requirements_content")
+
+    # 获取文档配置以确定章节数
+    doc_config = settings.get_document_config(fast_mode=True)
+    target_chapter_count = doc_config.get('chapter_count', 5)
+    logger.info(f"📋 目标章节数: {target_chapter_count}")
+
     # 使用 PromptSelector 获取 prompt 模板
     try:
-        prompt_template = prompt_selector.get_prompt("prompts",
-                                                     "outline_generation",
-                                                     genre)
+        # 如果有需求文档，需要手动指定使用 v2_with_requirements 版本
+        if requirements_content and requirements_content.strip():
+            # 直接导入模块并获取特定版本
+            import importlib
+            module = importlib.import_module(
+                "src.doc_agent.prompts.outline_generation")
+            if hasattr(module,
+                       'PROMPTS') and "v2_with_requirements" in module.PROMPTS:
+                prompt_template = module.PROMPTS["v2_with_requirements"]
+                logger.info(f"✅ 使用 v2_with_requirements 版本，检测到需求文档")
+            else:
+                # 回退到默认版本
+                prompt_template = prompt_selector.get_prompt(
+                    "prompts", "outline_generation", genre)
+                logger.warning(f"⚠️  v2_with_requirements 版本不存在，使用默认版本")
+        else:
+            prompt_template = prompt_selector.get_prompt(
+                "prompts", "outline_generation", genre)
+            logger.info(f"✅ 使用默认版本，未检测到需求文档")
+
         logger.debug(f"✅ 成功获取 outline_generation prompt 模板，genre: {genre}")
     except Exception as e:
         logger.error(f"❌ 获取 outline_generation prompt 模板失败: {e}")
@@ -311,10 +336,26 @@ def outline_generation_node(state: ResearchState,
 """
 
     # 构建提示词
-    prompt = prompt_template.format(
-        topic=topic,
-        initial_gathered_data=initial_gathered_data[:8000]  # 限制输入长度
-    )
+    if requirements_content and requirements_content.strip():
+        # 格式化需求文档内容
+        formatted_requirements = f"""
+**用户需求文档:**
+{requirements_content}
+
+"""
+        prompt = prompt_template.format(
+            topic=topic,
+            initial_gathered_data=initial_gathered_data[:8000],  # 限制输入长度
+            requirements_content=formatted_requirements,
+            target_chapter_count=target_chapter_count)
+        logger.info(f"📋 包含需求文档的大纲生成，需求长度: {len(requirements_content)} 字符")
+    else:
+        # 不包含需求文档的版本
+        prompt = prompt_template.format(
+            topic=topic,
+            initial_gathered_data=initial_gathered_data[:8000],  # 限制输入长度
+            target_chapter_count=target_chapter_count)
+        logger.info(f"📋 标准大纲生成，未包含需求文档")
 
     logger.debug(
         f"Invoking LLM with outline generation prompt:\n{pprint.pformat(prompt)}"
@@ -842,3 +883,149 @@ def _parse_es_search_results(es_results: str, query: str,
         sources.append(source)
 
     return sources
+
+
+def fusion_editor_node(state: ResearchState, llm_client: LLMClient) -> dict:
+    """
+    融合编辑器节点
+    
+    对最终文档进行润色，特别是重写引言和结论部分，使其更好地与文档主体内容协调
+    
+    Args:
+        state: 研究状态，包含 completed_chapters 和 final_document
+        llm_client: LLM客户端实例
+        
+    Returns:
+        dict: 包含更新后的 final_document 的字典
+    """
+    completed_chapters = state.get("completed_chapters", [])
+    topic = state.get("topic", "")
+
+    logger.info("🎨 开始融合编辑器处理")
+    logger.info(f"📚 已完成章节数量: {len(completed_chapters)}")
+
+    # 检查是否有足够的章节进行处理
+    if len(completed_chapters) <= 1:
+        logger.info("📝 章节数量不足，跳过融合编辑")
+        return {"final_document": state.get("final_document", "")}
+
+    # 提取引言和结论
+    intro_chapter = completed_chapters[0]
+    conclusion_chapter = completed_chapters[-1]
+    middle_chapters = completed_chapters[1:-1]
+
+    logger.info(f"📖 提取引言章节: {intro_chapter.get('title', 'Unknown')}")
+    logger.info(f"📖 提取结论章节: {conclusion_chapter.get('title', 'Unknown')}")
+    logger.info(f"📚 中间章节数量: {len(middle_chapters)}")
+
+    # 获取引言和结论的原始内容
+    intro_content = intro_chapter.get("content", "")
+    conclusion_content = conclusion_chapter.get("content", "")
+
+    # 创建全局摘要：合并中间章节的摘要
+    global_summary_parts = []
+    for chapter in middle_chapters:
+        if isinstance(chapter, dict):
+            summary = chapter.get("summary", "")
+            if summary:
+                global_summary_parts.append(summary)
+            else:
+                # 如果没有摘要，使用内容的前200字符
+                content = chapter.get("content", "")
+                if content:
+                    summary = content[:200] + "..." if len(
+                        content) > 200 else content
+                    global_summary_parts.append(summary)
+
+    global_summary = "\n\n".join(global_summary_parts)
+    logger.info(f"📋 全局摘要长度: {len(global_summary)} 字符")
+
+    # 获取中间章节的完整内容
+    middle_chapters_content = []
+    for chapter in middle_chapters:
+        if isinstance(chapter, dict):
+            content = chapter.get("content", "")
+            if content:
+                middle_chapters_content.append(content)
+
+    middle_content = "\n\n".join(middle_chapters_content)
+
+    try:
+        # 重写引言
+        logger.info("✍️ 开始重写引言")
+        intro_prompt = f"""你是一位资深的首席编辑，负责重写文档的引言部分。
+
+**文档主题:** {topic}
+
+**原始引言内容:**
+{intro_content}
+
+**文档主体章节摘要:**
+{global_summary}
+
+**任务要求:**
+1. 仔细阅读原始引言和主体章节摘要
+2. 重写引言，使其更好地：
+   - 为读者提供清晰的文档概览
+   - 准确预览主体章节将要讨论的主要观点
+   - 建立逻辑连贯性，确保引言与主体内容自然衔接
+   - 保持专业性和学术性
+3. 保持原有的章节标题和基本结构
+4. 确保重写后的引言与主体章节的内容和风格保持一致
+
+请重写引言，使其更好地为整个文档服务。"""
+
+        polished_intro = llm_client.invoke(intro_prompt,
+                                           temperature=0.3,
+                                           max_tokens=2000)
+
+        logger.info(f"✅ 引言重写完成，长度: {len(polished_intro)} 字符")
+
+        # 重写结论
+        logger.info("✍️ 开始重写结论")
+        conclusion_prompt = f"""你是一位资深的首席编辑，负责重写文档的结论部分。
+
+**文档主题:** {topic}
+
+**原始结论内容:**
+{conclusion_content}
+
+**文档主体章节摘要:**
+{global_summary}
+
+**任务要求:**
+1. 仔细阅读原始结论和主体章节摘要
+2. 重写结论，使其更好地：
+   - 总结文档的核心观点和主要发现
+   - 反映主体章节讨论的关键内容
+   - 提供对主题的深入思考和洞察
+   - 为读者提供有价值的收尾
+3. 保持原有的章节标题和基本结构
+4. 确保重写后的结论与主体章节的内容和风格保持一致
+
+请重写结论，使其更好地总结和反思整个文档的核心论点。"""
+
+        polished_conclusion = llm_client.invoke(conclusion_prompt,
+                                                temperature=0.3,
+                                                max_tokens=2000)
+
+        logger.info(f"✅ 结论重写完成，长度: {len(polished_conclusion)} 字符")
+
+        # 重新组装文档
+        final_document_parts = [polished_intro]
+
+        if middle_content:
+            final_document_parts.append(middle_content)
+
+        final_document_parts.append(polished_conclusion)
+
+        final_document = "\n\n".join(final_document_parts)
+
+        logger.info(f"📄 融合编辑完成，最终文档长度: {len(final_document)} 字符")
+
+        return {"final_document": final_document}
+
+    except Exception as e:
+        logger.error(f"❌ 融合编辑器处理失败: {str(e)}")
+        # 返回原始文档
+        return {"final_document": state.get("final_document", "")}

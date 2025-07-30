@@ -31,7 +31,21 @@ def parse_planner_response(response: str):
         data = json.loads(response)
         logger.debug(f"解析后的数据: {data}")
 
-        research_plan = data["research_plan"]
+        # 兼容两种格式：research_plan 和 research_questions
+        if "research_plan" in data:
+            research_plan = data["research_plan"]
+        elif "research_questions" in data:
+            # 将 research_questions 转换为 research_plan 格式
+            questions = data["research_questions"]
+            if isinstance(questions, list):
+                research_plan = "研究问题：\n" + "\n".join(
+                    [f"- {q}" for q in questions])
+            else:
+                research_plan = str(questions)
+        else:
+            # 如果没有找到研究计划，使用默认值
+            research_plan = "基于主题进行深入研究"
+
         search_queries = data["search_queries"]
 
         # 处理 research_plan，如果是复杂对象则转换为字符串

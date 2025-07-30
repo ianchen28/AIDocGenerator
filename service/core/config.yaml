@@ -201,8 +201,10 @@ document_generation:
   fast_test_mode:
     # 是否启用快速测试模式
     enabled: true
+    # 快速模式下的章节数量
+    chapter_count: 2
     # 快速模式下的总字数
-    total_target_words: 3000
+    total_target_words: 1200
     # 快速模式下的章节字数
     chapter_target_words: 600
     # 快速模式下的检索数量

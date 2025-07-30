@@ -147,7 +147,8 @@ class Container:
         chapter_writer_node = partial(chapter_nodes.writer_node,
                                       llm_client=self.llm_client,
                                       prompt_selector=self.prompt_selector,
-                                      genre="default")
+                                      genre="default",
+                                      prompt_version="v4_with_style_guide")
         chapter_supervisor_router = partial(
             chapter_router.supervisor_router,
             llm_client=self.llm_client,
@@ -182,6 +183,10 @@ class Container:
             genre="default")
         # split_chapters_node 是纯逻辑节点，通常不需要外部依赖
         main_split_chapters_node = main_orchestrator_nodes.split_chapters_node
+        # fusion_editor_node 需要 llm_client 依赖
+        main_fusion_editor_node = partial(
+            main_orchestrator_nodes.fusion_editor_node,
+            llm_client=self.llm_client)
 
         # 编译主工作流图，这是我们整个应用最终的入口点
         # 注意: build_main_orchestrator_graph 的签名也需要更新，以接收所有它需要的节点
@@ -189,7 +194,8 @@ class Container:
             initial_research_node=main_initial_research_node,
             outline_generation_node=main_outline_generation_node,
             split_chapters_node=main_split_chapters_node,
-            chapter_workflow_graph=self.chapter_graph)
+            chapter_workflow_graph=self.chapter_graph,
+            fusion_editor_node=main_fusion_editor_node)
 
         # 编译快速模式的主工作流图
         self.fast_main_graph = build_fast_main_workflow(
@@ -246,7 +252,8 @@ class Container:
         chapter_writer_node = partial(chapter_nodes.writer_node,
                                       llm_client=self.llm_client,
                                       prompt_selector=self.prompt_selector,
-                                      genre=genre)
+                                      genre=genre,
+                                      prompt_version="v4_with_style_guide")
         chapter_supervisor_router = partial(
             chapter_router.supervisor_router,
             llm_client=self.llm_client,
@@ -294,12 +301,18 @@ class Container:
         # 创建bibliography_node绑定
         bibliography_node = partial(main_orchestrator_nodes.bibliography_node)
 
+        # 创建fusion_editor_node绑定
+        fusion_editor_node = partial(
+            main_orchestrator_nodes.fusion_editor_node,
+            llm_client=self.llm_client)
+
         # 创建main orchestrator graph
         main_graph = build_main_orchestrator_graph(
             initial_research_node=main_initial_research_node,
             outline_generation_node=main_outline_generation_node,
             split_chapters_node=main_split_chapters_node,
             chapter_workflow_graph=chapter_graph,
+            fusion_editor_node=fusion_editor_node,
             bibliography_node_func=bibliography_node)
 
         # 使用回调处理器配置图

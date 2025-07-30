@@ -1,5 +1,5 @@
 # service/src/doc_agent/graph/state.py
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, Optional, TypedDict
 
 from langgraph.graph.message import add_messages
 
@@ -15,6 +15,10 @@ class ResearchState(TypedDict):
     # 研究主题
     topic: str
 
+    # 文档样式和需求指南
+    style_guide_content: Optional[str]  # 样式指南内容
+    requirements_content: Optional[str]  # 需求文档内容
+
     # 第一层: 上层研究的初始研究结果
     initial_sources: list[Source]  # 初始研究结果
 
@@ -27,7 +31,9 @@ class ResearchState(TypedDict):
     current_chapter_index: int  # 当前处理的章节索引
 
     # 上下文积累 - 保持连贯性
-    completed_chapters_content: list[str]  # 已写章节的上下文内容
+    completed_chapters: list[dict[
+        str,
+        Any]]  # e.g., [{"title": "...", "content": "...", "summary": "..."}]
 
     # 最终输出
     final_document: str  # 完整的、拼接的文档
