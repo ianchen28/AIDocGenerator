@@ -90,10 +90,6 @@ def create_chapter_processing_node(chapter_workflow_graph):
             logger.info(f"✅ 章节处理完成，内容长度: {len(chapter_content)} 字符")
             logger.info(f"📚 章节引用源数量: {len(cited_sources_in_chapter)}")
 
-            # 更新已完成章节列表
-            updated_completed_chapters = completed_chapters_content.copy()
-            updated_completed_chapters.append(chapter_content)
-
             # 更新章节索引
             updated_chapter_index = current_chapter_index + 1
 
@@ -101,32 +97,102 @@ def create_chapter_processing_node(chapter_workflow_graph):
             current_cited_sources = state.get("cited_sources", {})
             updated_cited_sources = current_cited_sources.copy()
 
-            # 将章节的引用源添加到全局引用源中
-            for source in cited_sources_in_chapter:
-                if hasattr(source, 'id'):
-                    updated_cited_sources[source.id] = source
-                    logger.debug(f"📚 添加引用源到全局: [{source.id}] {source.title}")
+            # 获取当前最大的全局ID，用于分配新的连续ID
+            max_global_id = max(
+                updated_cited_sources.keys()) if updated_cited_sources else 0
+
+            # 创建章节ID到全局ID的映射
+            chapter_to_global_id_map = {}
+
+            # 将章节的引用源添加到全局引用源中，重新分配全局唯一ID
+            # 确保 cited_sources_in_chapter 是列表格式
+            if isinstance(cited_sources_in_chapter, (list, set)):
+                for source in cited_sources_in_chapter:
+                    if hasattr(source, 'id'):
+                        # 为每个章节引用源分配全局唯一ID
+                        max_global_id += 1
+                        new_source = source.model_copy()
+                        new_source.id = max_global_id
+                        updated_cited_sources[max_global_id] = new_source
+                        logger.debug(
+                            f"📚 添加引用源到全局: 全局ID[{max_global_id}] {source.title[:50]}..."
+                        )
+            else:
+                logger.warning(
+                    f"⚠️  cited_sources_in_chapter 格式不正确: {type(cited_sources_in_chapter)}"
+                )
+
+            # 更新章节内容中的引用编号，按顺序替换为全局ID
+            updated_chapter_content = chapter_content
+
+            # 找到所有的引用标记并按顺序替换
+            import re
+            citation_pattern = r'\[(\d+)\]'
+            citations = list(
+                re.finditer(citation_pattern, updated_chapter_content))
+
+            # 计算这个章节的起始全局ID
+            global_id_start = max_global_id - len(cited_sources_in_chapter) + 1
+
+            logger.debug(
+                f"📊 章节引用替换: 文本中有{len(citations)}个引用标记，实际源数量{len(cited_sources_in_chapter)}"
+            )
+
+            # 从后往前替换，避免位置偏移问题
+            # 只为实际存在的源数量分配全局ID，多余的引用标记循环使用现有源
+            for i, match in enumerate(reversed(citations)):
+                # 计算当前引用标记应该使用的全局ID
+                # 因为是从后往前，所以要用 len(citations) - 1 - i
+                citation_index = len(citations) - 1 - i
+
+                # 关键修复：确保不超过实际源的数量，多余的引用循环使用现有源
+                source_index = citation_index % len(cited_sources_in_chapter)
+                global_id = global_id_start + source_index
+
+                start, end = match.span()
+                updated_chapter_content = (updated_chapter_content[:start] +
+                                           f"[{global_id}]" +
+                                           updated_chapter_content[end:])
+                logger.debug(
+                    f"📝 替换引用: 位置{match.span()} 第{citation_index+1}个引用 -> [{global_id}] (源索引:{source_index})"
+                )
+
+            # 更新已完成章节列表，使用更新后的内容
+            updated_completed_chapters = completed_chapters_content.copy()
+            updated_completed_chapters.append(updated_chapter_content)
+
+            # 更新 writer_steps 计数器
+            current_writer_steps = state.get("writer_steps", 0)
+            updated_writer_steps = current_writer_steps + 1
 
             logger.info(
                 f"📊 进度: {updated_chapter_index}/{len(chapters_to_process)} 章节已完成"
             )
             logger.info(f"📚 全局引用源总数: {len(updated_cited_sources)}")
+            logger.info(f"✍️  Writer步骤计数: {updated_writer_steps}")
 
             return {
                 "completed_chapters_content": updated_completed_chapters,
                 "current_chapter_index": updated_chapter_index,
-                "cited_sources": updated_cited_sources
+                "cited_sources": updated_cited_sources,
+                "writer_steps": updated_writer_steps
             }
 
         except Exception as e:
             logger.error(f"❌ 章节处理失败: {str(e)}")
             # 失败时仍然推进索引，避免无限循环
+            # 更新 writer_steps 计数器（即使失败也计数）
+            current_writer_steps = state.get("writer_steps", 0)
+            updated_writer_steps = current_writer_steps + 1
+
             return {
                 "completed_chapters_content":
                 completed_chapters_content +
                 [f"## {chapter_title}\n\n章节处理失败: {str(e)}"],
                 "current_chapter_index":
-                current_chapter_index + 1
+                current_chapter_index + 1,
+                "writer_steps":
+                updated_writer_steps
             }
 
     return chapter_processing_node

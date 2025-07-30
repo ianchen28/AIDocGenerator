@@ -429,7 +429,7 @@ def writer_node(state: ResearchState,
     if not gathered_sources and not gathered_data:
         return {
             "final_document": f"## {chapter_title}\n\n由于没有收集到相关数据，无法生成章节内容。",
-            "cited_sources_in_chapter": set()
+            "cited_sources_in_chapter": []
         }
 
     # 格式化可用信息源列表
@@ -611,11 +611,76 @@ def writer_node(state: ResearchState,
             # 如果没有二级标题，添加章节标题
             response = f"## {chapter_title}\n\n{response}"
 
+        # 定义内联引用处理函数
+        def _process_citations_inline(
+                raw_text: str,
+                available_sources: list[Source]) -> tuple[str, list[Source]]:
+            """
+            处理LLM输出中的引用标记，提取引用的源并格式化文本
+            
+            Args:
+                raw_text: LLM的原始输出文本
+                available_sources: 可用的信息源列表
+                
+            Returns:
+                tuple[str, list[Source]]: (处理后的文本, 引用的源列表)
+            """
+            processed_text = raw_text
+            cited_sources = []
+
+            # 创建源ID到源对象的映射
+            source_map = {source.id: source for source in available_sources}
+
+            def _replace_sources_tag(match):
+                """替换引用标记的辅助函数"""
+                try:
+                    # 提取源ID列表，例如从 [1, 3] 中提取 [1, 3]
+                    content = match.group(1).strip()
+
+                    if not content:  # 空标签 <sources>[]</sources>
+                        logger.debug("  📝 处理空引用标记（综合分析）")
+                        return ""  # 移除空标签
+
+                    # 解析源ID列表
+                    source_ids = []
+                    for id_str in content.split(','):
+                        id_str = id_str.strip()
+                        if id_str.isdigit():
+                            source_ids.append(int(id_str))
+
+                    logger.debug(f"  📚 解析到源ID: {source_ids}")
+
+                    # 收集引用的源并生成引用标记
+                    citation_markers = []
+                    for source_id in source_ids:
+                        if source_id in source_map:
+                            source = source_map[source_id]
+                            cited_sources.append(source)
+                            citation_markers.append(f"[{source_id}]")
+                            logger.debug(
+                                f"    ✅ 添加引用源: [{source_id}] {source.title}")
+                        else:
+                            logger.warning(f"    ⚠️  未找到源ID: {source_id}")
+
+                    # 返回格式化的引用标记
+                    return "".join(citation_markers)
+
+                except Exception as e:
+                    logger.error(f"❌ 处理引用标记失败: {e}")
+                    return ""  # 移除无效标签
+
+            # 使用正则表达式替换所有引用标记
+            sources_pattern = r'<sources>\[([^\]]*)\]</sources>'
+            processed_text = re.sub(sources_pattern, _replace_sources_tag,
+                                    processed_text)
+
+            logger.info(f"✅ 引用处理完成，引用了 {len(cited_sources)} 个信息源")
+
+            return processed_text, cited_sources
+
         # 处理引用标记
-        # 获取全局已引用的源
-        global_cited_sources = state.get("cited_sources", {})
-        processed_response, cited_sources = _process_citations(
-            response, gathered_sources, global_cited_sources)
+        processed_response, cited_sources = _process_citations_inline(
+            response, gathered_sources)
 
         logger.info(f"✅ 章节生成完成，引用了 {len(cited_sources)} 个信息源")
         for source in cited_sources:
@@ -644,7 +709,7 @@ def writer_node(state: ResearchState,
 """
         return {
             "final_document": error_content,
-            "cited_sources_in_chapter": set()
+            "cited_sources_in_chapter": []
         }
 
 

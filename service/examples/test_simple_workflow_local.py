@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-简化的工作流测试脚本
-使用简单的任务测试整体流程，并将日志和结果分别保存到文件
+简化的本地工作流测试脚本
+不依赖Redis和外部服务，直接测试核心功能
 """
 
 import asyncio
@@ -47,20 +47,11 @@ logger.add(sys.stderr, format="{time:HH:mm:ss} | {level} | {message}")
 # --- 简化配置函数 ---
 def setup_simple_config():
     """设置简化的配置"""
-    # 配置已从YAML文件中读取，无需硬编码设置
-    logger.info(
-        f"✅ 搜索配置已加载: max_search_rounds={settings.search_config.max_search_rounds}"
-    )
-    logger.info(f"✅ 搜索配置已加载: max_queries={settings.search_config.max_queries}")
-    logger.info(
-        f"✅ 搜索配置已加载: max_results_per_query={settings.search_config.max_results_per_query}"
-    )
-
     # 强制覆盖搜索配置以确保简化模式
     settings.search_config.max_search_rounds = 1
     settings.search_config.max_queries = 1
     settings.search_config.max_results_per_query = 3
-
+    
     logger.info("🔧 强制设置简化搜索配置:")
     logger.info(
         f"   - max_search_rounds: {settings.search_config.max_search_rounds}")
@@ -75,7 +66,7 @@ def setup_simple_config():
         settings.document_generation_config.document_length.chapter_count = 3
         settings.document_generation_config.document_length.chapter_target_words = 500
         settings.document_generation_config.document_length.total_target_words = 1500
-
+        
         logger.info("📄 文档生成配置:")
         logger.info(
             f"   - chapter_count: {settings.document_generation_config.document_length.chapter_count}"
@@ -109,36 +100,35 @@ async def main():
     # 设置简化配置
     setup_simple_config()
 
-    # 使用简化的主题 - 故意选择可能需要多次搜索的主题
+    # 使用简化的主题
     topic = "人工智能的基本概念"
     genre = "simple"  # 使用简化的genre配置
 
     initial_state = ResearchState(
         topic=topic,
-        # 使用新的Source-based字段
+        # 其他字段使用默认初始值
         initial_sources=[],
         gathered_sources=[],
-        cited_sources={},
-        cited_sources_in_chapter=[],
-        # 其他字段使用默认初始值
         document_outline={},
         chapters_to_process=[],
         current_chapter_index=0,
         completed_chapters_content=[],
+        cited_sources={},
         final_document="",
         messages=[],
     )
 
-    logger.info("🚀 Starting Simplified Workflow Test...")
+    logger.info("🚀 Starting Simplified Local Workflow Test...")
     logger.info(f"   Topic: {topic}")
     logger.info(f"   Genre: {genre}")
     logger.info(f"   Log file: {log_file}")
     logger.info("   📝 Using simplified configuration:")
-    logger.info("      - Max 2 search queries per research")
+    logger.info("      - Max 1 search query per research")
     logger.info("      - Max 3 results per query")
     logger.info("      - Max 3 chapters")
-    logger.info("      - Max 1000 tokens per chapter")
+    logger.info("      - Max 500 words per chapter")
     logger.info("      - Using simple prompt versions")
+    logger.info("      - No Redis dependency")
     print("-" * 80)
 
     # 记录工作流步骤
@@ -210,12 +200,6 @@ async def main():
                 if "cited_sources_in_chapter" in node_data:
                     step_info["cited_sources_count"] = len(
                         node_data["cited_sources_in_chapter"])
-                    # 添加引用源预览
-                    if isinstance(node_data["cited_sources_in_chapter"], list):
-                        step_info["cited_sources_preview"] = [
-                            f"[{s.id}] {s.title[:30]}..."
-                            for s in node_data["cited_sources_in_chapter"][:3]
-                        ]
 
             elif node_name == "generate_bibliography":
                 if "final_document" in node_data:
@@ -231,16 +215,6 @@ async def main():
                             bibliography = doc[bib_start:]
                             step_info[
                                 "bibliography_preview"] = bibliography[:300] + "..."
-                            # 统计参考文献数量
-                            import re
-                            citations = re.findall(r'\[(\d+)\]', bibliography)
-                            step_info["bibliography_count"] = len(
-                                set(citations))
-
-                # 添加全局引用源统计
-                if "cited_sources" in node_data:
-                    step_info["global_cited_sources_count"] = len(
-                        node_data["cited_sources"])
 
             workflow_steps.append(step_info)
             final_result = node_data
@@ -310,54 +284,11 @@ async def main():
     ]
     print(f"   ✍️  Writer steps: {len(writer_steps)}")
 
-    # 分析引用系统
     if final_result and "final_document" in final_result:
         if "## 参考文献" in final_result["final_document"]:
             print(f"   📚 Bibliography: ✅ Added")
-
-            # 统计参考文献数量和引用编号
-            import re
-            doc = final_result["final_document"]
-            bib_start = doc.find("## 参考文献")
-            if bib_start != -1:
-                bibliography = doc[bib_start:]
-                citations = re.findall(r'\[(\d+)\]', bibliography)
-                unique_citations = sorted(set(int(c) for c in citations))
-                print(f"   📖 Bibliography entries: {len(unique_citations)}")
-                print(f"   🔢 Citation numbers: {unique_citations}")
-
-                # 检查编号是否连续
-                if unique_citations == list(range(1,
-                                                  len(unique_citations) + 1)):
-                    print(f"   ✅ Citation numbering: Consecutive")
-                else:
-                    print(f"   ❌ Citation numbering: Not consecutive")
-
-            # 统计全文中的引用
-            content_before_bib = doc[:bib_start] if bib_start != -1 else doc
-            content_citations = re.findall(r'\[(\d+)\]', content_before_bib)
-            unique_content_citations = sorted(
-                set(int(c) for c in content_citations))
-            print(f"   📝 In-text citations: {unique_content_citations}")
-
         else:
             print(f"   📚 Bibliography: ❌ Missing")
-
-    # 统计全局引用源
-    bibliography_steps = [
-        step for step in workflow_steps
-        if step["node_name"] == "generate_bibliography"
-    ]
-    if bibliography_steps:
-        last_bib_step = bibliography_steps[-1]
-        if "global_cited_sources_count" in last_bib_step:
-            print(
-                f"   🌐 Global sources tracked: {last_bib_step['global_cited_sources_count']}"
-            )
-        if "bibliography_count" in last_bib_step:
-            print(
-                f"   📋 Bibliography count: {last_bib_step['bibliography_count']}"
-            )
 
     # 显示文件位置
     print(f"\n📁 Output files:")
@@ -369,4 +300,4 @@ async def main():
 
 if __name__ == "__main__":
     # 使用 asyncio.run() 来执行我们的异步 main 函数
-    asyncio.run(main())
+    asyncio.run(main()) 

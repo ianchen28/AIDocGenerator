@@ -591,6 +591,116 @@ def bibliography_node(state: ResearchState) -> dict:
 
     logger.info(f"📚 开始生成参考文献，共有 {len(cited_sources)} 个引用源")
 
+    def format_reference_entry(source: Source, number: int) -> str:
+        """根据源类型格式化参考文献条目为BibTeX风格的学术格式"""
+
+        if source.source_type == "webpage":
+            # 网页格式: [编号] 作者/网站. "标题". 网站名 (年份). URL
+            content_lines = source.content.strip().split('\n')
+            actual_title = "网页资源"
+            url = source.url or ""
+            website_name = ""
+            year = "2024"  # 默认年份，可以从URL或内容中提取
+
+            # 尝试从content中提取更好的信息
+            for line in content_lines:
+                if line.strip().startswith('URL:'):
+                    url = line.replace('URL:', '').strip()
+                    # 从URL中提取网站名称
+                    import re
+                    domain_match = re.search(r'https?://(?:www\.)?([^/]+)',
+                                             url)
+                    if domain_match:
+                        domain = domain_match.group(1)
+                        if 'baidu.com' in domain:
+                            website_name = "百度百科"
+                        elif 'csdn.net' in domain:
+                            website_name = "CSDN博客"
+                        elif 'juejin.cn' in domain:
+                            website_name = "掘金"
+                        elif 'aliyun.com' in domain:
+                            website_name = "阿里云开发者社区"
+                        elif 'github.io' in domain:
+                            website_name = "GitHub Pages"
+                        else:
+                            website_name = domain
+
+                elif '内容预览:' in line:
+                    # 提取实际标题
+                    preview_part = line.split('内容预览:')[-1].strip()
+                    if preview_part:
+                        # 提取网页标题（去掉网站后缀）
+                        import re
+                        title_match = re.search(
+                            r'([^_]+?)(?:\s*[_\-]\s*(?:百度百科|CSDN博客|掘金|阿里云|GitHub)|$)',
+                            preview_part)
+                        if title_match:
+                            actual_title = title_match.group(1).strip()
+                        elif len(preview_part) > 10:
+                            actual_title = preview_part[:60] + "..." if len(
+                                preview_part) > 60 else preview_part
+
+            # 如果没有提取到合适的标题，使用原始title
+            if actual_title == "网页资源" and source.title:
+                if source.title.startswith('Search results for:'):
+                    query_part = source.title.replace('Search results for:',
+                                                      '').strip()
+                    actual_title = f"{query_part}"
+                else:
+                    actual_title = source.title
+
+            # 格式化为学术引用格式
+            if website_name and url:
+                return f'[{number}] {website_name}. "{actual_title}". {website_name} ({year}). {url}'
+            elif url:
+                return f'[{number}] 网络资源. "{actual_title}". 在线资源 ({year}). {url}'
+            else:
+                return f'[{number}] 网络资源. "{actual_title}". 在线资源 ({year}).'
+
+        elif source.source_type == "es_result":
+            # 内部知识库格式: [编号] 作者/机构. "文档标题". 内部知识库 (年份).
+            content_lines = source.content.strip().split('\n')
+            doc_title = "内部知识库文档"
+            author = "内部资料"
+            year = "2024"
+
+            for line in content_lines:
+                if '.pdf' in line or '.doc' in line:
+                    # 提取文档名称
+                    import re
+                    doc_match = re.search(r'([^/\]]+\.(?:pdf|doc|docx))', line)
+                    if doc_match:
+                        full_name = doc_match.group(1)
+                        # 去掉文件扩展名
+                        doc_title = re.sub(r'\.(pdf|doc|docx)$', '', full_name)
+                        break
+                elif '[personal_knowledge_base]' in line:
+                    # 提取紧跟的文档标题
+                    remaining = line.split(
+                        '[personal_knowledge_base]')[-1].strip()
+                    if remaining:
+                        doc_title = remaining.split(
+                            '.'
+                        )[0] if '.' in remaining else remaining[:80] + "..."
+
+                        # 尝试从标题中提取机构信息
+                        if '【' in doc_title and '】' in doc_title:
+                            import re
+                            org_match = re.search(r'【([^】]+)】', doc_title)
+                            if org_match:
+                                author = org_match.group(1)
+                        break
+
+            return f'[{number}] {author}. "{doc_title}". 内部知识库 ({year}).'
+
+        elif source.source_type == "document":
+            # 文档格式: [编号] 作者. "文档标题". 文档类型 (年份).
+            return f'[{number}] 文档资料. "{source.title}". 内部文档 (2024).'
+
+        else:
+            # 默认格式
+            return f'[{number}] 未知来源. "{source.title}". {source.source_type} (2024).'
+
     # 生成参考文献部分
     bibliography_section = "\n\n## 参考文献\n\n"
 
@@ -599,17 +709,8 @@ def bibliography_node(state: ResearchState) -> dict:
 
     # 使用全局连续的编号
     for global_number, (source_id, source) in enumerate(sorted_sources, 1):
-        # 格式化每个参考文献条目
-        reference_entry = f"[{global_number}] {source.title}"
-
-        # 如果有URL，添加到参考文献中
-        if source.url and source.url.strip():
-            reference_entry += f" ({source.url})"
-
-        # 添加源类型信息（可选）
-        if source.source_type:
-            reference_entry += f" [{source.source_type}]"
-
+        # 使用新的格式化函数
+        reference_entry = format_reference_entry(source, global_number)
         bibliography_section += reference_entry + "\n"
 
     # 将参考文献部分添加到最终文档
