@@ -12,6 +12,9 @@ class ResearchState(TypedDict):
     1. 上层研究与大纲生成
     2. 章节级详细研究与写作
     """
+    # 日志追踪 ID
+    run_id: Optional[str]  # 用于日志追踪的唯一标识符
+
     # 研究主题
     topic: str
 

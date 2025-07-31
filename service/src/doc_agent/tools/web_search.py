@@ -124,7 +124,7 @@ class WebSearchConfig:
             "token":
             "eyJhbGciOiJIUzI1NiJ9.eyJqd3RfbmFtZSI6Iueul-azleiBlOe9keaOpeWPo-a1i-ivlSIsImp3dF91c2VyX2lkIjoyMiwiand0X3VzZXJfbmFtZSI6ImFkbWluIiwiZXhwIjoyMDA1OTc2MjY2LCJpYXQiOjE3NDY3NzYyNjZ9.YLkrXAdx-wyVUwWveVCF2ddjqZrOrwOKxaF8fLOuc6E",
             "count": 5,
-            "timeout": 30,
+            "timeout": 15,  # 从30秒减少到15秒
             "retries": 3,
             "delay": 1,
             "fetch_full_content": True
@@ -231,17 +231,23 @@ class WebSearchTool:
             # 获取内容
             content = web_page.get('materialContent', '')
 
-            # 如果需要获取完整内容且当前内容较短
-            if should_fetch_full and len(content) < 500 and web_page.get(
+            # 如果需要获取完整内容且当前内容较短（少于200字符）
+            if should_fetch_full and len(content) < 200 and web_page.get(
                     'url'):
                 self.logger.info(f"获取完整内容: {web_page.get('url')}")
-                full_content = await self.web_scraper.fetch_full_content(
-                    web_page.get('url'))
-                if full_content:
-                    content = full_content
-                    web_page['full_content_fetched'] = True
-                else:
+                try:
+                    full_content = await self.web_scraper.fetch_full_content(
+                        web_page.get('url'))
+                    if full_content:
+                        content = full_content
+                        web_page['full_content_fetched'] = True
+                    else:
+                        web_page['full_content_fetched'] = False
+                except Exception as e:
+                    self.logger.warning(f"获取完整内容失败: {e}")
                     web_page['full_content_fetched'] = False
+            else:
+                web_page['full_content_fetched'] = False
 
             # 格式化文档
             web_page["file_name"] = web_page.get("docName", "")
