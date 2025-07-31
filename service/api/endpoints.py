@@ -48,8 +48,7 @@ async def edit_text(request: EditActionRequest,
     AI 文本编辑端点（流式响应）
 
     支持以下编辑操作：
-    - polish_professional: 专业润色，提升文本的专业性和严谨性
-    - polish_conversational: 口语化润色，使文本更自然易懂
+    - polish: 润色文本，支持多种风格（professional, conversational, readable, subtle, academic, literary）
     - expand: 扩写文本，增加更多细节和深度
     - summarize: 缩写文本，提取关键要点
     - continue_writing: 续写文本，基于上下文继续创作
@@ -69,7 +68,8 @@ async def edit_text(request: EditActionRequest,
             async for token in tool.arun(action=request.action,
                                          text=request.text,
                                          command=request.command,
-                                         context=request.context):
+                                         context=request.context,
+                                         polish_style=request.polish_style):
                 # 将每个 token 包装成 SSE 格式
                 yield f"data: {json.dumps({'text': token})}\n\n"
 

@@ -1,7 +1,7 @@
 # service/src/doc_agent/schemas.py
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # --- Source Models ---
@@ -134,15 +134,31 @@ class TaskResultResponse(BaseModel):
 # --- AI Editing Models ---
 class EditActionRequest(BaseModel):
     """AI 编辑请求模型"""
-    action: Literal["expand", "summarize", "continue_writing",
-                    "polish_professional", "polish_conversational",
-                    "custom"] = Field(
-                        ..., description="编辑操作类型：扩写、总结、续写、专业润色、口语化润色或自定义命令")
+    action: Literal["expand", "summarize", "continue_writing", "polish",
+                    "custom"] = Field(...,
+                                      description="编辑操作类型：扩写、总结、续写、润色或自定义命令")
     text: str = Field(..., description="要编辑的文本内容")
     command: Optional[str] = Field(None,
                                    description="当 action 为 'custom' 时，此字段为必填项")
     context: Optional[str] = Field(
         None, description="当 action 为 'continue_writing' 时，此字段为上下文信息")
+    polish_style: Optional[Literal[
+        "professional", "conversational", "readable", "subtle", "academic",
+        "literary"]] = Field(None, description="当 action 为 'polish' 时，此字段为必填项")
+
+    @model_validator(mode='after')
+    def validate_action_requirements(self):
+        """验证不同 action 的必填字段"""
+        if self.action == "polish" and not self.polish_style:
+            raise ValueError("当 action 为 'polish' 时，polish_style 字段为必填项")
+
+        if self.action == "custom" and not self.command:
+            raise ValueError("当 action 为 'custom' 时，command 字段为必填项")
+
+        if self.action == "continue_writing" and not self.context:
+            raise ValueError("当 action 为 'continue_writing' 时，context 字段为必填项")
+
+        return self
 
 
 class EditActionResponse(BaseModel):

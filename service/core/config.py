@@ -163,7 +163,8 @@ class AppSettings(BaseSettings):
     tavily: TavilySettings = TavilySettings()
     agent: AgentSettings = AgentSettings()
     logging: LoggingSettings = LoggingSettings()
-    redis_url: str = Field("redis://localhost:6379/0", alias="REDIS_URL")
+    redis_url: str = Field("redis://10.215.149.74:26379/0", alias="REDIS_URL")
+    redis_key: str = "xJrhp*4mnHxbBWN2grqq"
 
     # YAML配置缓存
     _yaml_config: Optional[dict[str, Any]] = None

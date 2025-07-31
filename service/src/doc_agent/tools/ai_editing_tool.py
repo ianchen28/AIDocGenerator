@@ -33,8 +33,13 @@ class AIEditingTool:
 
         # 定义有效的编辑操作
         self.valid_actions = [
-            "polish_professional", "polish_conversational", "expand",
-            "summarize", "continue_writing", "custom"
+            "polish", "expand", "summarize", "continue_writing", "custom"
+        ]
+
+        # 定义有效的润色风格
+        self.valid_polish_styles = [
+            "professional", "conversational", "readable", "subtle", "academic",
+            "literary"
         ]
 
     def run(self, action: str, text: str, command: str = None) -> str:
@@ -123,7 +128,8 @@ class AIEditingTool:
                    action: str,
                    text: str,
                    command: str = None,
-                   context: str = None) -> AsyncGenerator[str, None]:
+                   context: str = None,
+                   polish_style: str = None) -> AsyncGenerator[str, None]:
         """
         异步执行文本编辑任务（流式输出版本）
 
@@ -132,6 +138,7 @@ class AIEditingTool:
             text: 要编辑的文本
             command: 自定义编辑指令（当 action 为 "custom" 时必填）
             context: 上下文信息（当 action 为 "continue_writing" 时使用）
+            polish_style: 润色风格（当 action 为 "polish" 时必填）
 
         Yields:
             str: 编辑后的文本片段
@@ -160,13 +167,41 @@ class AIEditingTool:
             try:
                 # 直接导入 ai_editor prompt 模块
                 from ..prompts.ai_editor import PROMPTS
-                prompt_template = PROMPTS.get(action)
-                if not prompt_template:
-                    available_actions = list(PROMPTS.keys())
-                    raise ValueError(
-                        f"未找到 action '{action}' 的 prompt 模板。可用 actions: {available_actions}"
-                    )
-                self.logger.debug(f"成功获取 {action} 的 prompt 模板")
+
+                if action == "polish":
+                    # 验证 polish_style 参数
+                    if not polish_style:
+                        raise ValueError("润色操作需要提供 polish_style 参数")
+                    if polish_style not in self.valid_polish_styles:
+                        available_styles = ", ".join(self.valid_polish_styles)
+                        raise ValueError(
+                            f"无效的润色风格 '{polish_style}'。可用风格: {available_styles}"
+                        )
+
+                    # 获取润色风格的 Prompt 字典
+                    polish_prompts = PROMPTS.get("polish")
+                    if not polish_prompts:
+                        raise ValueError("未找到润色相关的 prompt 模板")
+
+                    # 根据 polish_style 选择具体的 Prompt 模板
+                    prompt_template = polish_prompts.get(polish_style)
+                    if not prompt_template:
+                        available_styles = list(polish_prompts.keys())
+                        raise ValueError(
+                            f"未找到润色风格 '{polish_style}' 的 prompt 模板。可用风格: {available_styles}"
+                        )
+
+                    self.logger.debug(
+                        f"成功获取 {action} ({polish_style}) 的 prompt 模板")
+                else:
+                    # 对于其他 action，直接获取 Prompt 模板
+                    prompt_template = PROMPTS.get(action)
+                    if not prompt_template:
+                        available_actions = list(PROMPTS.keys())
+                        raise ValueError(
+                            f"未找到 action '{action}' 的 prompt 模板。可用 actions: {available_actions}"
+                        )
+                    self.logger.debug(f"成功获取 {action} 的 prompt 模板")
             except Exception as e:
                 error_msg = f"获取 prompt 模板失败: {e}"
                 self.logger.error(error_msg)
