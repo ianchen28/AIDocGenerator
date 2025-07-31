@@ -1,6 +1,8 @@
 # service/src/doc_agent/llm_clients/providers.py
 import pprint
 import re
+import json
+from typing import AsyncGenerator
 
 import httpx
 from loguru import logger
@@ -153,6 +155,99 @@ class GeminiClient(LLMClient):
             logger.error(f"Gemini API调用失败: {str(e)}")
             raise Exception(f"Gemini API调用失败: {str(e)}") from e
 
+    async def astream(self, prompt: str,
+                      **kwargs) -> AsyncGenerator[str, None]:
+        """
+        异步流式调用Gemini API
+        Args:
+            prompt: 输入提示
+            **kwargs: 其他参数，如temperature, max_tokens等
+        Yields:
+            str: 模型响应的文本片段
+        """
+        try:
+            # 获取可选参数
+            temperature = kwargs.get("temperature", 0.7)
+            max_tokens = kwargs.get("max_tokens", 1000)
+
+            # 构建请求数据
+            if "chataiapi.com" in self.base_url:
+                # ChatAI API 格式
+                url = f"{self.base_url}/chat/completions"
+                headers = {"Authorization": f"Bearer {self.api_key}"}
+                data = {
+                    "model": self.model_name,
+                    "messages": [{
+                        "role": "user",
+                        "content": prompt
+                    }],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "stream": True  # 启用流式输出
+                }
+            else:
+                # 标准 Gemini API 格式
+                url = f"{self.base_url}/{self.model_name}:streamGenerateContent?key={self.api_key}"
+                headers = {}
+                data = {
+                    "contents": [{
+                        "parts": [{
+                            "text": prompt
+                        }]
+                    }],
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "maxOutputTokens": max_tokens
+                    }
+                }
+
+            logger.debug(
+                f"Gemini 流式API请求:\nURL: {url}\nData: {pprint.pformat(data)}")
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                async with client.stream("POST",
+                                         url,
+                                         json=data,
+                                         headers=headers) as response:
+                    response.raise_for_status()
+
+                    if "chataiapi.com" in self.base_url:
+                        # ChatAI API 流式格式
+                        async for line in response.aiter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:]  # 移除 "data: " 前缀
+                                if data_str.strip() == "[DONE]":
+                                    break
+                                try:
+                                    chunk = json.loads(data_str)
+                                    if "choices" in chunk and len(
+                                            chunk["choices"]) > 0:
+                                        delta = chunk["choices"][0].get(
+                                            "delta", {})
+                                        if "content" in delta and delta[
+                                                "content"]:
+                                            yield delta["content"]
+                                except json.JSONDecodeError:
+                                    continue
+                    else:
+                        # 标准 Gemini API 流式格式
+                        async for line in response.aiter_lines():
+                            if line.strip():
+                                try:
+                                    chunk = json.loads(line)
+                                    if "candidates" in chunk and len(
+                                            chunk["candidates"]) > 0:
+                                        content = chunk["candidates"][0][
+                                            "content"]["parts"][0]["text"]
+                                        if content:
+                                            yield content
+                                except json.JSONDecodeError:
+                                    continue
+
+        except Exception as e:
+            logger.error(f"Gemini 流式API调用失败: {str(e)}")
+            raise Exception(f"Gemini 流式API调用失败: {str(e)}") from e
+
 
 class DeepSeekClient(LLMClient):
 
@@ -223,6 +318,68 @@ class DeepSeekClient(LLMClient):
         except Exception as e:
             logger.error(f"DeepSeek API调用失败: {str(e)}")
             raise Exception(f"DeepSeek API调用失败: {str(e)}") from e
+
+    async def astream(self, prompt: str,
+                      **kwargs) -> AsyncGenerator[str, None]:
+        """
+        异步流式调用DeepSeek API
+        Args:
+            prompt: 输入提示
+            **kwargs: 其他参数，如temperature, max_tokens等
+        Yields:
+            str: 模型响应的文本片段
+        """
+        try:
+            # 获取可选参数
+            temperature = kwargs.get("temperature", 0.7)
+            max_tokens = kwargs.get("max_tokens", 1000)
+
+            # 构建请求数据
+            data = {
+                "model": self.model_name,
+                "messages": [{
+                    "role": "user",
+                    "content": prompt
+                }],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True  # 启用流式输出
+            }
+
+            logger.debug(
+                f"DeepSeek 流式API请求:\nURL: {self.base_url}/chat/completions\nData: {pprint.pformat(data)}"
+            )
+
+            # 发送请求
+            url = f"{self.base_url}/chat/completions"
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                async with client.stream("POST",
+                                         url,
+                                         json=data,
+                                         headers=headers) as response:
+                    response.raise_for_status()
+
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]  # 移除 "data: " 前缀
+                            if data_str.strip() == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data_str)
+                                if "choices" in chunk and len(
+                                        chunk["choices"]) > 0:
+                                    delta = chunk["choices"][0].get(
+                                        "delta", {})
+                                    if "content" in delta and delta["content"]:
+                                        yield delta["content"]
+                            except json.JSONDecodeError:
+                                continue
+
+        except Exception as e:
+            logger.error(f"DeepSeek 流式API调用失败: {str(e)}")
+            raise Exception(f"DeepSeek 流式API调用失败: {str(e)}") from e
 
 
 class MoonshotClient(LLMClient):
@@ -305,6 +462,71 @@ class MoonshotClient(LLMClient):
             logger.error(f"Moonshot API调用失败: {str(e)}")
             raise Exception(f"Moonshot API调用失败: {str(e)}") from e
 
+    async def astream(self, prompt: str,
+                      **kwargs) -> AsyncGenerator[str, None]:
+        """
+        异步流式调用Moonshot API
+        Args:
+            prompt: 输入提示
+            **kwargs: 其他参数，如temperature, max_tokens等
+        Yields:
+            str: 模型响应的文本片段
+        """
+        try:
+            # 获取可选参数
+            temperature = kwargs.get("temperature", 0.7)
+            max_tokens = kwargs.get("max_tokens", 1000)
+
+            # 构建请求数据 - 使用OpenAI兼容格式
+            data = {
+                "model": self.model_name,
+                "messages": [{
+                    "role": "user",
+                    "content": prompt
+                }],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True  # 启用流式输出
+            }
+
+            logger.debug(
+                f"Moonshot 流式API请求:\nURL: {self.base_url}/chat/completions\nData: {pprint.pformat(data)}"
+            )
+
+            # 发送请求
+            url = f"{self.base_url}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                async with client.stream("POST",
+                                         url,
+                                         json=data,
+                                         headers=headers) as response:
+                    response.raise_for_status()
+
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]  # 移除 "data: " 前缀
+                            if data_str.strip() == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data_str)
+                                if "choices" in chunk and len(
+                                        chunk["choices"]) > 0:
+                                    delta = chunk["choices"][0].get(
+                                        "delta", {})
+                                    if "content" in delta and delta["content"]:
+                                        yield delta["content"]
+                            except json.JSONDecodeError:
+                                continue
+
+        except Exception as e:
+            logger.error(f"Moonshot 流式API调用失败: {str(e)}")
+            raise Exception(f"Moonshot 流式API调用失败: {str(e)}") from e
+
 
 class InternalLLMClient(LLMClient):
 
@@ -381,6 +603,71 @@ class InternalLLMClient(LLMClient):
             logger.error(f"Internal API调用失败: {str(e)}")
             raise Exception(f"Internal API调用失败: {str(e)}") from e
 
+    async def astream(self, prompt: str,
+                      **kwargs) -> AsyncGenerator[str, None]:
+        """
+        异步流式调用内部模型API
+        Args:
+            prompt: 输入提示
+            **kwargs: 其他参数，如temperature, max_tokens等
+        Yields:
+            str: 模型响应的文本片段
+        """
+        try:
+            # 获取可选参数
+            temperature = kwargs.get("temperature", 0.7)
+            max_tokens = kwargs.get("max_tokens", 1000)
+
+            # 构建请求数据
+            data = {
+                "model": self.model_name,
+                "messages": [{
+                    "role": "user",
+                    "content": prompt
+                }],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True  # 启用流式输出
+            }
+
+            logger.debug(
+                f"Internal 流式API请求:\nURL: {self.base_url}/chat/completions\nData: {pprint.pformat(data)}"
+            )
+
+            # 发送请求
+            url = f"{self.base_url}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}"
+            } if self.api_key != "EMPTY" else {}
+
+            async with httpx.AsyncClient(
+                    timeout=180.0) as client:  # 内部模型可能需要更长时间
+                async with client.stream("POST",
+                                         url,
+                                         json=data,
+                                         headers=headers) as response:
+                    response.raise_for_status()
+
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]  # 移除 "data: " 前缀
+                            if data_str.strip() == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data_str)
+                                if "choices" in chunk and len(
+                                        chunk["choices"]) > 0:
+                                    delta = chunk["choices"][0].get(
+                                        "delta", {})
+                                    if "content" in delta and delta["content"]:
+                                        yield delta["content"]
+                            except json.JSONDecodeError:
+                                continue
+
+        except Exception as e:
+            logger.error(f"Internal 流式API调用失败: {str(e)}")
+            raise Exception(f"Internal 流式API调用失败: {str(e)}") from e
+
 
 class RerankerClient(LLMClient):
 
@@ -425,6 +712,14 @@ class RerankerClient(LLMClient):
         except Exception as e:
             logger.error(f"Reranker API调用失败: {str(e)}")
             raise Exception(f"Reranker API调用失败: {str(e)}") from e
+
+    async def astream(self, prompt: str,
+                      **kwargs) -> AsyncGenerator[str, None]:
+        """
+        Reranker客户端不支持流式输出
+        """
+        raise NotImplementedError("Reranker客户端不支持流式输出")
+        yield  # 这行永远不会执行，只是为了满足类型注解
 
 
 class EmbeddingClient(LLMClient):
@@ -471,3 +766,11 @@ class EmbeddingClient(LLMClient):
         except Exception as e:
             logger.error(f"Embedding API调用失败: {str(e)}")
             raise Exception(f"Embedding API调用失败: {str(e)}") from e
+
+    async def astream(self, prompt: str,
+                      **kwargs) -> AsyncGenerator[str, None]:
+        """
+        Embedding客户端不支持流式输出
+        """
+        raise NotImplementedError("Embedding客户端不支持流式输出")
+        yield  # 这行永远不会执行，只是为了满足类型注解

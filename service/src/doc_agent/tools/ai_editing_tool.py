@@ -4,7 +4,7 @@ AI 编辑工具
 用于处理文本编辑任务，包括润色、扩写、缩写等功能
 """
 
-from typing import Optional
+from typing import Optional, AsyncGenerator
 
 from loguru import logger
 
@@ -16,6 +16,7 @@ class AIEditingTool:
     """
     AI 编辑工具类
     提供文本润色、扩写、缩写等功能
+    支持同步和异步流式输出
     """
 
     def __init__(self, llm_client: LLMClient, prompt_selector: PromptSelector):
@@ -31,11 +32,14 @@ class AIEditingTool:
         self.logger = logger.bind(name="ai_editing_tool")
 
         # 定义有效的编辑操作
-        self.valid_actions = ["polish", "expand", "summarize", "custom"]
+        self.valid_actions = [
+            "polish_professional", "polish_conversational", "expand",
+            "summarize", "continue_writing", "custom"
+        ]
 
     def run(self, action: str, text: str, command: str = None) -> str:
         """
-        执行文本编辑任务
+        执行文本编辑任务（同步版本）
 
         Args:
             action: 编辑操作类型 ("polish", "expand", "summarize", "custom")
@@ -104,6 +108,98 @@ class AIEditingTool:
                 return result
             except Exception as e:
                 error_msg = f"LLM 调用失败: {e}"
+                self.logger.error(error_msg)
+                raise Exception(error_msg) from e
+
+        except ValueError:
+            # 重新抛出 ValueError，不需要额外处理
+            raise
+        except Exception as e:
+            # 记录其他异常并重新抛出
+            self.logger.error(f"AI 编辑工具执行失败: {e}")
+            raise
+
+    async def arun(self,
+                   action: str,
+                   text: str,
+                   command: str = None,
+                   context: str = None) -> AsyncGenerator[str, None]:
+        """
+        异步执行文本编辑任务（流式输出版本）
+
+        Args:
+            action: 编辑操作类型 ("polish", "expand", "summarize", "custom", "continue_writing")
+            text: 要编辑的文本
+            command: 自定义编辑指令（当 action 为 "custom" 时必填）
+            context: 上下文信息（当 action 为 "continue_writing" 时使用）
+
+        Yields:
+            str: 编辑后的文本片段
+
+        Raises:
+            ValueError: 当 action 无效时
+            Exception: 当 LLM 调用失败时
+        """
+        try:
+            # 验证 action 是否有效
+            if action not in self.valid_actions:
+                available_actions = ", ".join(self.valid_actions)
+                error_msg = f"无效的编辑操作 '{action}'。可用操作: {available_actions}"
+                self.logger.error(error_msg)
+                raise ValueError(error_msg)
+
+            # 验证输入文本
+            if not text or not text.strip():
+                error_msg = "输入文本不能为空"
+                self.logger.error(error_msg)
+                raise ValueError(error_msg)
+
+            self.logger.info(f"开始执行 {action} 编辑任务，文本长度: {len(text)} 字符")
+
+            # 获取对应的 Prompt 模板
+            try:
+                # 直接导入 ai_editor prompt 模块
+                from ..prompts.ai_editor import PROMPTS
+                prompt_template = PROMPTS.get(action)
+                if not prompt_template:
+                    available_actions = list(PROMPTS.keys())
+                    raise ValueError(
+                        f"未找到 action '{action}' 的 prompt 模板。可用 actions: {available_actions}"
+                    )
+                self.logger.debug(f"成功获取 {action} 的 prompt 模板")
+            except Exception as e:
+                error_msg = f"获取 prompt 模板失败: {e}"
+                self.logger.error(error_msg)
+                raise Exception(error_msg) from e
+
+            # 格式化 Prompt
+            try:
+                if action == "custom":
+                    if not command:
+                        raise ValueError("自定义编辑操作需要提供 command 参数")
+                    formatted_prompt = prompt_template.format(text=text,
+                                                              command=command)
+                elif action == "continue_writing":
+                    if not context:
+                        raise ValueError("续写操作需要提供 context 参数")
+                    formatted_prompt = prompt_template.format(text=text,
+                                                              context=context)
+                else:
+                    formatted_prompt = prompt_template.format(text=text)
+                self.logger.debug(
+                    f"Prompt 格式化完成，长度: {len(formatted_prompt)} 字符")
+            except Exception as e:
+                error_msg = f"Prompt 格式化失败: {e}"
+                self.logger.error(error_msg)
+                raise Exception(error_msg) from e
+
+            # 调用 LLM 获取流式结果
+            try:
+                async for token in self.llm_client.astream(formatted_prompt):
+                    yield token
+                self.logger.info(f"{action} 编辑任务完成")
+            except Exception as e:
+                error_msg = f"LLM 流式调用失败: {e}"
                 self.logger.error(error_msg)
                 raise Exception(error_msg) from e
 

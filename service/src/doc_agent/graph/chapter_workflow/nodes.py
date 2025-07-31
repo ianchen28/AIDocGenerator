@@ -86,8 +86,15 @@ def planner_node(state: ResearchState,
         logger.debug(f"✅ 成功获取 planner prompt 模板，genre: {genre}")
     except Exception as e:
         logger.error(f"❌ 获取 planner prompt 模板失败: {e}")
-        # 使用默认的 prompt 模板作为备用
-        prompt_template = """
+        # 使用 prompts/planner.py 中的备用模板
+        try:
+            from ...prompts.planner import PROMPTS
+            prompt_template = PROMPTS.get("v1_fallback", PROMPTS["v1_default"])
+            logger.debug("✅ 成功获取 planner 备用模板")
+        except Exception as e2:
+            logger.error(f"❌ 获取 planner 备用模板也失败: {e2}")
+            # 最后的备用方案
+            prompt_template = """
 你是一个专业的研究规划专家。请为以下章节制定详细的研究计划和搜索策略。
 
 **文档主题:** {topic}
@@ -551,19 +558,25 @@ def writer_node(state: ResearchState,
             logger.debug(f"✅ 成功获取 writer prompt 模板，genre: {genre}")
         except Exception as e2:
             logger.error(f"❌ 获取 writer prompt 模板失败: {e2}")
-            # 使用默认的 prompt 模板作为备用
-            prompt_template = """
-你是一个专业的文档写作专家。请基于提供的研究数据，为指定章节撰写高质量的内容。
+            # 使用 prompts/writer.py 中的简化备用模板
+            try:
+                from ...prompts.writer import PROMPTS
+                simple_prompt_template = PROMPTS.get("v2_fallback_simple",
+                                                     PROMPTS["v1_simple"])
+                logger.debug("✅ 成功获取 writer 简化备用模板")
+            except Exception as e2:
+                logger.error(f"❌ 获取 writer 简化备用模板也失败: {e2}")
+                # 最后的备用方案
+                simple_prompt_template = """
+你是一个专业的文档写作专家。请基于提供的研究数据，为指定章节撰写内容。
 
 **文档主题:** {topic}
+**章节标题:** {chapter_title}
+**章节描述:** {chapter_description}
+**章节编号:** {chapter_number}/{total_chapters}
 
-**章节信息:**
-- 章节标题: {chapter_title}
-- 章节描述: {chapter_description}
-- 章节编号: {chapter_number}/{total_chapters}
-
-**上下文信息:**
-{previous_chapters_context}
+**可用信息源:**
+{available_sources}
 
 **研究数据:**
 {gathered_data}
@@ -572,8 +585,9 @@ def writer_node(state: ResearchState,
 1. 基于研究数据撰写内容，确保信息准确性和完整性
 2. 保持章节结构清晰，逻辑连贯
 3. 使用专业但易懂的语言
-4. 适当引用研究数据中的关键信息
-5. 确保内容与章节描述相符
+4. 在写作时，如果使用了某个信息源的内容，请使用特殊标记：<sources>[源ID]</sources>
+5. 例如：<sources>[1]</sources> 这里使用了源1的信息
+6. 如果是自己的综合总结，使用：<sources>[]</sources>
 
 请立即开始撰写章节内容。
 """
@@ -611,7 +625,7 @@ def writer_node(state: ResearchState,
             gathered_data=gathered_data,
             available_sources=available_sources_text,
             context_for_writing=context_for_writing)
-        logger.info(f"📝 标准写作，未包含样式指南")
+        logger.info("📝 标准写作，未包含样式指南")
 
     # 限制 prompt 长度
     max_prompt_length = 30000
@@ -883,8 +897,15 @@ async def reflection_node(state: ResearchState,
         logger.debug(f"✅ 成功获取 reflection prompt 模板，genre: {genre}")
     except Exception as e:
         logger.error(f"❌ 获取 reflection prompt 模板失败: {e}")
-        # 使用默认的 prompt 模板作为备用
-        prompt_template = """
+        # 使用 prompts/reflection.py 中的备用模板
+        try:
+            from ...prompts.reflection import PROMPTS
+            prompt_template = PROMPTS.get("v1_fallback", PROMPTS["v1_default"])
+            logger.debug("✅ 成功获取 reflection 备用模板")
+        except Exception as e2:
+            logger.error(f"❌ 获取 reflection 备用模板也失败: {e2}")
+            # 最后的备用方案
+            prompt_template = """
 你是一个专业的研究专家和查询优化师。请分析现有的搜索查询和已收集的数据，生成更精确、更相关的搜索查询。
 
 **文档主题:** {topic}

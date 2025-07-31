@@ -60,5 +60,33 @@ V1_SIMPLE = """
 请立即开始制定研究计划。
 """
 
+# 从 nodes.py 提取的备用模板
+V1_FALLBACK = """
+你是一个专业的研究规划专家。请为以下章节制定详细的研究计划和搜索策略。
+
+**文档主题:** {topic}
+
+**当前章节信息:**
+- 章节标题: {chapter_title}
+- 章节描述: {chapter_description}
+
+**任务要求:**
+1. 分析章节主题，确定研究重点和方向
+2. 制定详细的研究计划，包括研究步骤和方法
+3. 生成5-8个高质量的搜索查询，用于收集相关信息
+4. 确保搜索查询具有针对性和全面性
+
+**输出格式:**
+请以JSON格式返回结果，包含以下字段：
+- research_plan: 详细的研究计划
+- search_queries: 搜索查询列表（数组）
+
+请立即开始制定研究计划。
+"""
+
 # 支持版本选择的PROMPTS字典
-PROMPTS = {"v1_default": V1_DEFAULT, "v1_simple": V1_SIMPLE}
+PROMPTS = {
+    "v1_default": V1_DEFAULT,
+    "v1_simple": V1_SIMPLE,
+    "v1_fallback": V1_FALLBACK  # 新增备用模板
+}

@@ -1,5 +1,6 @@
 # service/src/doc_agent/llm_clients/base.py
 from abc import ABC, abstractmethod
+from typing import AsyncGenerator
 
 
 class LLMClient(ABC):
@@ -22,6 +23,21 @@ class LLMClient(ABC):
         """
         pass
 
+    @abstractmethod
+    async def astream(self, prompt: str,
+                      **kwargs) -> AsyncGenerator[str, None]:
+        """
+        异步流式调用模型
+        Args:
+            prompt: 输入提示
+            **kwargs: 其他参数，如temperature, max_tokens等
+        Yields:
+            str: 模型响应的文本片段
+        Raises:
+            Exception: 当API调用失败时抛出异常
+        """
+        pass
+
 
 class BaseOutputParser(ABC):
     """
@@ -34,3 +50,4 @@ class BaseOutputParser(ABC):
         """
         解析模型响应
         """
+        pass

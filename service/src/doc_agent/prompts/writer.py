@@ -383,6 +383,59 @@ V4_WITH_STYLE_GUIDE = """
 请严格按照上述格式要求撰写当前章节的内容。
 """
 
+# 从 nodes.py 提取的备用模板
+V1_FALLBACK = """
+你是一个专业的文档写作专家。请基于提供的研究数据，为指定章节撰写高质量的内容。
+
+**文档主题:** {topic}
+
+**章节信息:**
+- 章节标题: {chapter_title}
+- 章节描述: {chapter_description}
+- 章节编号: {chapter_number}/{total_chapters}
+
+**上下文信息:**
+{previous_chapters_context}
+
+**研究数据:**
+{gathered_data}
+
+**写作要求:**
+1. 基于研究数据撰写内容，确保信息准确性和完整性
+2. 保持章节结构清晰，逻辑连贯
+3. 使用专业但易懂的语言
+4. 适当引用研究数据中的关键信息
+5. 确保内容与章节描述相符
+
+请立即开始撰写章节内容。
+"""
+
+# 简化的备用模板（支持引用）
+V2_FALLBACK_SIMPLE = """
+你是一个专业的文档写作专家。请基于提供的研究数据，为指定章节撰写内容。
+
+**文档主题:** {topic}
+**章节标题:** {chapter_title}
+**章节描述:** {chapter_description}
+**章节编号:** {chapter_number}/{total_chapters}
+
+**可用信息源:**
+{available_sources}
+
+**研究数据:**
+{gathered_data}
+
+**写作要求:**
+1. 基于研究数据撰写内容，确保信息准确性和完整性
+2. 保持章节结构清晰，逻辑连贯
+3. 使用专业但易懂的语言
+4. 在写作时，如果使用了某个信息源的内容，请使用特殊标记：<sources>[源ID]</sources>
+5. 例如：<sources>[1]</sources> 这里使用了源1的信息
+6. 如果是自己的综合总结，使用：<sources>[]</sources>
+
+请立即开始撰写章节内容。
+"""
+
 # 支持版本选择的PROMPTS字典
 PROMPTS = {
     "v1_default": V1_DEFAULT,
@@ -390,5 +443,7 @@ PROMPTS = {
     "v2_with_citations": V2_WITH_CITATIONS,
     "v2_simple_citations": V2_SIMPLE_CITATIONS,
     "v3_context_aware": V3_CONTEXT_AWARE,
-    "v4_with_style_guide": V4_WITH_STYLE_GUIDE
+    "v4_with_style_guide": V4_WITH_STYLE_GUIDE,
+    "v1_fallback": V1_FALLBACK,  # 新增备用模板
+    "v2_fallback_simple": V2_FALLBACK_SIMPLE  # 新增简化备用模板
 }

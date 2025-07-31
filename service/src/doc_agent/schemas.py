@@ -134,11 +134,15 @@ class TaskResultResponse(BaseModel):
 # --- AI Editing Models ---
 class EditActionRequest(BaseModel):
     """AI 编辑请求模型"""
-    action: Literal["polish", "expand", "summarize",
-                    "custom"] = Field(..., description="编辑操作类型：润色、扩写、缩写或自定义命令")
+    action: Literal["expand", "summarize", "continue_writing",
+                    "polish_professional", "polish_conversational",
+                    "custom"] = Field(
+                        ..., description="编辑操作类型：扩写、总结、续写、专业润色、口语化润色或自定义命令")
     text: str = Field(..., description="要编辑的文本内容")
     command: Optional[str] = Field(None,
                                    description="当 action 为 'custom' 时，此字段为必填项")
+    context: Optional[str] = Field(
+        None, description="当 action 为 'continue_writing' 时，此字段为上下文信息")
 
 
 class EditActionResponse(BaseModel):
