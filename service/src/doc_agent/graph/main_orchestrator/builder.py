@@ -492,3 +492,112 @@ def build_main_orchestrator_graph(initial_research_node,
     # 编译并返回图
     logger.info("🏗️  主编排器图构建完成")
     return workflow.compile()
+
+
+def build_outline_graph(initial_research_node, outline_generation_node):
+    """
+    构建大纲生成图
+    
+    流程：entry -> initial_research_node -> outline_generation_node -> END
+    
+    Args:
+        initial_research_node: 已绑定依赖的初始研究节点
+        outline_generation_node: 已绑定依赖的大纲生成节点
+        
+    Returns:
+        CompiledGraph: 编译后的大纲生成图
+    """
+    # 创建状态图
+    workflow = StateGraph(ResearchState)
+
+    # 注册节点
+    workflow.add_node("initial_research", initial_research_node)
+    workflow.add_node("outline_generation", outline_generation_node)
+
+    # 设置入口点
+    workflow.set_entry_point("initial_research")
+
+    # 添加顺序边
+    workflow.add_edge("initial_research", "outline_generation")
+    workflow.add_edge("outline_generation", END)
+
+    # 编译并返回图
+    logger.info("🏗️  大纲生成图构建完成")
+    return workflow.compile()
+
+
+def build_document_graph(chapter_workflow_graph,
+                         split_chapters_node,
+                         fusion_editor_node=None,
+                         finalize_document_node_func=None,
+                         bibliography_node_func=None):
+    """
+    构建文档生成图
+    
+    流程：entry -> split_chapters_node -> (章节处理循环) -> fusion_editor_node -> finalize_document_node -> bibliography_node -> END
+    
+    Args:
+        chapter_workflow_graph: 编译后的章节工作流图
+        split_chapters_node: 章节拆分节点
+        fusion_editor_node: 可选的融合编辑器节点函数
+        finalize_document_node_func: 可选的文档最终化节点函数
+        bibliography_node_func: 可选的参考文献生成节点函数
+        
+    Returns:
+        CompiledGraph: 编译后的文档生成图
+    """
+    # 创建状态图
+    workflow = StateGraph(ResearchState)
+
+    # 创建章节处理节点
+    chapter_processing_node = create_chapter_processing_node(
+        chapter_workflow_graph)
+
+    # 使用提供的或默认的节点函数
+    if fusion_editor_node is None:
+        fusion_editor_node = nodes.fusion_editor_node
+
+    if finalize_document_node_func is None:
+        finalize_document_node_func = finalize_document_node
+
+    if bibliography_node_func is None:
+        bibliography_node_func = nodes.bibliography_node
+
+    # 注册所有节点
+    workflow.add_node("split_chapters", split_chapters_node)
+    workflow.add_node("chapter_processing", chapter_processing_node)
+    workflow.add_node("fusion_editor", fusion_editor_node)
+    workflow.add_node("finalize_document", finalize_document_node_func)
+    workflow.add_node("generate_bibliography", bibliography_node_func)
+
+    # 设置入口点
+    workflow.set_entry_point("split_chapters")
+
+    # 从 split_chapters 到条件决策点
+    workflow.add_conditional_edges(
+        "split_chapters", chapter_decision_function, {
+            "process_chapter": "chapter_processing",
+            "finalize_document": "finalize_document"
+        })
+
+    # 章节处理完成后，回到条件决策点（形成循环）
+    workflow.add_conditional_edges(
+        "chapter_processing",
+        chapter_decision_function,
+        {
+            "process_chapter": "chapter_processing",  # 继续处理下一章
+            "finalize_document": "fusion_editor"  # 所有章节完成，进入融合编辑
+        })
+
+    # 融合编辑后进入文档最终化
+    workflow.add_edge("fusion_editor", "finalize_document")
+
+    # 最终化后进入参考文献生成
+    workflow.add_edge("finalize_document", "generate_bibliography")
+
+    # 参考文献生成后结束
+    workflow.add_edge("generate_bibliography", END)
+
+    # 编译并返回图
+    logger.info("🏗️  文档生成图构建完成")
+    return workflow.compile()

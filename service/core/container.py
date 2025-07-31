@@ -30,12 +30,15 @@ setup_logging(settings)
 try:
     from doc_agent.common.prompt_selector import PromptSelector
     from doc_agent.graph.callbacks import create_redis_callback_handler
+    from core.redis_stream_publisher import RedisStreamPublisher
     from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
     from doc_agent.graph.chapter_workflow import router as chapter_router
     from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
     from doc_agent.graph.fast_builder import build_fast_main_workflow
     from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
-    from doc_agent.graph.main_orchestrator.builder import build_main_orchestrator_graph
+    from doc_agent.graph.main_orchestrator.builder import (
+        build_main_orchestrator_graph, build_outline_graph,
+        build_document_graph)
     from doc_agent.llm_clients import get_llm_client
     from doc_agent.tools import (
         get_all_tools,
@@ -170,9 +173,8 @@ class Container:
             reflection_node=None)  # 在初始化时不使用 reflection_node
         print("   - Chapter Workflow Graph compiled successfully.")
 
-        # 构建 "总控" 主工作流 (Main Orchestrator)
-        # 原理: 这是项目的"总指挥"，它负责进行初步研究、生成大纲，然后循环调用上面的"工人"（子图）来处理每个章节。
-        print("   - Binding dependencies for Main Orchestrator Workflow...")
+        # 构建拆分后的图架构
+        print("   - Binding dependencies for Split Graph Architecture...")
 
         # 为主工作流的节点绑定依赖
         main_initial_research_node = partial(
@@ -193,8 +195,20 @@ class Container:
             main_orchestrator_nodes.fusion_editor_node,
             llm_client=self.llm_client)
 
-        # 编译主工作流图，这是我们整个应用最终的入口点
-        # 注意: build_main_orchestrator_graph 的签名也需要更新，以接收所有它需要的节点
+        # 编译大纲生成图
+        self.outline_graph = build_outline_graph(
+            initial_research_node=main_initial_research_node,
+            outline_generation_node=main_outline_generation_node)
+        print("   - Outline Graph compiled successfully.")
+
+        # 编译文档生成图
+        self.document_graph = build_document_graph(
+            chapter_workflow_graph=self.chapter_graph,
+            split_chapters_node=main_split_chapters_node,
+            fusion_editor_node=main_fusion_editor_node)
+        print("   - Document Graph compiled successfully.")
+
+        # 保留原有的主工作流图（向后兼容）
         self.main_graph = build_main_orchestrator_graph(
             initial_research_node=main_initial_research_node,
             outline_generation_node=main_outline_generation_node,
@@ -225,13 +239,25 @@ class Container:
             配置了Redis回调处理器的图执行器
         """
         # 创建Redis回调处理器
-        redis_handler = create_redis_callback_handler(job_id)
+        redis_handler = create_redis_callback_handler(
+            job_id, self._get_redis_publisher())
 
         # 根据genre创建相应的节点绑定
         configured_graph = self._get_genre_aware_graph(genre, redis_handler)
 
         logger.info(f"为作业 {job_id} (genre: {genre}) 创建了带回调处理器的图执行器")
         return configured_graph
+
+    def _get_redis_publisher(self):
+        """
+        获取Redis发布器实例
+        
+        Returns:
+            RedisStreamPublisher: Redis发布器实例
+        """
+        # 这里需要异步获取Redis客户端，但为了简化，我们暂时返回None
+        # 在实际使用中，需要根据具体的Redis连接方式来实现
+        return None
 
     def _get_genre_aware_graph(self, genre: str, redis_handler):
         """
@@ -326,6 +352,165 @@ class Container:
 
         return configured_graph
 
+    def _get_genre_aware_outline_graph(self, genre: str, redis_handler):
+        """
+        根据genre获取大纲生成图的执行器
+
+        Args:
+            genre: 文档类型
+            redis_handler: Redis回调处理器
+
+        Returns:
+            配置了回调处理器的大纲生成图执行器
+        """
+        # 验证genre是否存在
+        if genre not in self.genre_strategies:
+            logger.warning(f"Genre '{genre}' 不存在，使用默认genre")
+            genre = "default"
+
+        # 创建大纲生成节点绑定
+        main_initial_research_node = partial(
+            main_orchestrator_nodes.initial_research_node,
+            web_search_tool=self.web_search_tool,
+            es_search_tool=self.es_search_tool,
+            reranker_tool=self.reranker_tool,
+            llm_client=self.llm_client)
+
+        main_outline_generation_node = partial(
+            main_orchestrator_nodes.outline_generation_node,
+            llm_client=self.llm_client,
+            prompt_selector=self.prompt_selector,
+            genre=genre)
+
+        # 创建大纲生成图
+        outline_graph = build_outline_graph(
+            initial_research_node=main_initial_research_node,
+            outline_generation_node=main_outline_generation_node)
+
+        # 使用回调处理器配置图
+        configured_graph = outline_graph.with_config(
+            {"callbacks": [redis_handler]})
+
+        return configured_graph
+
+    def _get_genre_aware_document_graph(self, genre: str, redis_handler):
+        """
+        根据genre获取文档生成图的执行器
+
+        Args:
+            genre: 文档类型
+            redis_handler: Redis回调处理器
+
+        Returns:
+            配置了回调处理器的文档生成图执行器
+        """
+        # 验证genre是否存在
+        if genre not in self.genre_strategies:
+            logger.warning(f"Genre '{genre}' 不存在，使用默认genre")
+            genre = "default"
+
+        # 根据genre创建章节工作流节点绑定
+        chapter_planner_node = partial(chapter_nodes.planner_node,
+                                       llm_client=self.llm_client,
+                                       prompt_selector=self.prompt_selector,
+                                       genre=genre)
+        chapter_writer_node = partial(chapter_nodes.writer_node,
+                                      llm_client=self.llm_client,
+                                      prompt_selector=self.prompt_selector,
+                                      genre=genre,
+                                      prompt_version="v4_with_style_guide")
+        chapter_supervisor_router = partial(
+            chapter_router.supervisor_router,
+            llm_client=self.llm_client,
+            prompt_selector=self.prompt_selector,
+            genre=genre)
+
+        # 创建reflection_node绑定
+        reflection_node = partial(chapter_nodes.reflection_node,
+                                  llm_client=self.llm_client,
+                                  prompt_selector=self.prompt_selector,
+                                  genre=genre)
+
+        # 创建researcher_node绑定
+        chapter_researcher_node = partial(chapter_nodes.async_researcher_node,
+                                          web_search_tool=self.web_search_tool,
+                                          es_search_tool=self.es_search_tool,
+                                          reranker_tool=self.reranker_tool)
+
+        # 创建章节工作流图
+        chapter_graph = build_chapter_workflow_graph(
+            planner_node=chapter_planner_node,
+            researcher_node=chapter_researcher_node,
+            writer_node=chapter_writer_node,
+            supervisor_router_func=chapter_supervisor_router,
+            reflection_node=reflection_node)
+
+        # 创建文档生成节点绑定
+        main_split_chapters_node = main_orchestrator_nodes.split_chapters_node
+        fusion_editor_node = partial(
+            main_orchestrator_nodes.fusion_editor_node,
+            llm_client=self.llm_client)
+
+        # 创建文档生成图
+        document_graph = build_document_graph(
+            chapter_workflow_graph=chapter_graph,
+            split_chapters_node=main_split_chapters_node,
+            fusion_editor_node=fusion_editor_node)
+
+        # 使用回调处理器配置图
+        configured_graph = document_graph.with_config(
+            {"callbacks": [redis_handler]})
+
+        return configured_graph
+
+    def get_outline_graph_runnable_for_job(self,
+                                           job_id: str,
+                                           genre: str = "default"):
+        """
+        为指定作业获取大纲生成图的执行器
+
+        Args:
+            job_id: 作业ID，用于创建特定的回调处理器
+            genre: 文档类型，用于选择相应的prompt策略
+
+        Returns:
+            配置了Redis回调处理器的大纲生成图执行器
+        """
+        # 创建Redis回调处理器
+        redis_handler = create_redis_callback_handler(
+            job_id, self._get_redis_publisher())
+
+        # 根据genre创建相应的节点绑定
+        configured_graph = self._get_genre_aware_outline_graph(
+            genre, redis_handler)
+
+        logger.info(f"为作业 {job_id} (genre: {genre}) 创建了大纲生成图执行器")
+        return configured_graph
+
+    def get_document_graph_runnable_for_job(self,
+                                            job_id: str,
+                                            genre: str = "default"):
+        """
+        为指定作业获取文档生成图的执行器
+
+        Args:
+            job_id: 作业ID，用于创建特定的回调处理器
+            genre: 文档类型，用于选择相应的prompt策略
+
+        Returns:
+            配置了Redis回调处理器的文档生成图执行器
+        """
+        # 创建Redis回调处理器
+        redis_handler = create_redis_callback_handler(
+            job_id, self._get_redis_publisher())
+
+        # 根据genre创建相应的节点绑定
+        configured_graph = self._get_genre_aware_document_graph(
+            genre, redis_handler)
+
+        logger.info(f"为作业 {job_id} (genre: {genre}) 创建了文档生成图执行器")
+        return configured_graph
+
     def get_fast_graph_runnable_for_job(self, job_id: str):
         """
         为指定作业获取带有Redis回调处理器的快速图执行器
@@ -333,7 +518,8 @@ class Container:
             job_id: 作业ID，用于创建特定的回调处理器
         """
         # 创建Redis回调处理器
-        redis_handler = create_redis_callback_handler(job_id)
+        redis_handler = create_redis_callback_handler(
+            job_id, self._get_redis_publisher())
 
         # 使用回调处理器配置快速图
         configured_fast_graph = self.fast_main_graph.with_config(

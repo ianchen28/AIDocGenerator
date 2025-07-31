@@ -51,6 +51,15 @@ class JobResponse(BaseModel):
     created_at: str
 
 
+# --- Outline Generation Models ---
+class OutlineGenerationRequest(BaseModel):
+    """大纲生成请求模型"""
+    job_id: str = Field(..., description="由后端生成的唯一任务ID")
+    task_prompt: str = Field(..., description="用户的核心指令")
+    context_files: Optional[list[ContextFile]] = Field(None,
+                                                       description="上下文文件列表")
+
+
 # --- Outline Models ---
 class OutlineNode(BaseModel):
     """大纲节点模型（递归结构）"""
@@ -68,6 +77,13 @@ class Outline(BaseModel):
     """大纲模型"""
     title: str
     nodes: list[OutlineNode]
+
+
+# --- Document Generation Models ---
+class DocumentGenerationRequest(BaseModel):
+    """文档生成请求模型"""
+    job_id: str = Field(..., description="由后端生成的唯一任务ID")
+    outline: Outline = Field(..., description="结构化的大纲对象")
 
 
 class OutlineResponse(BaseModel):
@@ -97,8 +113,7 @@ class GenerationRequest(BaseModel):
 
 class TaskCreationResponse(BaseModel):
     """任务创建后的API响应"""
-    task_id: str
-    status: str
+    job_id: str = Field(..., description="唯一任务ID")
 
 
 class TaskStatusResponse(BaseModel):

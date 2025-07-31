@@ -15,9 +15,9 @@ from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 from loguru import logger
 
-# 导入Redis客户端
+# 导入Redis Streams发布器
 try:
-    from ....workers.tasks import get_redis_client
+    from ....core.redis_stream_publisher import RedisStreamPublisher
 except ImportError:
     # 如果相对导入失败，尝试绝对导入
     import sys
@@ -29,7 +29,7 @@ except ImportError:
     if str(service_dir) not in sys.path:
         sys.path.insert(0, str(service_dir))
 
-    from workers.tasks import get_redis_client
+    from core.redis_stream_publisher import RedisStreamPublisher
 
 
 class RedisCallbackHandler(BaseCallbackHandler):
@@ -40,57 +40,42 @@ class RedisCallbackHandler(BaseCallbackHandler):
     以支持实时事件流监控和前端状态更新
     """
 
-    def __init__(self, job_id: str):
+    def __init__(self, job_id: str, publisher: RedisStreamPublisher):
         """
         初始化Redis回调处理器
 
         Args:
-            job_id: 作业ID，用于构建Redis频道名称
+            job_id: 作业ID，用于构建事件流名称
+            publisher: Redis Streams发布器实例
         """
         super().__init__()
         self.job_id = job_id
-        self.channel_name = f"job:{job_id}:events"
-        self.redis_client = None
+        self.publisher = publisher
 
-        logger.info(
-            f"Redis回调处理器已初始化 - Job ID: {job_id}, Channel: {self.channel_name}")
-
-    async def _get_redis_client(self):
-        """获取Redis客户端实例"""
-        if self.redis_client is None:
-            try:
-                self.redis_client = await get_redis_client()
-            except Exception as e:
-                logger.error(f"获取Redis客户端失败: {e}")
-                self.redis_client = None
-        return self.redis_client
+        logger.info(f"Redis回调处理器已初始化 - Job ID: {job_id}")
 
     async def _publish_event(self, event_type: str, data: dict[str, Any]):
         """
-        发布事件到Redis
+        发布事件到Redis Stream
 
         Args:
             event_type: 事件类型
             data: 事件数据
         """
         try:
-            redis = await self._get_redis_client()
-            if redis is None:
-                return
-
             # 构建事件载荷
-            payload = {
-                "event": event_type,
+            event_payload = {
+                "event_type": event_type,
                 "data": data,
                 "timestamp": datetime.now().isoformat(),
                 "job_id": self.job_id
             }
 
-            # 发布到Redis频道
-            await redis.publish(self.channel_name,
-                                json.dumps(payload, ensure_ascii=False))
+            # 使用Redis Streams发布器发布事件
+            await self.publisher.publish_event(self.job_id, event_payload)
 
-            logger.debug(f"事件已发布 - 类型: {event_type}, 频道: {self.channel_name}")
+            logger.debug(
+                f"事件已发布到Stream - 类型: {event_type}, Job ID: {self.job_id}")
 
         except Exception as e:
             logger.error(f"发布事件失败: {e}")
@@ -386,14 +371,16 @@ class RedisCallbackHandler(BaseCallbackHandler):
                     }))
 
 
-def create_redis_callback_handler(job_id: str) -> RedisCallbackHandler:
+def create_redis_callback_handler(
+        job_id: str, publisher: RedisStreamPublisher) -> RedisCallbackHandler:
     """
     创建Redis回调处理器的工厂函数
 
     Args:
         job_id: 作业ID
+        publisher: Redis Streams发布器实例
 
     Returns:
         RedisCallbackHandler实例
     """
-    return RedisCallbackHandler(job_id)
+    return RedisCallbackHandler(job_id, publisher)

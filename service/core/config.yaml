@@ -54,7 +54,7 @@ supported_models:
   qwen_72b:
     name: "Qwen2.5-72B (基础)"
     type: "enterprise_generate"
-    model_id: "Qwen2.5-72B-Instruct-AWQ"
+    model_id: "Qwen2.5-72B-new"
     url: "http://10.238.130.16:23215/v1"
     reasoning: "False"
     description: "千问 72b 大模型"
@@ -218,8 +218,8 @@ document_generation:
 agent_config:
   # 默认 LLM 设置
   # default_llm: "gemini_2_5_pro"
-  # default_llm: "qwen_2_5_235b_a22b"
-  default_llm: "qwen_72b"
+  default_llm: "qwen_2_5_235b_a22b"
+  # default_llm: "qwen_72b"
 
   # 任务规划器
   task_planner:

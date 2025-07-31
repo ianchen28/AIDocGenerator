@@ -582,7 +582,6 @@ def writer_node(state: ResearchState,
     if style_guide_content and style_guide_content.strip():
         # 格式化样式指南内容
         formatted_style_guide = f"""
-**样式指南示例:**
 {style_guide_content}
 
 """

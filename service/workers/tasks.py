@@ -51,12 +51,16 @@ async def get_redis_client() -> redis.Redis:
 
 
 @celery_app.task
-def generate_outline_task(job_id: str) -> str:
+def generate_outline_from_query_task(job_id: str,
+                                     task_prompt: str,
+                                     context_files: dict = None) -> str:
     """
-    生成大纲的异步任务
+    从查询生成大纲的异步任务
 
     Args:
         job_id: 作业ID
+        task_prompt: 用户的核心指令
+        context_files: 上下文文件列表（可选）
 
     Returns:
         任务状态
@@ -65,328 +69,230 @@ def generate_outline_task(job_id: str) -> str:
 
     try:
         # 使用同步方式运行异步函数
-        return asyncio.run(_generate_outline_task_async(job_id))
+        return asyncio.run(
+            _generate_outline_from_query_task_async(job_id, task_prompt,
+                                                    context_files))
     except Exception as e:
         logger.error(f"大纲生成任务失败: {e}")
         return "FAILED"
 
 
-async def _generate_outline_task_async(job_id: str) -> str:
+async def _generate_outline_from_query_task_async(job_id: str,
+                                                  task_prompt: str,
+                                                  context_files: dict = None
+                                                  ) -> str:
     """异步大纲生成任务的内部实现"""
     try:
-        # 获取Redis客户端
+        # 获取Redis客户端和发布器
         redis = await get_redis_client()
+        from core.redis_stream_publisher import RedisStreamPublisher
+        publisher = RedisStreamPublisher(redis)
 
-        # 获取作业信息
-        job_data = await redis.hgetall(f"job:{job_id}")
-        if not job_data:
-            logger.error(f"Job {job_id}: 作业不存在")
-            return "FAILED"
-
-        task_prompt = job_data.get("task_prompt", "")
-        if not task_prompt:
-            logger.error(f"Job {job_id}: 缺少任务提示")
-            return "FAILED"
-
-        # 更新大纲状态为生成中
-        await redis.hset(f"job:{job_id}:outline",
-                         mapping={
-                             "outline_status": "GENERATING",
-                             "started_at": str(asyncio.get_event_loop().time())
-                         })
+        # 发布任务开始事件
+        await publisher.publish_task_started(job_id=job_id,
+                                             task_type="outline_generation",
+                                             task_prompt=task_prompt)
 
         logger.info(f"Job {job_id}: 开始生成大纲，主题: '{task_prompt[:50]}...'")
 
-        # 模拟大纲生成过程 - 稍后将替换为实际的graph执行
-        logger.debug(f"Job {job_id}: 正在生成大纲...")
-        await asyncio.sleep(8)  # 模拟大纲生成耗时
+        # TODO: 调用新的"从 Query 到大纲"的 LangGraph 图
+        # 这里将替换为实际的图执行逻辑
+        # outline_graph = get_outline_generation_graph()
+        # result = await outline_graph.ainvoke({
+        #     "task_prompt": task_prompt,
+        #     "context_files": context_files
+        # })
 
-        # 创建模拟大纲数据（基于任务提示）
-        mock_outline = {
+        # 模拟大纲生成过程
+        await asyncio.sleep(3)  # 模拟处理时间
+
+        # 发布进度事件
+        await publisher.publish_task_progress(job_id=job_id,
+                                              task_type="outline_generation",
+                                              progress="正在分析用户需求",
+                                              step="analysis")
+
+        await asyncio.sleep(2)
+
+        await publisher.publish_task_progress(job_id=job_id,
+                                              task_type="outline_generation",
+                                              progress="正在搜索相关信息",
+                                              step="search")
+
+        await asyncio.sleep(2)
+
+        await publisher.publish_task_progress(job_id=job_id,
+                                              task_type="outline_generation",
+                                              progress="正在生成大纲结构",
+                                              step="structure")
+
+        # 生成示例大纲
+        outline_result = {
             "title":
-            f"关于'{task_prompt[:30]}...'的文档",
+            f"基于'{task_prompt}'的技术文档",
             "nodes": [{
                 "id": "node_1",
-                "title": "概述与背景",
-                "content_summary": f"介绍{task_prompt[:20]}的基本概念和重要性",
-                "children": []
+                "title": "引言",
+                "content_summary": f"介绍{task_prompt}的基本概念和背景"
             }, {
                 "id": "node_2",
-                "title": "核心内容分析",
-                "content_summary": f"深入分析{task_prompt[:20]}的关键要素",
-                "children": []
+                "title": "技术原理",
+                "content_summary": f"详细解释{task_prompt}的核心原理"
             }, {
                 "id": "node_3",
-                "title": "应用与实践",
-                "content_summary": f"探讨{task_prompt[:20]}的实际应用场景",
-                "children": []
+                "title": "应用场景",
+                "content_summary": f"展示{task_prompt}的实际应用案例"
             }]
         }
 
-        # 更新大纲状态为完成，并存储大纲数据
-        await redis.hset(f"job:{job_id}:outline",
-                         mapping={
-                             "outline_status":
-                             "READY",
-                             "outline_data":
-                             json.dumps(mock_outline, ensure_ascii=False),
-                             "completed_at":
-                             str(asyncio.get_event_loop().time())
-                         })
+        # 发布大纲生成完成事件
+        await publisher.publish_outline_generated(job_id, outline_result)
+
+        # 保存大纲结果到Redis
+        outline_json = json.dumps(outline_result, ensure_ascii=False)
+        await redis.set(f"job_result:{job_id}", outline_json, ex=3600)  # 1小时过期
+
+        # 发布任务完成事件
+        await publisher.publish_task_completed(
+            job_id=job_id,
+            task_type="outline_generation",
+            result={"outline": outline_result},
+            duration="7s")
 
         logger.info(f"Job {job_id}: 大纲生成完成")
+
         return "COMPLETED"
 
     except Exception as e:
-        logger.error(f"Job {job_id}: 大纲生成失败 - {e}")
+        logger.error(f"Job {job_id}: 大纲生成失败: {e}")
 
-        # 更新大纲状态为失败
+        # 发布任务失败事件
         try:
-            redis = await get_redis_client()
-            await redis.hset(f"job:{job_id}:outline",
-                             mapping={
-                                 "outline_status": "FAILED",
-                                 "error": str(e),
-                                 "failed_at":
-                                 str(asyncio.get_event_loop().time())
-                             })
-        except Exception as redis_error:
-            logger.error(f"无法更新Redis中的失败状态: {redis_error}")
+            await publisher.publish_task_failed(job_id=job_id,
+                                                task_type="outline_generation",
+                                                error=str(e))
+        except Exception as publish_error:
+            logger.error(f"发布失败事件时出错: {publish_error}")
 
         return "FAILED"
 
 
 @celery_app.task
-def run_main_workflow(job_id: str, topic: str, genre: str = "default") -> str:
+def generate_document_from_outline_task(job_id: str, outline: dict) -> str:
     """
-    主要的异步工作流函数
-    使用真实的图执行器和Redis回调处理器
+    从大纲生成文档的异步任务
 
     Args:
-        job_id: 任务ID
-        topic: 文档主题
-        genre: 文档类型，用于选择相应的prompt策略
+        job_id: 作业ID
+        outline: 结构化的大纲对象
 
     Returns:
         任务状态
     """
-    logger.info(f"主工作流开始 - Job ID: {job_id}, Topic: {topic}, Genre: {genre}")
+    logger.info(f"文档生成任务开始 - Job ID: {job_id}")
 
     try:
         # 使用同步方式运行异步函数
-        return asyncio.run(_run_main_workflow_async(job_id, topic, genre))
+        return asyncio.run(
+            _generate_document_from_outline_task_async(job_id, outline))
     except Exception as e:
-        logger.error(f"主工作流任务失败: {e}")
+        logger.error(f"文档生成任务失败: {e}")
         return "FAILED"
 
 
-async def _run_main_workflow_async(job_id: str,
-                                   topic: str,
-                                   genre: str = "default") -> str:
-    """异步主工作流任务的内部实现"""
+async def _generate_document_from_outline_task_async(job_id: str,
+                                                     outline: dict) -> str:
+    """异步文档生成任务的内部实现"""
     try:
-        # 获取Redis客户端
+        # 获取Redis客户端和发布器
         redis = await get_redis_client()
+        from core.redis_stream_publisher import RedisStreamPublisher
+        publisher = RedisStreamPublisher(redis)
 
-        # 更新任务状态为进行中
-        await redis.hset(f"job:{job_id}",
-                         mapping={
-                             "status": "processing",
-                             "topic": topic,
-                             "genre": genre,
-                             "started_at": str(asyncio.get_event_loop().time())
-                         })
+        # 发布任务开始事件
+        await publisher.publish_task_started(job_id=job_id,
+                                             task_type="document_generation",
+                                             outline_title=outline.get(
+                                                 "title", "未知标题"))
 
-        # 1. 获取带有Redis回调处理器的图执行器
-        logger.info(f"Job {job_id}: 获取图执行器...")
-        container = get_container()
-        runnable = container.get_graph_runnable_for_job(job_id, genre)
+        logger.info(
+            f"Job {job_id}: 开始生成文档，大纲标题: '{outline.get('title', '未知标题')}'")
 
-        # 2. 从Redis获取初始状态数据
-        logger.info(f"Job {job_id}: 获取初始状态数据...")
+        # TODO: 调用新的"从大纲到文档"的 LangGraph 图
+        # 这里将替换为实际的图执行逻辑
+        # document_graph = get_document_generation_graph()
+        # result = await document_graph.ainvoke({
+        #     "outline": outline
+        # })
 
-        # 获取作业基本信息
-        job_data = await redis.hgetall(f"job:{job_id}")
-        if not job_data:
-            logger.error(f"Job {job_id}: 作业数据不存在")
-            return "FAILED"
+        # 模拟文档生成过程
+        await asyncio.sleep(3)  # 模拟处理时间
 
-        # 检查是否存在 context_id
-        context_id = job_data.get("context_id")
-        style_guide_content = None
-        requirements_content = None
+        # 发布进度事件
+        await publisher.publish_task_progress(job_id=job_id,
+                                              task_type="document_generation",
+                                              progress="正在分析大纲结构",
+                                              step="analysis")
 
-        if context_id:
-            logger.info(f"Job {job_id}: 找到 context_id: {context_id}")
+        await asyncio.sleep(2)
 
-            # 获取上下文数据
-            context_key = f"context:{context_id}"
-            context_data = await redis.hgetall(context_key)
+        await publisher.publish_task_progress(job_id=job_id,
+                                              task_type="document_generation",
+                                              progress="正在生成章节内容",
+                                              step="content_generation")
 
-            if context_data:
-                # 获取样式指南内容
-                style_guide_content = context_data.get("style_guide_content")
-                if style_guide_content:
-                    logger.info(
-                        f"Job {job_id}: 找到样式指南内容，长度: {len(style_guide_content)} 字符"
-                    )
-                else:
-                    logger.info(f"Job {job_id}: 未找到样式指南内容")
+        await asyncio.sleep(2)
 
-                # 获取需求文档内容
-                requirements_content = context_data.get("requirements_content")
-                if requirements_content:
-                    logger.info(
-                        f"Job {job_id}: 找到需求文档内容，长度: {len(requirements_content)} 字符"
-                    )
-                else:
-                    logger.info(f"Job {job_id}: 未找到需求文档内容")
-            else:
-                logger.warning(f"Job {job_id}: context_id 存在但未找到对应的上下文数据")
-        else:
-            logger.info(f"Job {job_id}: 未找到 context_id，将使用默认设置")
+        await publisher.publish_task_progress(job_id=job_id,
+                                              task_type="document_generation",
+                                              progress="正在添加引用和链接",
+                                              step="citations")
 
-        # 获取大纲数据（如果存在）
-        outline_data = await redis.hgetall(f"job:{job_id}:outline")
-        document_outline = None
+        await asyncio.sleep(2)
 
-        if outline_data and outline_data.get("outline_data"):
-            try:
-                outline_json = outline_data.get("outline_data")
-                document_outline = json.loads(outline_json)
-                logger.info(
-                    f"Job {job_id}: 找到现有大纲，包含 {len(document_outline.get('nodes', []))} 个节点"
-                )
-            except json.JSONDecodeError as e:
-                logger.warning(f"Job {job_id}: 大纲数据解析失败，将重新生成: {e}")
-                document_outline = None
+        await publisher.publish_task_progress(job_id=job_id,
+                                              task_type="document_generation",
+                                              progress="正在格式化和优化",
+                                              step="formatting")
 
-        # 3. 构建初始状态
-        initial_state = {
-            "topic": topic,
-            "style_guide_content": style_guide_content,  # 新增：样式指南内容
-            "requirements_content": requirements_content,  # 新增：需求文档内容
-            "messages": [],
-            "initial_sources": [],  # 将在图执行中填充
-            "initial_gathered_data": "",  # 保持向后兼容
-            "document_outline": document_outline or {},  # 使用现有大纲或空字典
-            "chapters_to_process": [],  # 将在图执行中填充
-            "current_chapter_index": 0,
-            "completed_chapters_content": [],
-            "final_document": "",
-            "research_plan": "",
-            "search_queries": [],
-            "gathered_sources": [],  # 将在图执行中填充
-            "gathered_data": ""  # 保持向后兼容
+        # 生成示例文档
+        document_result = {
+            "title": outline.get("title", "技术文档"),
+            "content": f"这是基于大纲 '{outline.get('title')}' 生成的完整文档内容...",
+            "word_count": 2500,
+            "char_count": 15000,
+            "sections": len(outline.get("nodes", [])),
+            "generated_at": str(asyncio.get_event_loop().time())
         }
 
-        logger.info(f"Job {job_id}: 初始状态构建完成")
-        logger.debug(
-            f"Job {job_id}: 初始状态 - Topic: {topic}, 有大纲: {bool(document_outline)}"
-        )
+        # 发布文档生成完成事件
+        await publisher.publish_document_generated(job_id, document_result)
 
-        # 4. 执行图工作流
-        logger.info(f"Job {job_id}: 开始执行主工作流图...")
+        # 保存文档结果到Redis
+        document_json = json.dumps(document_result, ensure_ascii=False)
+        await redis.set(f"job_result:{job_id}", document_json,
+                        ex=3600)  # 1小时过期
 
-        # 发布开始事件
-        await redis.publish(
-            f"job:{job_id}:events",
-            json.dumps(
-                {
-                    "event": "phase_update",
-                    "data": {
-                        "phase": "WORKFLOW_START",
-                        "message": "开始执行主文档生成工作流...",
-                        "job_id": job_id
-                    },
-                    "timestamp": str(asyncio.get_event_loop().time())
-                },
-                ensure_ascii=False))
+        # 发布任务完成事件
+        await publisher.publish_task_completed(
+            job_id=job_id,
+            task_type="document_generation",
+            result={"document": document_result},
+            duration="9s")
 
-        # 执行图
-        result = await runnable.ainvoke(initial_state)
+        logger.info(f"Job {job_id}: 文档生成完成")
 
-        # 5. 处理执行结果
-        logger.info(f"Job {job_id}: 图执行完成")
-
-        # 提取最终文档
-        final_document = result.get("final_document", "")
-        if final_document:
-            # 存储最终文档到Redis
-            await redis.hset(f"job:{job_id}:document",
-                             mapping={
-                                 "content": final_document,
-                                 "created_at":
-                                 str(asyncio.get_event_loop().time()),
-                                 "word_count": len(final_document.split()),
-                                 "char_count": len(final_document)
-                             })
-            logger.info(f"Job {job_id}: 最终文档已保存，字符数: {len(final_document)}")
-
-        # 发布完成事件
-        await redis.publish(
-            f"job:{job_id}:events",
-            json.dumps(
-                {
-                    "event": "done",
-                    "data": {
-                        "task": "main_workflow",
-                        "message": "主工作流执行完成",
-                        "job_id": job_id,
-                        "document_length": len(final_document)
-                    },
-                    "timestamp": str(asyncio.get_event_loop().time())
-                },
-                ensure_ascii=False))
-
-        # 更新任务状态为完成
-        await redis.hset(f"job:{job_id}",
-                         mapping={
-                             "status": "completed",
-                             "final_document_length": len(final_document),
-                             "completed_at":
-                             str(asyncio.get_event_loop().time())
-                         })
-
-        logger.info(f"Job {job_id}: 主工作流完成，文档长度: {len(final_document)} 字符")
         return "COMPLETED"
 
     except Exception as e:
-        logger.error(f"Job {job_id}: 主工作流执行失败 - {e}")
-        logger.exception("详细错误信息:")
+        logger.error(f"Job {job_id}: 文档生成失败: {e}")
 
-        # 发布错误事件
+        # 发布任务失败事件
         try:
-            redis = await get_redis_client()
-            await redis.publish(
-                f"job:{job_id}:events",
-                json.dumps(
-                    {
-                        "event": "error",
-                        "data": {
-                            "code": 5003,
-                            "message": f"主工作流执行失败: {str(e)[:200]}",
-                            "error_type": type(e).__name__,
-                            "job_id": job_id
-                        },
-                        "timestamp": str(asyncio.get_event_loop().time())
-                    },
-                    ensure_ascii=False))
-        except Exception as event_error:
-            logger.error(f"发布错误事件失败: {event_error}")
-
-        # 更新任务状态为失败
-        try:
-            redis = await get_redis_client()
-            await redis.hset(f"job:{job_id}",
-                             mapping={
-                                 "status": "failed",
-                                 "error": str(e),
-                                 "failed_at":
-                                 str(asyncio.get_event_loop().time())
-                             })
-        except Exception as redis_error:
-            logger.error(f"无法更新Redis中的失败状态: {redis_error}")
+            await publisher.publish_task_failed(
+                job_id=job_id, task_type="document_generation", error=str(e))
+        except Exception as publish_error:
+            logger.error(f"发布失败事件时出错: {publish_error}")
 
         return "FAILED"
 
