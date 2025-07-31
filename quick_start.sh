@@ -1,0 +1,1 @@
+nohup ./start_dev_server_alt_port.sh > output.log 2>&1 &
