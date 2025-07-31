@@ -43,6 +43,7 @@ try:
         get_reranker_tool,
         get_web_search_tool,
     )
+    from doc_agent.tools.ai_editing_tool import AIEditingTool
 except ImportError as e:
     print(f"❌ 导入 doc_agent 模块失败: {e}")
     print(f"当前 Python 路径: {sys.path[:3]}")
@@ -132,6 +133,10 @@ class Container:
 
         # 使用加载的 genre 策略初始化 PromptSelector
         self.prompt_selector = PromptSelector(self.genre_strategies)
+
+        # 初始化 AI 编辑工具
+        self.ai_editing_tool = AIEditingTool(
+            llm_client=self.llm_client, prompt_selector=self.prompt_selector)
 
         print("   - LLM Client, Tools and PromptSelector are ready.")
 

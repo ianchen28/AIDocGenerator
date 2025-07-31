@@ -114,3 +114,20 @@ class TaskResultResponse(BaseModel):
     status: Literal["COMPLETED"]
     document_url: str  # 指向最终文档的链接或直接包含内容
     # document_content: str
+
+
+# --- AI Editing Models ---
+class EditActionRequest(BaseModel):
+    """AI 编辑请求模型"""
+    action: Literal["polish", "expand", "summarize",
+                    "custom"] = Field(..., description="编辑操作类型：润色、扩写、缩写或自定义命令")
+    text: str = Field(..., description="要编辑的文本内容")
+    command: Optional[str] = Field(None,
+                                   description="当 action 为 'custom' 时，此字段为必填项")
+
+
+class EditActionResponse(BaseModel):
+    """AI 编辑响应模型"""
+    original_text: str = Field(..., description="原始文本")
+    edited_text: str = Field(..., description="编辑后的文本")
+    action: str = Field(..., description="执行的编辑操作")

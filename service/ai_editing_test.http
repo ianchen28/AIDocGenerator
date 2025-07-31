@@ -1,0 +1,77 @@
+### AI 编辑 API 测试文件
+### 使用 VS Code REST Client 插件或 curl 命令测试
+
+### 1. 健康检查
+GET http://localhost:8000/health
+
+### 2. 润色文本测试
+POST http://localhost:8000/api/v1/actions/edit
+Content-Type: application/json
+
+{
+  "action": "polish",
+  "text": "这个文档写得不太好，有很多语法错误和表达不清的地方。"
+}
+
+### 3. 扩写文本测试
+POST http://localhost:8000/api/v1/actions/edit
+Content-Type: application/json
+
+{
+  "action": "expand",
+  "text": "人工智能在医疗领域的应用越来越广泛。"
+}
+
+### 4. 缩写文本测试
+POST http://localhost:8000/api/v1/actions/edit
+Content-Type: application/json
+
+{
+  "action": "summarize",
+  "text": "人工智能（AI）是计算机科学的一个分支，它致力于创建能够执行通常需要人类智能的任务的系统。这些任务包括学习、推理、问题解决、感知和语言理解。AI 技术已经在各个领域得到广泛应用，包括医疗诊断、自动驾驶汽车、语音识别、自然语言处理和机器人技术。机器学习是 AI 的一个重要子领域，它使计算机能够在没有明确编程的情况下学习和改进。深度学习是机器学习的一个分支，使用神经网络来模拟人脑的工作方式。"
+}
+
+### 5. 测试无效操作（应该返回 400 错误）
+POST http://localhost:8000/api/v1/actions/edit
+Content-Type: application/json
+
+{
+  "action": "invalid_action",
+  "text": "测试文本"
+}
+
+### 6. 测试空文本（应该返回 400 错误）
+POST http://localhost:8000/api/v1/actions/edit
+Content-Type: application/json
+
+{
+  "action": "polish",
+  "text": ""
+}
+
+### 7. 测试长文本润色
+POST http://localhost:8000/api/v1/actions/edit
+Content-Type: application/json
+
+{
+  "action": "polish",
+  "text": "在当今快速发展的技术环境中，企业面临着前所未有的挑战和机遇。数字化转型已成为企业生存和发展的关键因素。然而，许多企业在实施数字化转型过程中遇到了各种困难，包括技术选型、组织变革、人才培养等方面的挑战。企业需要制定清晰的数字化战略，建立敏捷的组织架构，培养数字化人才，才能成功实现数字化转型。"
+}
+
+### 8. 测试技术文档扩写
+POST http://localhost:8000/api/v1/actions/edit
+Content-Type: application/json
+
+{
+  "action": "expand",
+  "text": "微服务架构是一种软件架构模式，它将应用程序构建为一组小型、独立的服务。"
+}
+
+### 9. 测试学术论文缩写
+POST http://localhost:8000/api/v1/actions/edit
+Content-Type: application/json
+
+{
+  "action": "summarize",
+  "text": "本研究探讨了深度学习在自然语言处理领域的应用。通过分析 Transformer 架构的发展历程，我们回顾了从 BERT 到 GPT 系列模型的演进过程。研究表明，预训练语言模型在多个 NLP 任务上取得了突破性进展，包括文本分类、命名实体识别、机器翻译等。然而，这些模型也面临着计算资源消耗大、可解释性差、偏见问题等挑战。未来的研究方向包括模型压缩、知识蒸馏、多模态融合等。本研究为后续的 NLP 研究提供了重要的理论基础和实践指导。"
+} 

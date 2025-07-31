@@ -1,0 +1,22 @@
+{
+  "test_1": {
+    "original_text": "这个项目做得不错，但是还有一些问题需要解决。",
+    "edited_text": "本项目表现出色，然而仍存在若干需解决的问题。",
+    "action": "custom"
+  },
+  "test_2": {
+    "original_text": "本产品具有优异的性能和可靠的质量保证。",
+    "edited_text": "这产品性能很棒，质量也很可靠。",
+    "action": "custom"
+  },
+  "test_3": {
+    "original_text": "人工智能技术正在改变我们的生活方式。",
+    "edited_text": "Artificial intelligence technology is transforming our way of life.",
+    "action": "custom"
+  },
+  "test_4": {
+    "original_text": "春天来了，万物复苏。",
+    "edited_text": "春风吹过，万物苏醒，\n绿意盎然，生机勃勃。",
+    "action": "custom"
+  }
+}

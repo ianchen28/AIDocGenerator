@@ -3,7 +3,7 @@ import json
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
@@ -12,6 +12,8 @@ from src.doc_agent.schemas import (
     ContextStatusResponse,
     CreateContextRequest,
     CreateJobRequest,
+    EditActionRequest,
+    EditActionResponse,
     JobResponse,
     Outline,
     OutlineResponse,
@@ -21,6 +23,9 @@ from src.doc_agent.schemas import (
 
 # 导入Redis客户端和worker任务
 from workers.tasks import generate_outline_task, get_redis_client, run_main_workflow
+
+# 导入AI编辑工具
+from src.doc_agent.tools.ai_editing_tool import AIEditingTool
 
 # 创建API路由器实例
 router = APIRouter()
@@ -480,3 +485,55 @@ async def health_check():
     """健康检查端点"""
     logger.info("健康检查端点被调用")
     return {"status": "healthy", "message": "API服务运行正常"}
+
+
+# AI 编辑工具依赖注入函数
+def get_ai_editing_tool():
+    """
+    获取 AI 编辑工具实例
+    从依赖注入容器中获取 AIEditingTool 实例
+    """
+    # 从容器中获取 AIEditingTool 实例
+    from core.container import Container
+
+    # 获取容器实例（这里假设是单例模式）
+    container = Container()
+    return container.ai_editing_tool
+
+
+@router.post("/actions/edit",
+             response_model=EditActionResponse,
+             status_code=status.HTTP_200_OK)
+def edit_text(request: EditActionRequest,
+              tool: AIEditingTool = Depends(get_ai_editing_tool)):
+    """
+    AI 文本编辑端点
+    
+    支持以下编辑操作：
+    - polish: 润色文本，提升清晰度和风格
+    - expand: 扩写文本，增加更多细节和深度
+    - summarize: 缩写文本，提取关键要点
+    """
+    logger.info(f"收到文本编辑请求，操作类型: {request.action}")
+
+    try:
+        # 调用 AI 编辑工具
+        edited_text = tool.run(action=request.action,
+                               text=request.text,
+                               command=request.command)
+
+        logger.info(f"文本编辑完成，操作: {request.action}")
+
+        # 返回编辑结果
+        return EditActionResponse(original_text=request.text,
+                                  edited_text=edited_text,
+                                  action=request.action)
+
+    except ValueError as e:
+        logger.error(f"文本编辑参数错误: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=str(e))
+    except Exception as e:
+        logger.error(f"文本编辑失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"文本编辑失败: {str(e)}")

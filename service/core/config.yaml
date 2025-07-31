@@ -218,7 +218,8 @@ document_generation:
 agent_config:
   # 默认 LLM 设置
   # default_llm: "gemini_2_5_pro"
-  default_llm: "qwen_2_5_235b_a22b"
+  # default_llm: "qwen_2_5_235b_a22b"
+  default_llm: "qwen_72b"
 
   # 任务规划器
   task_planner:
@@ -370,3 +371,7 @@ search_config:
   # 每个查询返回的结果数量
   max_results_per_query: 3  # 简化测试模式：每个查询最多3个结果
   # max_results_per_query: 5  # 正常模式：每个查询最多5个结果
+
+# 其他配置
+log_dir: "logs"
+output_dir: "output"
