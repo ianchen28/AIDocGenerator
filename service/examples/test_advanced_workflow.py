@@ -1,28 +1,23 @@
 # service/examples/test_advanced_workflow.py
 
-import sys
-import os
 import asyncio
-import pprint
-import uuid
 import json
-import time
+import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
+
 from loguru import logger
 
-# --- 路径设置 ---
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+from doc_agent.core.config import settings
 
 # --- 导入核心组件 ---
-from service.core.container import container
-from service.src.doc_agent.graph.state import ResearchState
-from service.core.logging_config import setup_logging
-from service.core.config import settings
-from service.workers.tasks import get_redis_client  # 我们需要 Redis 客户端来模拟 Worker 的行为
+from doc_agent.core.container import container
+from doc_agent.core.logging_config import setup_logging
+from doc_agent.graph.state import ResearchState
+from doc_agent.workers.tasks import (
+    get_redis_client,  # 我们需要 Redis 客户端来模拟 Worker 的行为
+)
 
 # --- 创建输出目录 ---
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -141,7 +136,7 @@ def verify_config():
 
     # 获取文档配置（使用快速模式）
     doc_config = settings.get_document_config(fast_mode=True)
-    logger.info(f"   - 快速模式配置:")
+    logger.info("   - 快速模式配置:")
     logger.info(
         f"     * chapter_count: {doc_config.get('chapter_count', 'N/A')}")
     logger.info(
@@ -248,7 +243,7 @@ async def main():
     context_from_redis = await load_context_for_state(test_context_id)
 
     # 添加调试信息
-    logger.info(f"🔍 从 Redis 加载的上下文数据:")
+    logger.info("🔍 从 Redis 加载的上下文数据:")
     logger.info(
         f"   - style_guide_content 长度: {len(context_from_redis['style_guide_content'])}"
     )
@@ -276,7 +271,7 @@ async def main():
     )
 
     # 验证初始状态
-    logger.info(f"🔍 初始状态验证:")
+    logger.info("🔍 初始状态验证:")
     logger.info(
         f"   - requirements_content 在状态中: {'requirements_content' in initial_state}"
     )
@@ -417,7 +412,7 @@ async def main():
             logger.info(f"📊 Final state saved to: {result_file}")
 
     # 分析工作流执行情况
-    print(f"\n📊 Advanced Workflow Analysis:")
+    print("\n📊 Advanced Workflow Analysis:")
     research_steps = [
         step for step in workflow_steps if "researcher" in step["node_name"]
     ]
@@ -432,7 +427,7 @@ async def main():
     # 分析引用系统
     if final_result and "final_document" in final_result:
         if "## 参考文献" in final_result["final_document"]:
-            print(f"   📚 Bibliography: ✅ Added")
+            print("   📚 Bibliography: ✅ Added")
 
             # 统计参考文献数量和引用编号
             import re
@@ -441,14 +436,14 @@ async def main():
             if bib_start != -1:
                 bibliography = doc[bib_start:]
                 citations = re.findall(r'\[(\d+)\]', bibliography)
-                unique_citations = sorted(set(int(c) for c in citations))
+                unique_citations = sorted({int(c) for c in citations})
                 print(f"   📖 Bibliography entries: {len(unique_citations)}")
                 print(f"   🔢 Citation numbers: {unique_citations}")
         else:
-            print(f"   📚 Bibliography: ❌ Missing")
+            print("   📚 Bibliography: ❌ Missing")
 
     # 显示文件位置
-    print(f"\n📁 Output files:")
+    print("\n📁 Output files:")
     print(f"   📝 Log: {log_file}")
     print(f"   📊 Steps: {steps_file}")
     if final_result and "final_document" in final_result:

@@ -3,28 +3,9 @@
 Celery 应用程序配置
 """
 
-import sys
-from pathlib import Path
-
-# 添加项目根目录到 Python 路径
-current_file = Path(__file__)
-service_dir = current_file.parent.parent
-root_dir = service_dir.parent  # AIDocGenerator 根目录
-
-# 添加 service 目录到 Python 路径
-if str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
-
-# 添加根目录到 Python 路径（用于从根目录运行）
-if str(root_dir) not in sys.path:
-    sys.path.insert(0, str(root_dir))
-
 from celery import Celery
 
-from core.config import AppSettings
-
-# 获取配置
-settings = AppSettings()
+from doc_agent.core.config import settings
 
 # 创建 Celery 实例
 celery_app = Celery('workers')
@@ -49,15 +30,12 @@ celery_app.config_from_object({
     'task_default_routing_key': 'default',
 })
 
-# 自动发现任务 - 支持从根目录和 service 目录运行
-celery_app.autodiscover_tasks(['service.workers', 'workers'])
+# 自动发现任务
+celery_app.autodiscover_tasks(['workers'])
 
-# 可选：配置任务路由 - 支持从根目录和 service 目录运行
+# 可选：配置任务路由
 celery_app.conf.task_routes = {
     'workers.tasks.*': {
-        'queue': 'default'
-    },
-    'service.workers.tasks.*': {
         'queue': 'default'
     },
 }

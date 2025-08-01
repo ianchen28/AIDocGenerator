@@ -1,0 +1,26 @@
+# 包含配置文件
+include *.yaml
+include *.yml
+include *.json
+include *.toml
+
+# 包含文档
+include README.md
+include LICENSE
+
+# 包含配置文件目录
+recursive-include doc_agent *.yaml
+recursive-include doc_agent *.yml
+recursive-include doc_agent *.json
+
+# 包含核心配置
+include core/*.yaml
+include core/*.yml
+include core/*.json
+
+# 排除不需要的文件
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude .DS_Store
+global-exclude *.log 

@@ -1,9 +1,7 @@
 import subprocess
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from src.doc_agent.tools.code_execute import CodeExecuteTool
+from doc_agent.tools.code_execute import CodeExecuteTool
 
 
 class TestCodeExecuteTool:

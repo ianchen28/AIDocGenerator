@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from src.doc_agent.llm_clients.providers import (
+from doc_agent.llm_clients.providers import (
     DeepSeekClient,
     GeminiClient,
     InternalLLMClient,

@@ -1,6 +1,5 @@
 import asyncio
 import json
-from typing import Optional
 
 import redis.asyncio as redis
 from loguru import logger
@@ -12,23 +11,8 @@ from .celery_app import celery_app
 # 延迟导入container以避免循环导入
 def get_container():
     """延迟导入container以避免循环导入"""
-    try:
-        # 尝试相对导入
-        from ..core.container import container
-        return container
-    except ImportError:
-        # 如果相对导入失败，尝试绝对导入
-        import sys
-        from pathlib import Path
-
-        # 添加项目根目录到Python路径
-        current_file = Path(__file__)
-        service_dir = current_file.parent.parent
-        if str(service_dir) not in sys.path:
-            sys.path.insert(0, str(service_dir))
-
-        from core.container import container
-        return container
+    from doc_agent.core.container import container
+    return container
 
 
 # Redis连接现在每次都创建新的，避免连接超时问题

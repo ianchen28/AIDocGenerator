@@ -1,42 +1,23 @@
 # service/src/doc_agent/graph/chapter_workflow/nodes.py
 import pprint
-import sys
 import re
-from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
-# 添加项目根目录到Python路径
-current_file = Path(__file__)
-service_dir = None
-for parent in current_file.parents:
-    if parent.name == 'service':
-        service_dir = parent
-        break
-
-if service_dir and str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
-
-# 添加src目录到Python路径
-if service_dir:
-    src_dir = service_dir / "src"
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
+from doc_agent.common import parse_planner_response
+from doc_agent.common.prompt_selector import PromptSelector
 
 # 导入项目内部模块
-from core.config import settings
-
-from ...common import parse_planner_response
-from ...common.prompt_selector import PromptSelector
-from ...llm_clients.base import LLMClient
-from ...llm_clients.providers import EmbeddingClient
-from ...tools.es_search import ESSearchTool
-from ...tools.reranker import RerankerTool
-from ...tools.web_search import WebSearchTool
-from ...utils.search_utils import search_and_rerank
-from ..state import ResearchState
-from ...schemas import Source
+from doc_agent.core.config import settings
+from doc_agent.graph.state import ResearchState
+from doc_agent.llm_clients.base import LLMClient
+from doc_agent.llm_clients.providers import EmbeddingClient
+from doc_agent.schemas import Source
+from doc_agent.tools.es_search import ESSearchTool
+from doc_agent.tools.reranker import RerankerTool
+from doc_agent.tools.web_search import WebSearchTool
+from doc_agent.utils.search_utils import search_and_rerank
 
 
 def planner_node(state: ResearchState,
@@ -88,7 +69,7 @@ def planner_node(state: ResearchState,
         logger.error(f"❌ 获取 planner prompt 模板失败: {e}")
         # 使用 prompts/planner.py 中的备用模板
         try:
-            from ...prompts.planner import PROMPTS
+            from doc_agent.prompts.planner import PROMPTS
             prompt_template = PROMPTS.get("v1_fallback", PROMPTS["v1_default"])
             logger.debug("✅ 成功获取 planner 备用模板")
         except Exception as e2:
@@ -464,7 +445,7 @@ def writer_node(state: ResearchState,
                     earlier_summaries.append(summary)
 
             if earlier_summaries:
-                context_for_writing += f"**Context from earlier chapters (Summaries):**\n" + "\n\n".join(
+                context_for_writing += "**Context from earlier chapters (Summaries):**\n" + "\n\n".join(
                     earlier_summaries)
                 logger.info(f"📚 添加 {len(earlier_summaries)} 个早期章节摘要到上下文")
 
@@ -522,13 +503,13 @@ def writer_node(state: ResearchState,
     # 使用 PromptSelector 获取 prompt 模板
     try:
         # 根据指定的 prompt_version 获取模板
-        from ...prompts.writer import PROMPTS
+        from doc_agent.prompts.writer import PROMPTS
 
         # 如果有样式指南，优先使用 v4_with_style_guide 版本
         if style_guide_content and style_guide_content.strip():
             if "v4_with_style_guide" in PROMPTS:
                 prompt_template = PROMPTS["v4_with_style_guide"]
-                logger.info(f"✅ 使用 v4_with_style_guide 版本，检测到样式指南")
+                logger.info("✅ 使用 v4_with_style_guide 版本，检测到样式指南")
             else:
                 # 如果没有 v4 版本，回退到指定版本
                 prompt_template = PROMPTS.get(prompt_version,
@@ -542,10 +523,10 @@ def writer_node(state: ResearchState,
                 logger.debug(f"✅ 成功获取 writer {prompt_version} prompt 模板")
             elif "v3_context_aware" in PROMPTS:
                 prompt_template = PROMPTS["v3_context_aware"]
-                logger.debug(f"✅ 回退到 writer v3_context_aware prompt 模板")
+                logger.debug("✅ 回退到 writer v3_context_aware prompt 模板")
             elif "v2_with_citations" in PROMPTS:
                 prompt_template = PROMPTS["v2_with_citations"]
-                logger.debug(f"✅ 回退到 writer v2_with_citations prompt 模板")
+                logger.debug("✅ 回退到 writer v2_with_citations prompt 模板")
             else:
                 raise KeyError(
                     f"指定的 prompt_version '{prompt_version}' 和备用版本都不存在")
@@ -560,7 +541,7 @@ def writer_node(state: ResearchState,
             logger.error(f"❌ 获取 writer prompt 模板失败: {e2}")
             # 使用 prompts/writer.py 中的简化备用模板
             try:
-                from ...prompts.writer import PROMPTS
+                from doc_agent.prompts.writer import PROMPTS
                 simple_prompt_template = PROMPTS.get("v2_fallback_simple",
                                                      PROMPTS["v1_simple"])
                 logger.debug("✅ 成功获取 writer 简化备用模板")
@@ -649,7 +630,7 @@ def writer_node(state: ResearchState,
         # 重新构建prompt - 优先使用支持引用的版本
         try:
             # 对于长 prompt 截断，优先使用支持引用的简化版本
-            from ...prompts.writer import PROMPTS
+            from doc_agent.prompts.writer import PROMPTS
             if "v2_simple_citations" in PROMPTS:
                 simple_prompt_template = PROMPTS["v2_simple_citations"]
                 logger.debug("✅ 成功获取 writer v2_simple_citations prompt 模板")
@@ -772,6 +753,11 @@ def writer_node(state: ResearchState,
             # 使用正则表达式替换所有引用标记
             sources_pattern = r'<sources>\[([^\]]*)\]</sources>'
             processed_text = re.sub(sources_pattern, _replace_sources_tag,
+                                    processed_text)
+
+            # 额外处理：移除任何剩余的引用占位符
+            processed_text = re.sub(r'\[引用需补充，暂为空\]', '', processed_text)
+            processed_text = re.sub(r'<sources>\[\]</sources>', '',
                                     processed_text)
 
             logger.info(f"✅ 引用处理完成，引用了 {len(cited_sources)} 个信息源")
@@ -899,7 +885,7 @@ async def reflection_node(state: ResearchState,
         logger.error(f"❌ 获取 reflection prompt 模板失败: {e}")
         # 使用 prompts/reflection.py 中的备用模板
         try:
-            from ...prompts.reflection import PROMPTS
+            from doc_agent.prompts.reflection import PROMPTS
             prompt_template = PROMPTS.get("v1_fallback", PROMPTS["v1_default"])
             logger.debug("✅ 成功获取 reflection 备用模板")
         except Exception as e2:

@@ -4,16 +4,7 @@ pytest配置文件
 提供可重用的测试夹具(fixtures)
 """
 
-import sys
-from pathlib import Path
-
 import pytest
-
-# 添加项目根目录到路径
-current_file = Path(__file__)
-service_dir = current_file.parent.parent
-if str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
 
 
 @pytest.fixture(scope="session")
@@ -23,7 +14,7 @@ def test_container():
     提供全局容器实例，包含所有已配置的依赖
     """
     try:
-        from core.container import container
+        from doc_agent.core.container import container
         yield container
     except ImportError as e:
         pytest.skip(f"Container导入失败，跳过测试: {e}")

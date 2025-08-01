@@ -11,24 +11,9 @@
 import asyncio
 import json
 import logging
-
-# 添加项目路径
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
-
-current_file = Path(__file__)
-service_dir = None
-for parent in current_file.parents:
-    if parent.name == 'service':
-        service_dir = parent
-        break
-
-if service_dir and str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
-
-from core.config import settings
 
 from .executor import AutomationExecutor, ExecutionStatus
 from .monitor import AlertLevel, AutomationMonitor
@@ -362,7 +347,7 @@ class AutomationManager:
         # 导入任务数据
         tasks_file = import_dir / "tasks.json"
         if tasks_file.exists():
-            with open(tasks_file, 'r', encoding='utf-8') as f:
+            with open(tasks_file, encoding='utf-8') as f:
                 tasks_data = json.load(f)
                 for task_data in tasks_data:
                     task = self.scheduler.AutomationTask.from_dict(task_data)
@@ -371,7 +356,7 @@ class AutomationManager:
         # 导入告警数据
         alerts_file = import_dir / "alerts.json"
         if alerts_file.exists():
-            with open(alerts_file, 'r', encoding='utf-8') as f:
+            with open(alerts_file, encoding='utf-8') as f:
                 alerts_data = json.load(f)
                 for alert_data in alerts_data:
                     alert = self.monitor.Alert(
@@ -391,7 +376,7 @@ class AutomationManager:
         # 导入性能指标数据
         metrics_file = import_dir / "metrics.json"
         if metrics_file.exists():
-            with open(metrics_file, 'r', encoding='utf-8') as f:
+            with open(metrics_file, encoding='utf-8') as f:
                 metrics_data = json.load(f)
                 for metric_data in metrics_data:
                     metric = self.monitor.PerformanceMetrics(
@@ -410,7 +395,7 @@ class AutomationManager:
         # 导入批量作业数据
         jobs_file = import_dir / "batch_jobs.json"
         if jobs_file.exists():
-            with open(jobs_file, 'r', encoding='utf-8') as f:
+            with open(jobs_file, encoding='utf-8') as f:
                 jobs_data = json.load(f)
                 for job_data in jobs_data:
                     job = self.executor.BatchJob.from_dict(job_data)

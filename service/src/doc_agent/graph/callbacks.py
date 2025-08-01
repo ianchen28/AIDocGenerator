@@ -5,7 +5,6 @@ Redis回调处理器
 """
 
 import asyncio
-import json
 from datetime import datetime
 from typing import Any, Optional, Union
 from uuid import UUID
@@ -16,20 +15,7 @@ from langchain_core.outputs import LLMResult
 from loguru import logger
 
 # 导入Redis Streams发布器
-try:
-    from ....core.redis_stream_publisher import RedisStreamPublisher
-except ImportError:
-    # 如果相对导入失败，尝试绝对导入
-    import sys
-    from pathlib import Path
-
-    # 添加项目根目录到Python路径
-    current_file = Path(__file__)
-    service_dir = current_file.parent.parent.parent.parent
-    if str(service_dir) not in sys.path:
-        sys.path.insert(0, str(service_dir))
-
-    from core.redis_stream_publisher import RedisStreamPublisher
+from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
 
 
 class RedisCallbackHandler(BaseCallbackHandler):

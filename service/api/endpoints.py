@@ -1,20 +1,19 @@
-import asyncio
 import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
 # 导入数据模型
-from src.doc_agent.schemas import (
+from doc_agent.schemas import (
     DocumentGenerationRequest,
     EditActionRequest,
-    EditActionResponse,
     OutlineGenerationRequest,
     TaskCreationResponse,
 )
 
 # 导入AI编辑工具
-from src.doc_agent.tools.ai_editing_tool import AIEditingTool
+from doc_agent.tools.ai_editing_tool import AIEditingTool
 
 # 导入Celery任务（稍后创建）
 # from workers.tasks import generate_outline_from_query_task, generate_document_from_outline_task
@@ -36,7 +35,7 @@ def get_ai_editing_tool():
     获取 AI 编辑工具实例
     从依赖注入容器中获取 AIEditingTool 实例
     """
-    from core.container import Container
+    from doc_agent.core.container import Container
     container = Container()
     return container.ai_editing_tool
 
@@ -108,7 +107,7 @@ async def edit_text(request: EditActionRequest,
 async def generate_outline_from_query(request: OutlineGenerationRequest):
     """
     大纲生成接口
-    
+
     接收用户查询和可选的上下文文件，触发异步大纲生成任务。
     立即返回任务ID，实际的大纲生成在后台进行。
     """

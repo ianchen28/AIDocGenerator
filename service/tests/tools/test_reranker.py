@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 import pytest
 
-from src.doc_agent.tools.es_service import ESSearchResult
-from src.doc_agent.tools.reranker import RerankedSearchResult, RerankerTool
+from doc_agent.tools.es_service import ESSearchResult
+from doc_agent.tools.reranker import RerankedSearchResult, RerankerTool
 
 
 class TestRerankerTool:

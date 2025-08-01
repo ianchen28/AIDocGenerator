@@ -195,7 +195,31 @@ class WebSearchTool:
                                            params=params) as response:
                         response.raise_for_status()
                         data = await response.json()
-                        return data.get("data", [])
+
+                        # 检查API响应状态
+                        if isinstance(data, dict):
+                            # 如果API返回错误状态，记录错误信息并返回None
+                            if data.get('status') is False:
+                                error_msg = data.get('message', '未知错误')
+                                error_code = data.get('code', '未知错误码')
+                                self.logger.error(
+                                    f"API返回错误: {error_msg} (错误码: {error_code})"
+                                )
+                                return None
+
+                            # 如果API返回成功状态，返回数据
+                            if data.get('status') is True:
+                                return data.get("data", [])
+
+                            # 如果没有明确的状态字段，尝试直接获取data
+                            if "data" in data:
+                                return data.get("data", [])
+
+                        # 如果响应格式不符合预期，记录警告
+                        self.logger.warning(f"API响应格式异常: {data}")
+                        return data.get("data", []) if isinstance(
+                            data, dict) else []
+
                 except Exception as e:
                     self.logger.error(f"第 {attempt} 次请求失败: {e}")
                     if attempt < self.config.retries:
@@ -371,3 +395,401 @@ class WebSearchTool:
         except Exception as e:
             logger.error(f"异步网络搜索失败: {str(e)}")
             return f"搜索失败: {str(e)}"
+
+
+if __name__ == "__main__":
+    """
+    网络搜索工具测试代码
+    测试同步和异步搜索功能
+    """
+    import asyncio
+
+    from loguru import logger
+
+    # 配置日志
+    logger.add("logs/web_search_test.log",
+               rotation="1 day",
+               retention="7 days")
+
+    async def test_async_search():
+        """测试异步搜索功能"""
+        logger.info("=== 开始异步搜索测试 ===")
+
+        # 创建搜索工具实例
+        web_search = WebSearchTool()
+
+        # 测试查询
+        test_queries = ["Python 异步编程", "人工智能发展", "机器学习算法"]
+
+        for query in test_queries:
+            logger.info(f"测试查询: {query}")
+            try:
+                # 测试异步搜索
+                result = await web_search.search_async(query)
+                logger.info(f"异步搜索结果:\n{result}")
+
+                # 测试获取文档
+                web_docs = await web_search.get_web_docs(query)
+                logger.info(f"获取到 {len(web_docs)} 个文档")
+
+                # 显示文档详情
+                for i, doc in enumerate(web_docs[:2]):  # 只显示前2个
+                    logger.info(f"文档 {i+1}:")
+                    logger.info(f"  ID: {doc.get('_id', 'N/A')}")
+                    logger.info(f"  URL: {doc.get('doc_id', 'N/A')}")
+                    logger.info(
+                        f"  标题: {doc.get('meta_data', {}).get('docName', 'N/A')}"
+                    )
+                    logger.info(f"  内容长度: {len(doc.get('text', ''))} 字符")
+                    logger.info(
+                        f"  是否获取完整内容: {doc.get('full_content_fetched', False)}"
+                    )
+
+            except Exception as e:
+                logger.error(f"异步搜索测试失败: {e}")
+
+            logger.info("-" * 50)
+
+    def test_sync_search():
+        """测试同步搜索功能"""
+        logger.info("=== 开始同步搜索测试 ===")
+
+        # 创建搜索工具实例
+        web_search = WebSearchTool()
+
+        # 测试查询
+        test_query = "Python 编程教程"
+        logger.info(f"测试查询: {test_query}")
+
+        try:
+            # 测试同步搜索
+            result = web_search.search(test_query)
+            logger.info(f"同步搜索结果:\n{result}")
+
+        except Exception as e:
+            logger.error(f"同步搜索测试失败: {e}")
+
+        logger.info("-" * 50)
+
+    async def test_web_scraper():
+        """测试网页抓取功能"""
+        logger.info("=== 开始网页抓取测试 ===")
+
+        # 创建网页抓取器
+        scraper = WebScraper()
+
+        # 测试URL
+        test_urls = ["https://www.python.org", "https://docs.python.org/3/"]
+
+        for url in test_urls:
+            logger.info(f"测试抓取: {url}")
+            try:
+                content = await scraper.fetch_full_content(url)
+                if content:
+                    logger.info(f"抓取成功，内容长度: {len(content)} 字符")
+                    logger.info(f"内容预览: {content[:200]}...")
+                else:
+                    logger.warning("抓取失败，返回空内容")
+            except Exception as e:
+                logger.error(f"网页抓取测试失败: {e}")
+
+            logger.info("-" * 30)
+
+    async def test_config():
+        """测试配置功能"""
+        logger.info("=== 开始配置测试 ===")
+
+        # 测试默认配置
+        default_config = WebSearchConfig()
+        logger.info(f"默认配置:")
+        logger.info(f"  URL: {default_config.url}")
+        logger.info(f"  Count: {default_config.count}")
+        logger.info(f"  Timeout: {default_config.timeout}")
+        logger.info(f"  Retries: {default_config.retries}")
+        logger.info(f"  Delay: {default_config.delay}")
+        logger.info(
+            f"  Fetch Full Content: {default_config.fetch_full_content}")
+
+        # 测试自定义配置
+        custom_config = WebSearchConfig({
+            "count": 3,
+            "timeout": 10,
+            "retries": 2,
+            "delay": 0.5
+        })
+        logger.info(f"自定义配置:")
+        logger.info(f"  Count: {custom_config.count}")
+        logger.info(f"  Timeout: {custom_config.timeout}")
+        logger.info(f"  Retries: {custom_config.retries}")
+        logger.info(f"  Delay: {custom_config.delay}")
+
+        logger.info("-" * 50)
+
+    async def test_detailed_search():
+        """详细测试搜索功能，包含请求详情"""
+        logger.info("=== 开始详细搜索测试 ===")
+
+        # 创建搜索工具实例
+        web_search = WebSearchTool()
+
+        # 测试查询
+        test_query = "Python 编程"
+        logger.info(f"测试查询: {test_query}")
+
+        try:
+            # 直接测试 get_web_search 方法
+            logger.info("1. 测试 get_web_search 方法")
+            raw_results = await web_search.get_web_search(test_query)
+
+            if raw_results is None:
+                logger.error("get_web_search 返回 None，可能的原因:")
+                logger.error("  - API 服务不可用")
+                logger.error("  - 网络连接问题")
+                logger.error("  - Token 无效或过期")
+                logger.error("  - URL 配置错误")
+                return
+
+            logger.info(f"原始搜索结果数量: {len(raw_results)}")
+
+            # 显示原始结果详情
+            for i, result in enumerate(raw_results[:2]):
+                logger.info(f"原始结果 {i+1}:")
+                logger.info(f"  materialId: {result.get('materialId', 'N/A')}")
+                logger.info(f"  docName: {result.get('docName', 'N/A')}")
+                logger.info(f"  url: {result.get('url', 'N/A')}")
+                logger.info(
+                    f"  materialContent 长度: {len(result.get('materialContent', ''))}"
+                )
+                logger.info(f"  完整内容: {result}")
+
+            # 测试 get_web_docs 方法
+            logger.info("2. 测试 get_web_docs 方法")
+            web_docs = await web_search.get_web_docs(test_query)
+            logger.info(f"格式化文档数量: {len(web_docs)}")
+
+            # 显示格式化文档详情
+            for i, doc in enumerate(web_docs[:2]):
+                logger.info(f"格式化文档 {i+1}:")
+                logger.info(f"  doc_id: {doc.get('doc_id', 'N/A')}")
+                logger.info(f"  _id: {doc.get('_id', 'N/A')}")
+                logger.info(f"  rank: {doc.get('rank', 'N/A')}")
+                logger.info(f"  text 长度: {len(doc.get('text', ''))}")
+                logger.info(
+                    f"  full_content_fetched: {doc.get('full_content_fetched', False)}"
+                )
+                logger.info(f"  meta_data: {doc.get('meta_data', {})}")
+
+        except Exception as e:
+            logger.error(f"详细搜索测试失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+        logger.info("-" * 50)
+
+    async def test_network_connectivity():
+        """测试网络连接性"""
+        logger.info("=== 开始网络连接测试 ===")
+
+        import aiohttp
+
+        # 测试配置
+        config = WebSearchConfig()
+        test_url = config.url
+        headers = {"X-API-KEY-AUTH": f"Bearer {config.token}"}
+        params = {"queryStr": "test", "count": 1}
+
+        logger.info(f"测试URL: {test_url}")
+        logger.info(f"请求头: {headers}")
+        logger.info(f"请求参数: {params}")
+
+        try:
+            timeout_obj = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout_obj) as session:
+                async with session.get(test_url,
+                                       headers=headers,
+                                       params=params) as response:
+                    logger.info(f"响应状态码: {response.status}")
+                    logger.info(f"响应头: {dict(response.headers)}")
+
+                    if response.status == 200:
+                        try:
+                            data = await response.json()
+                            logger.info(f"响应数据: {data}")
+                        except Exception as e:
+                            logger.error(f"解析响应JSON失败: {e}")
+                            text = await response.text()
+                            logger.info(f"响应文本: {text[:500]}...")
+                    else:
+                        logger.error(f"HTTP错误: {response.status}")
+                        text = await response.text()
+                        logger.error(f"错误响应: {text}")
+
+        except Exception as e:
+            logger.error(f"网络连接测试失败: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+        logger.info("-" * 50)
+
+    async def test_api_diagnosis():
+        """API诊断测试"""
+        logger.info("=== 开始API诊断测试 ===")
+
+        import aiohttp
+
+        # 测试配置
+        config = WebSearchConfig()
+        test_url = config.url
+        headers = {"X-API-KEY-AUTH": f"Bearer {config.token}"}
+
+        # 测试不同的查询参数
+        test_cases = [
+            {
+                "queryStr": "Python",
+                "count": 1
+            },
+            {
+                "queryStr": "人工智能",
+                "count": 2
+            },
+            {
+                "queryStr": "机器学习",
+                "count": 3
+            },
+            {
+                "queryStr": "深度学习",
+                "count": 5
+            },
+        ]
+
+        logger.info(f"API端点: {test_url}")
+        logger.info(f"认证Token: {config.token[:20]}...")
+        logger.info(f"请求头: {headers}")
+
+        for i, params in enumerate(test_cases, 1):
+            logger.info(f"\n测试用例 {i}: {params}")
+
+            try:
+                timeout_obj = aiohttp.ClientTimeout(total=10)
+                async with aiohttp.ClientSession(
+                        timeout=timeout_obj) as session:
+                    async with session.get(test_url,
+                                           headers=headers,
+                                           params=params) as response:
+                        logger.info(f"  响应状态码: {response.status}")
+                        logger.info(f"  响应头: {dict(response.headers)}")
+
+                        if response.status == 200:
+                            try:
+                                data = await response.json()
+                                logger.info(f"  响应数据: {data}")
+
+                                # 分析响应
+                                if isinstance(data, dict):
+                                    status = data.get('status')
+                                    message = data.get('message', '')
+                                    code = data.get('code', '')
+
+                                    if status is False:
+                                        logger.error(
+                                            f"  ❌ API错误: {message} (错误码: {code})"
+                                        )
+
+                                        # 根据错误码提供建议
+                                        if code == -8000040:
+                                            logger.error("  💡 建议解决方案:")
+                                            logger.error(
+                                                "    1. 检查网络检索服务是否正常运行")
+                                            logger.error("    2. 确认API权限和配额")
+                                            logger.error("    3. 联系API服务提供商")
+                                            logger.error("    4. 检查查询参数格式是否正确")
+                                    elif status is True:
+                                        logger.info(
+                                            f"  ✅ API成功: 找到 {len(data.get('data', []))} 个结果"
+                                        )
+                                    else:
+                                        logger.warning(
+                                            f"  ⚠️   API状态不明确: {status}")
+                                else:
+                                    logger.warning(
+                                        f"  ⚠️  响应格式异常: {type(data)}")
+
+                            except Exception as e:
+                                logger.error(f"  ❌ 解析响应失败: {e}")
+                                text = await response.text()
+                                logger.info(f"  原始响应: {text[:500]}...")
+                        else:
+                            logger.error(f"  ❌ HTTP错误: {response.status}")
+                            text = await response.text()
+                            logger.error(f"  错误响应: {text}")
+
+            except Exception as e:
+                logger.error(f"  ❌ 请求失败: {e}")
+
+        logger.info("-" * 50)
+
+    async def test_alternative_queries():
+        """测试替代查询方式"""
+        logger.info("=== 开始替代查询测试 ===")
+
+        # 创建搜索工具实例
+        web_search = WebSearchTool()
+
+        # 测试不同的查询格式
+        test_queries = [
+            "Python编程", "AI技术", "机器学习算法", "深度学习框架", "自然语言处理", "计算机视觉", "数据科学",
+            "算法设计"
+        ]
+
+        for query in test_queries:
+            logger.info(f"测试查询: '{query}'")
+            try:
+                result = await web_search.get_web_search(query)
+                if result:
+                    logger.info(f"  ✅ 成功获取 {len(result)} 个结果")
+                else:
+                    logger.warning(f"  ⚠️  无结果")
+            except Exception as e:
+                logger.error(f"  ❌ 查询失败: {e}")
+
+        logger.info("-" * 50)
+
+    async def main():
+        """主测试函数"""
+        logger.info("开始网络搜索工具测试")
+
+        try:
+            # 测试配置
+            await test_config()
+
+            # 测试网络连接
+            await test_network_connectivity()
+
+            # API诊断测试
+            await test_api_diagnosis()
+
+            # 替代查询测试
+            await test_alternative_queries()
+
+            # 测试网页抓取
+            await test_web_scraper()
+
+            # 详细搜索测试
+            await test_detailed_search()
+
+            # 测试异步搜索
+            await test_async_search()
+
+            # 测试同步搜索
+            test_sync_search()
+
+            logger.info("所有测试完成")
+
+        except Exception as e:
+            logger.error(f"测试过程中发生错误: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+
+    # 运行测试
+    if __name__ == "__main__":
+        asyncio.run(main())

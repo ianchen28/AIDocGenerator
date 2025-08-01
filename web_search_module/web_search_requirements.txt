@@ -1,0 +1,7 @@
+# Web搜索模块依赖
+aiohttp==3.11.13
+loguru==0.7.3
+beautifulsoup4==4.12.2
+lxml==4.9.3
+asyncio
+typing 

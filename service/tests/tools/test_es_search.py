@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 import pytest
 
-from src.doc_agent.tools.es_search import ESSearchTool
-from src.doc_agent.tools.es_service import ESSearchResult
+from doc_agent.tools.es_search import ESSearchTool
+from doc_agent.tools.es_service import ESSearchResult
 
 
 class TestESSearchTool:

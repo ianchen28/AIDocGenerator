@@ -1,56 +1,42 @@
 # service/core/container.py
-import sys
 from functools import partial
 from pathlib import Path
 
 import yaml
 from loguru import logger
 
-# 添加项目根目录到Python路径
-# 添加src目录到Python路径
-current_file = Path(__file__)
-service_dir = current_file.parent.parent  # 获取 service 目录
-src_dir = service_dir / "src"
-if str(src_dir) not in sys.path:
-    sys.path.insert(0, str(src_dir))
-if str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
-
 # 确保环境变量已加载
-from core.config import settings
-from core.env_loader import setup_environment
-from core.logging_config import setup_logging
+from doc_agent.core.config import settings
+from doc_agent.core.env_loader import setup_environment
+from doc_agent.core.logging_config import setup_logging
 
 setup_environment()
 
 # 初始化日志系统
 setup_logging(settings)
 
-# 在设置路径后导入 doc_agent 模块
-try:
-    from doc_agent.common.prompt_selector import PromptSelector
-    from doc_agent.graph.callbacks import create_redis_callback_handler
-    from core.redis_stream_publisher import RedisStreamPublisher
-    from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
-    from doc_agent.graph.chapter_workflow import router as chapter_router
-    from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
-    from doc_agent.graph.fast_builder import build_fast_main_workflow
-    from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
-    from doc_agent.graph.main_orchestrator.builder import (
-        build_main_orchestrator_graph, build_outline_graph,
-        build_document_graph)
-    from doc_agent.llm_clients import get_llm_client
-    from doc_agent.tools import (
-        get_all_tools,
-        get_es_search_tool,
-        get_reranker_tool,
-        get_web_search_tool,
-    )
-    from doc_agent.tools.ai_editing_tool import AIEditingTool
-except ImportError as e:
-    print(f"❌ 导入 doc_agent 模块失败: {e}")
-    print(f"当前 Python 路径: {sys.path[:3]}")
-    raise
+# 导入 doc_agent 模块
+from doc_agent.common.prompt_selector import PromptSelector
+from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
+from doc_agent.graph.callbacks import create_redis_callback_handler
+from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
+from doc_agent.graph.chapter_workflow import router as chapter_router
+from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
+from doc_agent.graph.fast_builder import build_fast_main_workflow
+from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
+from doc_agent.graph.main_orchestrator.builder import (
+    build_document_graph,
+    build_main_orchestrator_graph,
+    build_outline_graph,
+)
+from doc_agent.llm_clients import get_llm_client
+from doc_agent.tools import (
+    get_all_tools,
+    get_es_search_tool,
+    get_reranker_tool,
+    get_web_search_tool,
+)
+from doc_agent.tools.ai_editing_tool import AIEditingTool
 
 
 class Container:
@@ -455,7 +441,8 @@ class Container:
         document_graph = build_document_graph(
             chapter_workflow_graph=chapter_graph,
             split_chapters_node=main_split_chapters_node,
-            fusion_editor_node=fusion_editor_node)
+            fusion_editor_node=fusion_editor_node,
+            bibliography_node_func=main_orchestrator_nodes.bibliography_node)
 
         # 使用回调处理器配置图
         configured_graph = document_graph.with_config(

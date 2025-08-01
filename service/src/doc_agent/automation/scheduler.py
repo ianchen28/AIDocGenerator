@@ -11,25 +11,12 @@
 import asyncio
 import json
 import logging
-
-# 添加项目路径
-import sys
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Optional
-
-current_file = Path(__file__)
-service_dir = None
-for parent in current_file.parents:
-    if parent.name == 'service':
-        service_dir = parent
-        break
-
-if service_dir and str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
 
 
 class TaskStatus(Enum):
@@ -151,7 +138,7 @@ class AutomationScheduler:
         tasks_file = self.storage_path / "tasks.json"
         if tasks_file.exists():
             try:
-                with open(tasks_file, 'r', encoding='utf-8') as f:
+                with open(tasks_file, encoding='utf-8') as f:
                     tasks_data = json.load(f)
                     for task_data in tasks_data:
                         task = AutomationTask.from_dict(task_data)
@@ -285,7 +272,7 @@ class AutomationScheduler:
 
         try:
             # 这里调用实际的文档生成逻辑
-            from core.container import container
+            from doc_agent.core.container import container
             result = await self._run_document_generation(task.topic)
 
             task.status = TaskStatus.COMPLETED
@@ -314,7 +301,7 @@ class AutomationScheduler:
     async def _run_document_generation(self, topic: str) -> dict:
         """运行文档生成"""
         # 这里调用您的文档生成图
-        from core.container import container
+        from doc_agent.core.container import container
 
         graph_input = {"topic": topic}
         result = None

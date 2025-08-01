@@ -1,43 +1,14 @@
 # service/src/doc_agent/tools/__init__.py
+# 导入配置
+from doc_agent.core.config import settings
 
-import asyncio
-from typing import Set, Optional
-from .web_search import WebSearchTool
-from .es_search import ESSearchTool
 from .code_execute import CodeExecuteTool
+from .es_search import ESSearchTool
 from .reranker import RerankerTool
-
-# 修复相对导入
-try:
-    from ..utils import get_settings
-except ImportError:
-    # 如果相对导入失败，尝试绝对导入
-    try:
-        from src.doc_agent.utils import get_settings
-    except ImportError:
-        # 如果都失败，创建一个简单的设置函数
-        def get_settings():
-            """简单的设置获取函数"""
-            import sys
-            from pathlib import Path
-
-            # 添加项目根目录到Python路径
-            current_file = Path(__file__)
-            service_dir = None
-            for parent in current_file.parents:
-                if parent.name == 'service':
-                    service_dir = parent
-                    break
-
-            if service_dir and str(service_dir) not in sys.path:
-                sys.path.insert(0, str(service_dir))
-
-            from core.config import settings
-            return settings
-
+from .web_search import WebSearchTool
 
 # 全局工具注册表，用于跟踪需要关闭的ES工具
-_es_tools_registry: Set[ESSearchTool] = set()
+_es_tools_registry: set[ESSearchTool] = set()
 
 
 def register_es_tool(tool: ESSearchTool):
@@ -70,7 +41,6 @@ def get_web_search_tool() -> WebSearchTool:
     Returns:
         WebSearchTool: 配置好的网络搜索工具
     """
-    settings = get_settings()
     # 从配置中获取Tavily API密钥
     tavily_config = settings.tavily_config
     api_key = tavily_config.api_key if tavily_config else None
@@ -85,7 +55,6 @@ def get_es_search_tool() -> ESSearchTool:
     Returns:
         ESSearchTool: 配置好的ES搜索工具
     """
-    settings = get_settings()
     # 从配置中获取ES配置
     es_config = settings.elasticsearch_config
 
@@ -107,7 +76,6 @@ def get_reranker_tool() -> RerankerTool:
     Returns:
         RerankerTool: 配置好的重排序工具
     """
-    settings = get_settings()
     # 从配置中获取reranker配置
     reranker_config = settings.get_model_config("reranker")
     if reranker_config:

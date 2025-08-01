@@ -133,7 +133,7 @@ class RerankerTool:
         logger.debug(f"创建原始文档映射，包含 {len(original_doc_map)} 个文档")
 
         # 处理重排序结果
-        for i, reranked_doc in enumerate(sorted_docs):
+        for _i, reranked_doc in enumerate(sorted_docs):
             try:
                 doc_text = reranked_doc.get('text', '')
                 rerank_score = reranked_doc.get('rerank_score', 0.0)

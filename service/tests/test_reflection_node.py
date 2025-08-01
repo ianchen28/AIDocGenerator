@@ -3,26 +3,16 @@
 测试 reflection_node 功能
 """
 
-import sys
-import os
-import json
-from pathlib import Path
+from unittest.mock import Mock, patch
 
-# 添加 service 目录到 Python 路径
-current_file = Path(__file__)
-service_dir = current_file.parent.parent
-if str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
-
-# 切换到 service 目录
-os.chdir(service_dir)
-
-from unittest.mock import Mock, patch, AsyncMock
 from loguru import logger
 
-from src.doc_agent.graph.chapter_workflow.nodes import reflection_node, _parse_reflection_response
-from src.doc_agent.llm_clients.base import LLMClient
-from src.doc_agent.common.prompt_selector import PromptSelector
+from doc_agent.common.prompt_selector import PromptSelector
+from doc_agent.graph.chapter_workflow.nodes import (
+    _parse_reflection_response,
+    reflection_node,
+)
+from doc_agent.llm_clients.base import LLMClient
 
 
 def test_parse_reflection_response_json():
@@ -173,7 +163,7 @@ def test_parse_reflection_response_invalid():
     return True
 
 
-@patch('src.doc_agent.graph.chapter_workflow.nodes.settings')
+@patch('doc_agent.graph.chapter_workflow.nodes.settings')
 async def test_reflection_node_basic(mock_settings):
     """测试 reflection_node 的基本功能"""
     logger.info("🧪 测试 reflection_node 的基本功能...")
@@ -253,7 +243,7 @@ async def test_reflection_node_basic(mock_settings):
     return True
 
 
-@patch('src.doc_agent.graph.chapter_workflow.nodes.settings')
+@patch('doc_agent.graph.chapter_workflow.nodes.settings')
 async def test_reflection_node_insufficient_data(mock_settings):
     """测试 reflection_node 在数据不足时的情况"""
     logger.info("🧪 测试 reflection_node 在数据不足时的情况...")
@@ -306,7 +296,7 @@ async def test_reflection_node_insufficient_data(mock_settings):
     return True
 
 
-@patch('src.doc_agent.graph.chapter_workflow.nodes.settings')
+@patch('doc_agent.graph.chapter_workflow.nodes.settings')
 async def test_reflection_node_no_queries(mock_settings):
     """测试 reflection_node 在没有原始查询时的情况"""
     logger.info("🧪 测试 reflection_node 在没有原始查询时的情况...")

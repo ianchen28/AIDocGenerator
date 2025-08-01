@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "aidoc-generator"
@@ -19,6 +19,8 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
 ]
 
 dependencies = [
@@ -37,6 +39,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "python-dotenv>=1.0.0",
     "tavily-python>=0.3.0",
+    "loguru>=0.7.0",
 ]
 
 [project.optional-dependencies]
@@ -54,8 +57,14 @@ Homepage = "https://github.com/yourusername/aidoc-generator"
 Repository = "https://github.com/yourusername/aidoc-generator"
 Issues = "https://github.com/yourusername/aidoc-generator/issues"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
+[project.scripts]
+aidoc-generator = "doc_agent.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+doc_agent = ["*.yaml", "*.yml", "*.json"]
 
 [tool.black]
 line-length = 88

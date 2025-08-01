@@ -1,4 +1,4 @@
-from src.doc_agent.tools.web_search import WebSearchTool
+from doc_agent.tools.web_search import WebSearchTool
 
 
 class TestWebSearchTool:

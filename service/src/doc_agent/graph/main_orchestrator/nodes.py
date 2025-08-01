@@ -1,34 +1,21 @@
 # service/src/doc_agent/graph/main_orchestrator/nodes.py
-from loguru import logger
-import pprint
-from typing import Dict, List
 import json
-from ..state import ResearchState
-from ...llm_clients.base import LLMClient
-from ...tools.web_search import WebSearchTool
-from ...tools.es_search import ESSearchTool
-from ...tools.reranker import RerankerTool
-from ...llm_clients.providers import EmbeddingClient, RerankerClient
-from ...common.prompt_selector import PromptSelector
-from ...schemas import Source
+import pprint
+
+from loguru import logger
+
+from doc_agent.common.prompt_selector import PromptSelector
 
 # 添加配置导入
-import sys
-from pathlib import Path
-
-# 添加项目根目录到Python路径
-current_file = Path(__file__)
-service_dir = None
-for parent in current_file.parents:
-    if parent.name == 'service':
-        service_dir = parent
-        break
-
-if service_dir and str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
-
-from core.config import settings
-from src.doc_agent.utils.search_utils import search_and_rerank
+from doc_agent.core.config import settings
+from doc_agent.graph.state import ResearchState
+from doc_agent.llm_clients.base import LLMClient
+from doc_agent.llm_clients.providers import EmbeddingClient
+from doc_agent.schemas import Source
+from doc_agent.tools.es_search import ESSearchTool
+from doc_agent.tools.reranker import RerankerTool
+from doc_agent.tools.web_search import WebSearchTool
+from doc_agent.utils.search_utils import search_and_rerank
 
 
 async def initial_research_node(state: ResearchState,
@@ -58,7 +45,7 @@ async def initial_research_node(state: ResearchState,
     logger.info(f"🔍 开始初始研究: {topic}")
 
     # 从配置中读取搜索轮数
-    from service.core.config import settings
+    from doc_agent.core.config import settings
 
     # 生成初始搜索查询 - 更通用和广泛的查询
     # 根据配置决定查询数量
@@ -287,7 +274,7 @@ def outline_generation_node(state: ResearchState,
             # 直接导入模块并获取特定版本
             import importlib
             module = importlib.import_module(
-                "src.doc_agent.prompts.outline_generation")
+                "doc_agent.prompts.outline_generation")
             if hasattr(module,
                        'PROMPTS') and "v2_with_requirements" in module.PROMPTS:
                 prompt_template = module.PROMPTS["v2_with_requirements"]
@@ -815,6 +802,7 @@ def _parse_es_search_results(es_results: str, query: str,
         current_title = ""
         current_content = ""
         current_url = ""
+        seen_titles = set()  # 用于去重
 
         for line in lines:
             line = line.strip()
@@ -830,7 +818,7 @@ def _parse_es_search_results(es_results: str, query: str,
                 current_url = line.split(':', 1)[1].strip()
             elif line.startswith('---') or line.startswith('==='):
                 # 分隔符，处理前一个文档
-                if current_title and current_content:
+                if current_title and current_content and current_title not in seen_titles:
                     source = Source(
                         id=current_id,
                         source_type="es_result",
@@ -839,6 +827,7 @@ def _parse_es_search_results(es_results: str, query: str,
                         content=current_content[:500] + "..."
                         if len(current_content) > 500 else current_content)
                     sources.append(source)
+                    seen_titles.add(current_title)
                     current_id += 1
                     current_title = ""
                     current_content = ""
@@ -851,7 +840,7 @@ def _parse_es_search_results(es_results: str, query: str,
                 current_content += " " + line
 
         # 处理最后一个文档
-        if current_title and current_content:
+        if current_title and current_content and current_title not in seen_titles:
             source = Source(
                 id=current_id,
                 source_type="es_result",
@@ -860,12 +849,13 @@ def _parse_es_search_results(es_results: str, query: str,
                 content=current_content[:500] +
                 "..." if len(current_content) > 500 else current_content)
             sources.append(source)
+            seen_titles.add(current_title)
 
         # 如果没有解析到任何源，创建一个默认源
         if not sources:
             source = Source(id=start_id,
                             source_type="es_result",
-                            title=f"知识库搜索结果 - {query}",
+                            title=f"搜索查询: {query}",
                             url="",
                             content=es_results[:500] +
                             "..." if len(es_results) > 500 else es_results)
@@ -876,7 +866,7 @@ def _parse_es_search_results(es_results: str, query: str,
         # 创建默认源
         source = Source(id=start_id,
                         source_type="es_result",
-                        title=f"知识库搜索结果 - {query}",
+                        title=f"搜索查询: {query}",
                         url="",
                         content=es_results[:500] +
                         "..." if len(es_results) > 500 else es_results)

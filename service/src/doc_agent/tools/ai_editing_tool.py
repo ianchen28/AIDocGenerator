@@ -4,7 +4,7 @@ AI 编辑工具
 用于处理文本编辑任务，包括润色、扩写、缩写等功能
 """
 
-from typing import Optional, AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from loguru import logger
 

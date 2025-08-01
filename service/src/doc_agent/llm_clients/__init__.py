@@ -1,11 +1,9 @@
 # service/src/doc_agent/llm_clients/__init__.py
 import pprint
 
-# 动态导入配置，避免相对导入问题
-import sys
-from pathlib import Path
-
 from loguru import logger
+
+from doc_agent.core.config import settings
 
 from .base import LLMClient
 from .providers import (
@@ -16,13 +14,6 @@ from .providers import (
     MoonshotClient,
     RerankerClient,
 )
-
-# 添加service目录到路径
-service_dir = Path(__file__).parent.parent.parent.parent
-if str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
-
-from core.config import settings
 
 
 def get_llm_client(model_key: str = "qwen_2_5_235b_a22b") -> LLMClient:

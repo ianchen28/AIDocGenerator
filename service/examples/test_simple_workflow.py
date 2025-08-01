@@ -5,25 +5,18 @@
 """
 
 import asyncio
-import os
-import sys
-import time
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
+
 from loguru import logger
 
-# --- 路径设置 ---
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 # --- 导入核心组件 ---
-from service.core.config import settings
-from service.core.container import container
-from service.core.logging_config import setup_logging
-from service.src.doc_agent.graph.state import ResearchState
+from doc_agent.core.config import settings
+from doc_agent.core.container import container
+from doc_agent.core.logging_config import setup_logging
+from doc_agent.graph.state import ResearchState
 
 # --- 创建输出目录 ---
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -295,7 +288,7 @@ async def main():
             logger.info(f"📊 Final state saved to: {result_file}")
 
     # 分析工作流执行情况
-    print(f"\n📊 Workflow Analysis:")
+    print("\n📊 Workflow Analysis:")
     reflection_count = sum(1 for step in workflow_steps
                            if step.get("reflection_triggered", False))
     print(f"   🔄 Reflection triggered: {reflection_count} times")
@@ -313,7 +306,7 @@ async def main():
     # 分析引用系统
     if final_result and "final_document" in final_result:
         if "## 参考文献" in final_result["final_document"]:
-            print(f"   📚 Bibliography: ✅ Added")
+            print("   📚 Bibliography: ✅ Added")
 
             # 统计参考文献数量和引用编号
             import re
@@ -322,26 +315,27 @@ async def main():
             if bib_start != -1:
                 bibliography = doc[bib_start:]
                 citations = re.findall(r'\[(\d+)\]', bibliography)
-                unique_citations = sorted(set(int(c) for c in citations))
+                unique_citations = sorted({int(c) for c in citations})
                 print(f"   📖 Bibliography entries: {len(unique_citations)}")
                 print(f"   🔢 Citation numbers: {unique_citations}")
 
                 # 检查编号是否连续
                 if unique_citations == list(range(1,
                                                   len(unique_citations) + 1)):
-                    print(f"   ✅ Citation numbering: Consecutive")
+                    print("   ✅ Citation numbering: Consecutive")
                 else:
-                    print(f"   ❌ Citation numbering: Not consecutive")
+                    print("   ❌ Citation numbering: Not consecutive")
 
             # 统计全文中的引用
             content_before_bib = doc[:bib_start] if bib_start != -1 else doc
             content_citations = re.findall(r'\[(\d+)\]', content_before_bib)
             unique_content_citations = sorted(
-                set(int(c) for c in content_citations))
+                {int(c)
+                 for c in content_citations})
             print(f"   📝 In-text citations: {unique_content_citations}")
 
         else:
-            print(f"   📚 Bibliography: ❌ Missing")
+            print("   📚 Bibliography: ❌ Missing")
 
     # 统计全局引用源
     bibliography_steps = [
@@ -360,7 +354,7 @@ async def main():
             )
 
     # 显示文件位置
-    print(f"\n📁 Output files:")
+    print("\n📁 Output files:")
     print(f"   📝 Log: {log_file}")
     print(f"   📊 Steps: {steps_file}")
     if final_result and "final_document" in final_result:

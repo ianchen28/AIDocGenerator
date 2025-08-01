@@ -9,19 +9,18 @@ import pprint
 
 from loguru import logger
 
-from core.config import settings
-
-from ..fast_prompts import (
+from doc_agent.core.config import settings
+from doc_agent.fast_prompts import (
     FAST_OUTLINE_GENERATION_PROMPT,
     FAST_PLANNER_PROMPT,
 )
-from ..llm_clients.base import LLMClient
-from ..llm_clients.providers import EmbeddingClient
-from ..tools.es_search import ESSearchTool
-from ..tools.reranker import RerankerTool
-from ..tools.web_search import WebSearchTool
-from ..utils.search_utils import search_and_rerank
-from .state import ResearchState
+from doc_agent.graph.state import ResearchState
+from doc_agent.llm_clients.base import LLMClient
+from doc_agent.llm_clients.providers import EmbeddingClient
+from doc_agent.tools.es_search import ESSearchTool
+from doc_agent.tools.reranker import RerankerTool
+from doc_agent.tools.web_search import WebSearchTool
+from doc_agent.utils.search_utils import search_and_rerank
 
 
 async def fast_initial_research_node(state: ResearchState,

@@ -2,7 +2,7 @@
 Common utilities and components for the doc_agent package.
 """
 
-from .prompt_selector import PromptSelector, get_prompt
+from doc_agent.common.prompt_selector import PromptSelector, get_prompt
 
 
 # 直接导入parse_planner_response函数
@@ -10,6 +10,7 @@ def parse_planner_response(response: str):
     """解析规划器的响应，提取研究计划和搜索查询"""
     import json
     import re
+
     from loguru import logger
 
     logger.info("开始解析规划器响应")

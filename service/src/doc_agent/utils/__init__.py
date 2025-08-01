@@ -3,8 +3,12 @@
 工具模块包
 """
 
-from .content_processor import (summarize_content, extract_key_points,
-                                expand_content, process_research_data)
+from .content_processor import (
+    expand_content,
+    extract_key_points,
+    process_research_data,
+    summarize_content,
+)
 
 __all__ = [
     'summarize_content', 'extract_key_points', 'expand_content',

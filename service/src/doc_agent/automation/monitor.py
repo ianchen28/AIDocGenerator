@@ -11,9 +11,6 @@
 import asyncio
 import json
 import logging
-
-# 添加项目路径
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -21,16 +18,6 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import psutil
-
-current_file = Path(__file__)
-service_dir = None
-for parent in current_file.parents:
-    if parent.name == 'service':
-        service_dir = parent
-        break
-
-if service_dir and str(service_dir) not in sys.path:
-    sys.path.insert(0, str(service_dir))
 
 
 class AlertLevel(Enum):
@@ -148,7 +135,7 @@ class AutomationMonitor:
         alerts_file = self.storage_path / "alerts.json"
         if alerts_file.exists():
             try:
-                with open(alerts_file, 'r', encoding='utf-8') as f:
+                with open(alerts_file, encoding='utf-8') as f:
                     alerts_data = json.load(f)
                     for alert_data in alerts_data:
                         alert = Alert(id=alert_data["id"],
@@ -171,7 +158,7 @@ class AutomationMonitor:
         metrics_file = self.storage_path / "metrics.json"
         if metrics_file.exists():
             try:
-                with open(metrics_file, 'r', encoding='utf-8') as f:
+                with open(metrics_file, encoding='utf-8') as f:
                     metrics_data = json.load(f)
                     for metric_data in metrics_data:
                         metric = PerformanceMetrics(

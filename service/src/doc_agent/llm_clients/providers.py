@@ -1,8 +1,8 @@
 # service/src/doc_agent/llm_clients/providers.py
+import json
 import pprint
 import re
-import json
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import httpx
 from loguru import logger

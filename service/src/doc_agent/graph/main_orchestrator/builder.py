@@ -171,30 +171,68 @@ def create_chapter_processing_node(chapter_workflow_graph):
             citations = list(
                 re.finditer(citation_pattern, updated_chapter_content))
 
-            # 计算这个章节的起始全局ID
-            global_id_start = max_global_id - len(cited_sources_in_chapter) + 1
+            # 创建章节引用ID到全局ID的映射
+            chapter_citation_map = {}
+            if len(cited_sources_in_chapter) > 0:
+                # 去重：只处理唯一的源
+                unique_sources = []
+                seen_source_ids = set()
+                for source in cited_sources_in_chapter:
+                    if source.id not in seen_source_ids:
+                        unique_sources.append(source)
+                        seen_source_ids.add(source.id)
+
+                for i, source in enumerate(unique_sources):
+                    global_id = max_global_id - len(unique_sources) + 1 + i
+                    chapter_citation_map[source.id] = global_id
 
             logger.debug(
                 f"📊 章节引用替换: 文本中有{len(citations)}个引用标记，实际源数量{len(cited_sources_in_chapter)}"
             )
 
             # 从后往前替换，避免位置偏移问题
-            # 只为实际存在的源数量分配全局ID，多余的引用标记循环使用现有源
             for i, match in enumerate(reversed(citations)):
-                # 计算当前引用标记应该使用的全局ID
-                # 因为是从后往前，所以要用 len(citations) - 1 - i
                 citation_index = len(citations) - 1 - i
 
-                # 关键修复：确保不超过实际源的数量，多余的引用循环使用现有源
-                source_index = citation_index % len(cited_sources_in_chapter)
-                global_id = global_id_start + source_index
+                # 如果没有引用源，直接移除引用标记
+                if len(cited_sources_in_chapter) == 0:
+                    start, end = match.span()
+                    updated_chapter_content = (
+                        updated_chapter_content[:start] +
+                        updated_chapter_content[end:])
+                    logger.debug(f"📝 移除引用标记: 位置{match.span()} (无引用源)")
+                    continue
+
+                # 获取当前引用标记对应的源
+                unique_sources = []
+                seen_source_ids = set()
+                for source in cited_sources_in_chapter:
+                    if source.id not in seen_source_ids:
+                        unique_sources.append(source)
+                        seen_source_ids.add(source.id)
+
+                if citation_index < len(unique_sources):
+                    source = unique_sources[citation_index]
+                    global_id = chapter_citation_map.get(source.id, source.id)
+                elif unique_sources:
+                    # 如果引用标记数量超过源数量，循环使用最后一个源
+                    source = unique_sources[-1]
+                    global_id = chapter_citation_map.get(source.id, source.id)
+                else:
+                    # 如果没有源，直接移除引用标记
+                    start, end = match.span()
+                    updated_chapter_content = (
+                        updated_chapter_content[:start] +
+                        updated_chapter_content[end:])
+                    logger.debug(f"📝 移除引用标记: 位置{match.span()} (无引用源)")
+                    continue
 
                 start, end = match.span()
                 updated_chapter_content = (updated_chapter_content[:start] +
                                            f"[{global_id}]" +
                                            updated_chapter_content[end:])
                 logger.debug(
-                    f"📝 替换引用: 位置{match.span()} 第{citation_index+1}个引用 -> [{global_id}] (源索引:{source_index})"
+                    f"📝 替换引用: 位置{match.span()} 第{citation_index+1}个引用 -> [{global_id}] (源: {source.title[:30]}...)"
                 )
 
             # 创建新完成的章节字典

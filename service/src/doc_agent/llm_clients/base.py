@@ -1,6 +1,6 @@
 # service/src/doc_agent/llm_clients/base.py
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 
 class LLMClient(ABC):

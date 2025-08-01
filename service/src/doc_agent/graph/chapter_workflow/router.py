@@ -4,9 +4,9 @@ from typing import Literal
 
 from loguru import logger
 
-from ...llm_clients.base import LLMClient
-from ...common.prompt_selector import PromptSelector
-from ..state import ResearchState
+from doc_agent.common.prompt_selector import PromptSelector
+from doc_agent.graph.state import ResearchState
+from doc_agent.llm_clients.base import LLMClient
 
 
 def supervisor_router(

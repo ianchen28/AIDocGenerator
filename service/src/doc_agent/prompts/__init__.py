@@ -5,13 +5,16 @@ Prompts 模块
 包含所有用于文档生成的提示词模板
 """
 
+from .content_processor import (
+    V1_DEFAULT_CONTENT_COMPRESSION,
+    V1_DEFAULT_KEY_POINTS_EXTRACTION,
+    V1_DEFAULT_RESEARCH_DATA_SUMMARY,
+)
 from .outline_generation import V1_DEFAULT as OUTLINE_GENERATION_PROMPT
 from .planner import V1_DEFAULT as PLANNER_PROMPT
-from .writer import V1_DEFAULT as WRITER_PROMPT, V1_SIMPLE as WRITER_PROMPT_SIMPLE
 from .supervisor import V1_METADATA_BASED as SUPERVISOR_PROMPT
-from .content_processor import (V1_DEFAULT_RESEARCH_DATA_SUMMARY,
-                                V1_DEFAULT_KEY_POINTS_EXTRACTION,
-                                V1_DEFAULT_CONTENT_COMPRESSION)
+from .writer import V1_DEFAULT as WRITER_PROMPT
+from .writer import V1_SIMPLE as WRITER_PROMPT_SIMPLE
 
 # 为了向后兼容，创建别名
 RESEARCH_DATA_SUMMARY_PROMPT = V1_DEFAULT_RESEARCH_DATA_SUMMARY

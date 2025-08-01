@@ -2,38 +2,31 @@
 
 import asyncio
 import json
-import os
 import pprint
-import sys
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from loguru import logger
 
-# --- 路径设置 ---
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, '..', '..'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 # --- 导入核心组件 ---
-from service.core.config import settings
-from service.core.logging_config import setup_logging
+from doc_agent.core.config import settings
+from doc_agent.core.logging_config import setup_logging
 
 # --- 立即设置日志配置，避免后续初始化时的格式错误 ---
 setup_logging(settings)
 
-from service.core.container import container
-from service.src.doc_agent.graph.state import ResearchState
+from doc_agent.core.container import container
+from doc_agent.graph.state import ResearchState
 
 # --- 模拟的上传文件内容 (保持不变) ---
 STYLE_GUIDE_CONTENT = """
 同志们，朋友们！今天我们汇聚一堂，核心议题是创新。创新是引领发展的第一动力，是建设现代化经济体系的战略支撑。我们必须把创新摆在国家发展全局的核心位置。
 """
 REQUIREMENTS_CONTENT = """
-- 报告必须首先定义什么是"可观测性"。
-- 必须包含一个关于 OpenTelemetry 未来发展趋势的章节。
-- 结论部分必须为不同规模的企业提供明确的技术选型建议。
+- 报告必须要引用白鹤滩水电站的相关经验作为例子。
+- 必须包含一个关于中国水电站未来发展趋势的章节。
+- 结论部分必须为不同规模的水电站提 供明确的技术选型建议。
 """
 
 
@@ -81,11 +74,10 @@ async def main():
     """
     # --- 1. 【新增】设置输出路径和日志 ---
     run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join(project_root, "output")
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
 
-    log_file_path = os.path.join(output_dir,
-                                 f"workflow_test_{run_timestamp}.log")
+    log_file_path = output_dir / f"workflow_test_{run_timestamp}.log"
 
     # 添加额外的日志文件输出
     logger.add(log_file_path, level="DEBUG",
@@ -103,7 +95,7 @@ async def main():
         logger.info("🚀 Starting decoupled workflow test with context tracking")
 
         # --- 2. 准备第一阶段的输入 (保持不变) ---
-        topic = "以'可观测性'为核心，对比分析 Prometheus, Zabbix 和 OpenTelemetry 三种技术方案在现代云原生环境下的优缺点"
+        topic = "调研一下水电站建造过程中可能出现的问题和解决方案"
         stage_one_input_state = ResearchState(
             topic=topic,
             style_guide_content=STYLE_GUIDE_CONTENT,
@@ -158,8 +150,7 @@ async def main():
         logger.info("💾 Saving all workflow outputs...")
 
         # 保存最终状态
-        state_file_path = os.path.join(output_dir,
-                                       f"workflow_state_{run_timestamp}.json")
+        state_file_path = output_dir / f"workflow_state_{run_timestamp}.json"
         try:
             with open(state_file_path, 'w', encoding='utf-8') as f:
                 # Pydantic/TypedDict 不能直接 json.dump，需要先转为普通 dict
@@ -172,8 +163,7 @@ async def main():
             logger.error(f"   - Failed to save state file: {e}")
 
         # 保存最终文档
-        document_file_path = os.path.join(
-            output_dir, f"final_document_{run_timestamp}.md")
+        document_file_path = output_dir / f"final_document_{run_timestamp}.md"
         final_document_content = final_state.get("final_document", "")
         try:
             with open(document_file_path, 'w', encoding='utf-8') as f:

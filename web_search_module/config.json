@@ -1,0 +1,152 @@
+{
+    "es_host": "https://10.215.146.123:9208",
+    "es_port": 9208,
+    "es_user": "devops",
+    "es_password": "Zi1TVheUxwx5ANYH",
+    "es_use_ssl": false,
+    "search_es_host": "https://10.238.130.43:9200,https://10.238.130.44:9200,https://10.238.130.45:9200",
+    "search_es_port": 9200,
+    "search_es_user": "devops",
+    "search_es_password": "mQxMg8wEKnN1WExz",
+    "search_es_use_ssl": false,
+    "rerank_url": "http://10.238.130.30:19139/reranker",
+    "file_transform_url": "https://copilot.test.hcece.net/onlyoffice/converter",
+    "file_download_url": "https://copilot.test.hcece.net/api/sys-storage/download?f8s=",
+    "storage_base_url": "http://ai.test.hcece.net",
+    "embedding": {
+        "gte_qwen_url": "http://10.215.58.199:13037/embed",
+        "gte_qwen_url_offline": "http://10.215.58.199:13037/embed"
+    },
+    "type_index_mapping": {
+        "personal": "personal_knowledge_base",
+        "standard": "standard_index_prod",
+        "book": "book_index_prod",
+        "thesis": "thesis_index_prod",
+        "internal": "internal_index_prod_v2",
+        "other": "other_index_prod",
+        "documentUploadAnswer": "personal_knowledge_base",
+        "feishu": "personal_knowledge_base"
+    },
+    "intention_index_mapping": {
+        "项目相关问题": "internal_index_prod_v2",
+        "华东院相关": "hdy_knowledge_prod_v2",
+        "规范查询": "standard_summary_index_prod",
+        "计算公式": "formula_index_prod"
+    },
+    "chat_model_url": "http://10.238.130.28:10004/v1",
+    "chat_model_name": "hdy_model",
+    "reasoning_model_url": "http://10.238.130.16:10000/v1",
+    "reasoning_model_name": "qwen-q",
+    "intent_model_url": "http://10.215.149.74:40000/v1",
+    "intent_model_name": "Qwen2.5-72B-Instruct-AWQ",
+    "oa_intent_model_url": "http://10.238.130.16:10086/v1",
+    "oa_intent_model_name": "router",
+    "thesis_summary_index": "thesis_index_base",
+    "web_search_params": {
+        "url": "http://10.215.149.74:9930/api/v1/llm-qa/api/chat/net",
+        "token": "eyJhbGciOiJIUzI1NiJ9.eyJqd3RfbmFtZSI6Iueul-azleiBlOe9keaOpeWPo-a1i-ivlSIsImp3dF91c2VyX2lkIjoyMiwiand0X3VzZXJfbmFtZSI6ImFkbWluIiwiZXhwIjoyMDA1OTc2MjY2LCJpYXQiOjE3NDY3NzYyNjZ9.YLkrXAdx-wyVUwWveVCF2ddjqZrOrwOKxaF8fLOuc6E"
+    },
+    "domain_index_mapping": {
+        "standard": {
+            "standard_index_prod": 1.5,
+            "standard_summary_index_prod": 0.2
+        },
+        "thesis": {
+            "thesis_index_prod": 1
+        },
+        "book": {
+            "book_index_prod": 1
+        },
+        "internal": {
+            "internal_index_prod_v2": 1,
+            "defection_index_prod": 0.2
+        },
+        "other": {
+            "other_index_prod": 1
+        },
+        "documentUploadAnswer": {
+            "personal_knowledge_base": 1
+        },
+        "policy": {
+            "hdy_knowledge_prod_v2": 1
+        },
+        "executivevoice": {
+            "hdy_knowledge_prod_v2": 1
+        },
+        "corporatenews": {
+            "hdy_knowledge_prod_v2": 1
+        },
+        "announcement": {
+            "hdy_knowledge_prod_v2": 1
+        }
+    },
+    "domain_search_index": {
+        "standard": "standard_index_prod",
+        "thesis": "thesis_index_prod",
+        "book": "book_index_prod",
+        "other": "other_index_prod",
+        "internal": "internal_index_prod_v2",
+        "policy": "hdy_knowledge_prod_v2",
+        "executivevoice": "hdy_knowledge_prod_v2",
+        "corporatenews": "hdy_knowledge_prod_v2",
+        "announcement": "hdy_knowledge_prod_v2"
+    },
+    "zipkin_service_name": "cyber-rag",
+    "zipkin_server": "http://10.238.130.13:39411/api/v2/spans",
+    "default_search_domain_ids": [
+        "standard",
+        "thesis",
+        "book",
+        "other",
+        "internal",
+        "policy",
+        "executivevoice",
+        "announcement"
+    ],
+    "knowledge_base_info_url": "http://llm-knowledge-base:9926/api/knowledge-base/find",
+    "table_agent_url": "http://10.215.149.74:22248/agent/chat/excel",
+    "model_list": {
+        "Qwen3-235B-A22B": {
+            "model": "Qwen3-235B-A22B",
+            "model_server": "http://10.218.108.245:9966/v1",
+            "is_qwen_llm": true,
+            "is_qwen3_llm": true,
+            "api_key": "EMPTY"
+        },
+        "Qwen72_Instruct": {
+            "model": "Qwen2.5-72B-Instruct-AWQ",
+            "model_server": "http://10.238.130.16:23215/v1",
+            "api_key": "EMPTY"
+        },
+        "QwQ32": {
+            "model": "qwen-q",
+            "model_server": "http://10.238.130.16:10000/v1",
+            "api_key": "EMPTY"
+        },
+        "qwen-max": {
+            "model": "qwen-max",
+            "model_server": "dashscope",
+            "api_key": "sk-e3d5a99731de46e4b702aa6b9f272633"
+        },
+        "DeepSeek": {
+            "model": "deepseek-r1-awq",
+            "model_server": "http://10.238.130.13:9003/aigatewayas/rest/platform-ai-llm/api/v1/cloud-service/product/llm/service/v1",
+            "api_key": "eyJhbGciOiJIUzI1NiJ9.eyJqd3RfbmFtZSI6ImXlpJrlsJEiLCJqd3RfdXNlcl9pZCI6NzQ5LCJqd3RfdXNlcl9uYW1lIjoi5p2O5pmT6aOeIiwiZXhwIjoxNzQzMDg5MTQwLCJpYXQiOjE3NDE1ODcxNzh9._JQgsSmVPE8e_pD4YoMiZVFNkv_e4aSF9PbA_AcNZvw"
+        },
+        "Qwen3-32B": {
+            "model": "Qwen3-32B",
+            "model_server": "http://10.218.108.246:9966/v1",
+            "api_key": "EMPTY",
+            "is_qwen3_llm": true
+        }
+    },
+    "file_service_app": "knowledge_platform",
+    "file_service_secret": "knowledge_platform_secret",
+    "file_service_tenant_id": "100023",
+    "leader_index": "hdy_leader_index_v2",
+    "redis_meta_key_pattern": "Data:governance:llm:meta:{}",
+    "redis_host": "10.215.149.74",
+    "redis_port": 26379,
+    "redis_password": "xJrhp*4mnHxbBWN2grqq",
+    "redis_db": 0
+}
