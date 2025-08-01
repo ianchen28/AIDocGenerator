@@ -147,14 +147,44 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
 
         # 触发 Celery 任务
         from workers.tasks import generate_outline_from_query_task
-        generate_outline_from_query_task.delay(
-            job_id=request.session_id,  # 使用session_id作为job_id
-            task_prompt=request.task_prompt,
-            is_online=request.is_online,
-            context_files=request.context_files,
-            style_guide_content=style_guide_content,
-            requirements=requirements,
-            redis_stream_key=redis_stream_key)
+        from workers.celery_app import celery_app
+        logger.info("准备提交 Celery 任务...")
+
+        # 测试 Celery 连接
+        try:
+            logger.info(f"Celery broker URL: {celery_app.conf.broker_url}")
+            # 测试连接
+            inspect_result = celery_app.control.inspect().active()
+            logger.info(f"Celery 连接测试成功: {inspect_result}")
+        except Exception as e:
+            logger.error(f"Celery 连接测试失败: {e}")
+            raise
+
+        try:
+            # 使用同步方式提交任务
+            import asyncio
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: generate_outline_from_query_task.apply_async(
+                    kwargs={
+                        'job_id': request.session_id,  # 使用session_id作为job_id
+                        'task_prompt': request.task_prompt,
+                        'is_online': request.is_online,
+                        'context_files': request.context_files,
+                        'style_guide_content': style_guide_content,
+                        'requirements': requirements,
+                        'redis_stream_key': redis_stream_key
+                    },
+                    countdown=0,
+                    expires=300  # 5分钟过期
+                ))
+            logger.info(f"Celery 任务已提交，任务 ID: {result.id}")
+        except Exception as e:
+            logger.error(f"提交 Celery 任务失败: {e}")
+            import traceback
+            logger.error(f"错误详情: {traceback.format_exc()}")
+            raise
 
         # 记录任务已接收
         logger.info(f"大纲生成任务已接收，session_id: {request.session_id}")

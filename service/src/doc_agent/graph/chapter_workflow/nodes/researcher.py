@@ -225,26 +225,27 @@ async def async_researcher_node(
         # ============================
         # 网络搜索
         # ============================
-        web_results = ""
+        web_raw_results = None
+        web_str_results = ""
         try:
             # 使用异步搜索方法
-            web_results = await web_search_tool.search_async(query)
-            if "模拟" in web_results or "mock" in web_results.lower():
+            web_raw_results = await web_search_tool.search_async(query)
+            if "模拟" in web_raw_results or "mock" in web_raw_results.lower():
                 logger.info(f"网络搜索返回模拟结果，跳过: {query}")
-                web_results = ""
-            if "搜索失败" in web_results:
-                logger.error(f"网络搜索失败: {web_results}")
-                web_results = ""
+                web_str_results = ""
+            if "搜索失败" in web_str_results:
+                logger.error(f"网络搜索失败: {web_str_results}")
+                web_str_results = ""
         except Exception as e:
             logger.error(f"网络搜索失败: {str(e)}")
-            web_results = ""
+            web_str_results = ""
 
         # 处理网络搜索结果
-        if web_results and web_results.strip():
+        if web_str_results and web_str_results.strip():
             try:
                 # 解析网络搜索结果，创建 Source 对象
                 web_sources = _parse_web_search_results(
-                    web_results, query, source_id_counter)
+                    web_str_results, query, source_id_counter)
 
                 # 使用新的去重逻辑
                 deduplicated_web_sources = merge_sources_with_deduplication(
@@ -290,8 +291,8 @@ async def async_researcher_node(
         if truncate_length > 0:
             if es_str_results and len(es_str_results) > truncate_length:
                 es_str_results = es_str_results[:truncate_length] + "\n... (结果已截断)"
-            if web_results and len(web_results) > truncate_length:
-                web_results = web_results[:truncate_length] + "\n... (结果已截断)"
+            if web_str_results and len(web_str_results) > truncate_length:
+                web_str_results = web_str_results[:truncate_length] + "\n... (结果已截断)"
 
     # 合并所有信源（包括现有的和新的）
     final_sources = merge_sources_with_deduplication(all_sources,

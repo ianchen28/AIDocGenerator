@@ -142,17 +142,22 @@ class TaskCreationResponse(BaseModel):
 
 class OutlineGenerationResponse(BaseModel):
     """大纲生成响应模型"""
-    session_id: str = Field(..., description="会话ID")
-    redis_stream_key: str = Field(..., description="Redis流响应的key，用于前端监听")
+    session_id: str = Field(..., alias="sessionId", description="会话ID")
+    redis_stream_key: str = Field(...,
+                                  alias="redisStreamKey",
+                                  description="Redis流响应的key，用于前端监听")
     status: str = Field(..., description="任务状态")
     message: str = Field(..., description="响应消息")
+
+    class Config:
+        populate_by_name = True
 
 
 class TaskStatusResponse(BaseModel):
     """任务状态查询的API响应"""
     task_id: str
     status: Literal["PENDING", "RUNNING", "COMPLETED", "FAILED"]
-    progress: str | None = None  # e.g., "Executing web search"
+    progress: Optional[str] = None  # e.g., "Executing web search"
 
 
 class TaskResultResponse(BaseModel):

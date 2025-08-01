@@ -50,7 +50,7 @@ class RedisStreamPublisher:
             event_payload = {
                 "data": json.dumps(event_data, ensure_ascii=False),
                 "timestamp": event_data.get("timestamp", ""),
-                "event_type": event_data.get("event_type", "unknown")
+                "eventType": event_data.get("eventType", "unknown")
             }
 
             # 发布事件到 Redis Stream
@@ -80,8 +80,8 @@ class RedisStreamPublisher:
             str: 事件ID
         """
         event_data = {
-            "event_type": "task_started",
-            "task_type": task_type,
+            "eventType": "task_started",
+            "taskType": task_type,
             "status": "started",
             "timestamp": self._get_current_timestamp(),
             **kwargs
@@ -104,8 +104,8 @@ class RedisStreamPublisher:
             str: 事件ID
         """
         event_data = {
-            "event_type": "task_progress",
-            "task_type": task_type,
+            "eventType": "task_progress",
+            "taskType": task_type,
             "progress": progress,
             "status": "running",
             "timestamp": self._get_current_timestamp(),
@@ -132,8 +132,8 @@ class RedisStreamPublisher:
             str: 事件ID
         """
         event_data = {
-            "event_type": "task_completed",
-            "task_type": task_type,
+            "eventType": "task_completed",
+            "taskType": task_type,
             "status": "completed",
             "result": result or {},
             "timestamp": self._get_current_timestamp(),
@@ -157,8 +157,8 @@ class RedisStreamPublisher:
             str: 事件ID
         """
         event_data = {
-            "event_type": "task_failed",
-            "task_type": task_type,
+            "eventType": "task_failed",
+            "taskType": task_type,
             "status": "failed",
             "error": error,
             "timestamp": self._get_current_timestamp(),
@@ -180,8 +180,8 @@ class RedisStreamPublisher:
             str: 事件ID
         """
         event_data = {
-            "event_type": "outline_generated",
-            "task_type": "outline_generation",
+            "eventType": "outline_generated",
+            "taskType": "outline_generation",
             "status": "completed",
             "outline": outline,
             "timestamp": self._get_current_timestamp()
@@ -202,8 +202,8 @@ class RedisStreamPublisher:
             str: 事件ID
         """
         event_data = {
-            "event_type": "document_generated",
-            "task_type": "document_generation",
+            "eventType": "document_generated",
+            "taskType": "document_generation",
             "status": "completed",
             "document": document,
             "timestamp": self._get_current_timestamp()

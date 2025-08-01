@@ -25,13 +25,16 @@ celery_app.config_from_object({
     'worker_prefetch_multiplier': 1,
     'worker_max_tasks_per_child': 1000,
     'broker_connection_retry_on_startup': True,
+    'broker_connection_timeout': 30,
+    'broker_connection_retry': True,
+    'broker_connection_max_retries': 10,
     'task_default_queue': 'default',  # 设置默认队列
     'task_default_exchange': 'default',
     'task_default_routing_key': 'default',
 })
 
 # 自动发现任务
-celery_app.autodiscover_tasks(['workers'])
+celery_app.autodiscover_tasks(['workers.tasks'])
 
 # 可选：配置任务路由
 celery_app.conf.task_routes = {

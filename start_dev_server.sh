@@ -35,17 +35,46 @@ else
     echo "   - ✅ Redis server is running."
 fi
 
-# --- 步骤 2: 启动 Celery Worker ---
-echo "🔵 Step 2: Starting Celery Worker in the background..."
-# 激活虚拟环境 (如果需要的话，根据你的环境修改)
-# source .venv/bin/activate
-# conda activate ai-doc
+# --- 步骤 2: 激活 conda 环境 ---
+echo "🔵 Step 2: Activating conda environment..."
+# 尝试激活 ai-doc 环境
+if command -v conda &> /dev/null; then
+    # 尝试直接激活
+    if conda activate ai-doc 2>/dev/null; then
+        echo "   - ✅ ai-doc environment activated"
+    else
+        # 如果直接激活失败，尝试使用 source 方式
+        echo "   - ⚠️ 无法直接激活 ai-doc 环境，尝试使用 source 方式..."
+        if [ -f ~/miniforge3/etc/profile.d/conda.sh ]; then
+            source ~/miniforge3/etc/profile.d/conda.sh
+        elif [ -f ~/miniconda3/etc/profile.d/conda.sh ]; then
+            source ~/miniconda3/etc/profile.d/conda.sh
+        elif [ -f ~/anaconda3/etc/profile.d/conda.sh ]; then
+            source ~/anaconda3/etc/profile.d/conda.sh
+        fi
+        if conda activate ai-doc; then
+            echo "   - ✅ ai-doc 环境已激活"
+        else
+            echo "   - ❌ 无法激活 ai-doc 环境，请手动激活后重新运行脚本"
+            exit 1
+        fi
+    fi
+else
+    echo "   - ❌ conda 命令未找到，请确保已安装 conda"
+    exit 1
+fi
+
+# --- 步骤 3: 启动 Celery Worker ---
+echo "🔵 Step 3: Starting Celery Worker in the background..."
+
+# 设置正确的 Redis URL
+export REDIS_URL=redis://10.215.149.74:26379/0
 
 # 调用 service/workers 目录中的 start_celery.sh 脚本，并在后台运行
 # `&` 符号让命令在后台执行
 # `2>&1` 将标准错误重定向到标准输出
 # `>` 将输出重定向到日志文件
-(cd service/workers && ./start_celery.sh) > celery_worker.log 2>&1 &
+(cd service && REDIS_URL=redis://:xJrhp*4mnHxbBWN2grqq@10.215.149.74:26379/0 python -m workers.celery_worker worker --loglevel=info) > celery_worker.log 2>&1 &
 
 # 获取刚刚启动的后台进程的 PID (Process ID)
 CELERY_PID=$!
@@ -55,8 +84,8 @@ echo "   - Logs are being written to celery_worker.log"
 # 等待几秒钟，确保 Celery Worker 完成初始化
 sleep 5
 
-# --- 步骤 3: 启动 FastAPI 服务 ---
-echo "🔵 Step 3: Starting FastAPI server in the foreground..."
+# --- 步骤 4: 启动 FastAPI 服务 ---
+echo "🔵 Step 4: Starting FastAPI server in the foreground..."
 echo "   - FastAPI will be available at http://127.0.0.1:8000"
 echo "   - Press Ctrl+C to stop all services."
 

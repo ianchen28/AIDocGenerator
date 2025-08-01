@@ -22,7 +22,8 @@ async def get_redis_client() -> redis.Redis:
     """获取Redis客户端实例"""
     try:
         # 每次都创建新的连接，避免连接超时问题
-        redis_client = redis.from_url("redis://localhost:6379",
+        from doc_agent.core.config import settings
+        redis_client = redis.from_url(settings.redis_url,
                                       encoding="utf-8",
                                       decode_responses=True)
         # 测试连接
@@ -72,19 +73,19 @@ def generate_outline_from_query_task(job_id: str,
         return "FAILED"
 
 
-async def _generate_outline_from_query_task_async(job_id: str,
-                                                  task_prompt: str,
-                                                  is_online: bool = False,
-                                                  context_files: dict = None,
-                                                  style_guide_content: str = None,
-                                                  requirements: str = None,
-                                                  redis_stream_key: str = None
-                                                  ) -> str:
+async def _generate_outline_from_query_task_async(
+        job_id: str,
+        task_prompt: str,
+        is_online: bool = False,
+        context_files: dict = None,
+        style_guide_content: str = None,
+        requirements: str = None,
+        redis_stream_key: str = None) -> str:
     """异步大纲生成任务的内部实现"""
     try:
         # 获取Redis客户端和发布器
         redis = await get_redis_client()
-        from core.redis_stream_publisher import RedisStreamPublisher
+        from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
         publisher = RedisStreamPublisher(redis)
 
         # 发布任务开始事件
@@ -94,7 +95,9 @@ async def _generate_outline_from_query_task_async(job_id: str,
 
         logger.info(f"Job {job_id}: 开始生成大纲，主题: '{task_prompt[:50]}...'")
         logger.info(f"  is_online: {is_online}")
-        logger.info(f"  context_files: {len(context_files) if context_files else 0} 个文件")
+        logger.info(
+            f"  context_files: {len(context_files) if context_files else 0} 个文件"
+        )
         logger.info(f"  style_guide_content: {bool(style_guide_content)}")
         logger.info(f"  requirements: {bool(requirements)}")
         logger.info(f"  redis_stream_key: {redis_stream_key}")
@@ -213,7 +216,7 @@ async def _generate_document_from_outline_task_async(job_id: str,
     try:
         # 获取Redis客户端和发布器
         redis = await get_redis_client()
-        from core.redis_stream_publisher import RedisStreamPublisher
+        from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
         publisher = RedisStreamPublisher(redis)
 
         # 发布任务开始事件
