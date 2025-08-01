@@ -338,33 +338,53 @@ class AppSettings(BaseSettings):
         return {}
 
     def get_document_config(self, fast_mode: bool = False) -> dict[str, Any]:
-        """获取文档配置，支持快速模式"""
-        config = self.document_generation_config
+        """获取文档配置（已统一到复杂度配置）"""
+        # 使用统一的复杂度配置
+        return self.get_complexity_config()
 
-        if fast_mode and config.fast_test_mode.enabled:
-            # 使用快速测试模式配置
-            return {
-                'chapter_count': config.fast_test_mode.chapter_count,
-                'total_target_words': config.fast_test_mode.total_target_words,
-                'chapter_target_words':
-                config.fast_test_mode.chapter_target_words,
-                'vector_recall_size': config.fast_test_mode.vector_recall_size,
-                'hybrid_recall_size': config.fast_test_mode.hybrid_recall_size,
-                'rerank_size': config.fast_test_mode.rerank_size,
-                'min_score': config.es_search.min_score
-            }
-        else:
-            # 使用正常模式配置
-            return {
-                'total_target_words':
-                config.document_length.total_target_words,
-                'chapter_target_words':
-                config.document_length.chapter_target_words,
-                'vector_recall_size': config.es_search.vector_recall_size,
-                'hybrid_recall_size': config.es_search.hybrid_recall_size,
-                'rerank_size': config.es_search.rerank_size,
-                'min_score': config.es_search.min_score
-            }
+    def get_complexity_config(self) -> dict:
+        """获取当前复杂度级别的配置"""
+        if not self._yaml_config:
+            return {}
+
+        doc_gen_config = self._yaml_config.get('document_generation', {})
+        complexity_config = doc_gen_config.get('generation_complexity', {})
+        level = complexity_config.get('level', 'standard')
+
+        # 获取对应级别的配置
+        level_config = complexity_config.get(
+            level, complexity_config.get('standard', {}))
+
+        return {
+            'level':
+            level,
+            'initial_search_queries':
+            level_config.get('initial_search_queries', 5),
+            'chapter_search_queries':
+            level_config.get('chapter_search_queries', 3),
+            'max_search_results':
+            level_config.get('max_search_results', 5),
+            'data_truncate_length':
+            level_config.get('data_truncate_length', -1),
+            'max_chapters':
+            level_config.get('max_chapters', -1),
+            'chapter_target_words':
+            level_config.get('chapter_target_words', 1600),
+            'total_target_words':
+            level_config.get('total_target_words', 8000),
+            'vector_recall_size':
+            level_config.get('vector_recall_size', 20),
+            'hybrid_recall_size':
+            level_config.get('hybrid_recall_size', 15),
+            'rerank_size':
+            level_config.get('rerank_size', 8),
+            'use_simplified_prompts':
+            level_config.get('use_simplified_prompts', False),
+            'llm_timeout':
+            level_config.get('llm_timeout', 180),
+            'max_retries':
+            level_config.get('max_retries', 5)
+        }
 
 
 # 创建全局settings实例

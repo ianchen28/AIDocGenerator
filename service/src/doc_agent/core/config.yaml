@@ -197,20 +197,85 @@ document_generation:
     # 最大章节字数
     max_chapter_words: 2500
   
-  # 快速测试模式配置
-  fast_test_mode:
-    # 是否启用快速测试模式
-    enabled: true
-    # 快速模式下的章节数量
-    chapter_count: 2
-    # 快速模式下的总字数
-    total_target_words: 1200
-    # 快速模式下的章节字数
-    chapter_target_words: 600
-    # 快速模式下的检索数量
-    vector_recall_size: 10
-    hybrid_recall_size: 8
-    rerank_size: 5
+  # 生成复杂度配置
+  generation_complexity:
+    # 复杂度级别: "fast" | "standard" | "comprehensive"
+    level: "fast"
+    
+    # 快速模式配置
+    fast:
+      # 搜索配置
+      initial_search_queries: 2       # 初始研究查询数
+      chapter_search_queries: 2       # 每章节搜索查询数
+      max_search_results: 3           # 每个查询最大结果数
+      data_truncate_length: 5000      # 数据截断长度
+      
+      # 章节配置
+      max_chapters: 2                 # 最大章节数
+      chapter_target_words: 600       # 每章目标字数
+      total_target_words: 1200        # 总目标字数
+      
+      # 检索配置
+      vector_recall_size: 10
+      hybrid_recall_size: 8
+      rerank_size: 5
+      
+      # 提示词配置
+      use_simplified_prompts: true    # 使用简化提示词
+      
+      # 超时和重试
+      llm_timeout: 60                 # LLM调用超时（秒）
+      max_retries: 2                  # 最大重试次数
+    
+    # 标准模式配置
+    standard:
+      # 搜索配置
+      initial_search_queries: 5
+      chapter_search_queries: 3
+      max_search_results: 5
+      data_truncate_length: 10000
+      
+      # 章节配置
+      max_chapters: 5
+      chapter_target_words: 1600
+      total_target_words: 8000
+      
+      # 检索配置
+      vector_recall_size: 20
+      hybrid_recall_size: 15
+      rerank_size: 8
+      
+      # 提示词配置
+      use_simplified_prompts: false
+      
+      # 超时和重试
+      llm_timeout: 180
+      max_retries: 5
+    
+    # 全面模式配置
+    comprehensive:
+      # 搜索配置
+      initial_search_queries: 8
+      chapter_search_queries: 5
+      max_search_results: 10
+      data_truncate_length: -1        # 不截断
+      
+      # 章节配置
+      max_chapters: -1                # 不限制
+      chapter_target_words: 2000
+      total_target_words: 15000
+      
+      # 检索配置
+      vector_recall_size: 30
+      hybrid_recall_size: 20
+      rerank_size: 12
+      
+      # 提示词配置
+      use_simplified_prompts: false
+      
+      # 超时和重试
+      llm_timeout: 300
+      max_retries: 8
 
 # ================================================
 # Agent 配置

@@ -215,10 +215,14 @@ class AIEditingTool:
                     formatted_prompt = prompt_template.format(text=text,
                                                               command=command)
                 elif action == "continue_writing":
-                    if not context:
-                        raise ValueError("续写操作需要提供 context 参数")
-                    formatted_prompt = prompt_template.format(text=text,
-                                                              context=context)
+                    # 续写功能不再要求 context 参数
+                    if context:
+                        formatted_prompt = prompt_template.format(
+                            text=text, context=context)
+                    else:
+                        # 如果没有提供 context，使用不依赖上下文的续写 prompt
+                        formatted_prompt = prompt_template.format(
+                            text=text, context="无特定上下文信息")
                 else:
                     formatted_prompt = prompt_template.format(text=text)
                 self.logger.debug(

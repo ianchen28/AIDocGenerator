@@ -141,7 +141,7 @@ class EditActionRequest(BaseModel):
     command: Optional[str] = Field(None,
                                    description="当 action 为 'custom' 时，此字段为必填项")
     context: Optional[str] = Field(
-        None, description="当 action 为 'continue_writing' 时，此字段为上下文信息")
+        None, description="当 action 为 'continue_writing' 时，此字段为可选的上下文信息")
     polish_style: Optional[Literal[
         "professional", "conversational", "readable", "subtle", "academic",
         "literary"]] = Field(None, description="当 action 为 'polish' 时，此字段为必填项")
@@ -155,8 +155,9 @@ class EditActionRequest(BaseModel):
         if self.action == "custom" and not self.command:
             raise ValueError("当 action 为 'custom' 时，command 字段为必填项")
 
-        if self.action == "continue_writing" and not self.context:
-            raise ValueError("当 action 为 'continue_writing' 时，context 字段为必填项")
+        # 续写功能不再要求 context 字段为必填项
+        # if self.action == "continue_writing" and not self.context:
+        #     raise ValueError("当 action 为 'continue_writing' 时，context 字段为必填项")
 
         return self
 

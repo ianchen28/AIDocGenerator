@@ -61,7 +61,7 @@ async def edit_text(request: EditActionRequest,
         """SSE 事件生成器"""
         try:
             # 发送开始事件
-            yield f"data: {json.dumps({'event': 'start', 'action': request.action})}\n\n"
+            yield f"data: {json.dumps({'event': 'start', 'action': request.action}, ensure_ascii=False)}\n\n"
 
             # 调用 AI 编辑工具的流式方法
             async for token in tool.arun(action=request.action,
@@ -70,23 +70,23 @@ async def edit_text(request: EditActionRequest,
                                          context=request.context,
                                          polish_style=request.polish_style):
                 # 将每个 token 包装成 SSE 格式
-                yield f"data: {json.dumps({'text': token})}\n\n"
+                yield f"data: {json.dumps({'text': token}, ensure_ascii=False)}\n\n"
 
             # 发送结束事件
-            yield f"data: {json.dumps({'event': 'end', 'action': request.action})}\n\n"
+            yield f"data: {json.dumps({'event': 'end', 'action': request.action}, ensure_ascii=False)}\n\n"
 
             logger.info(f"文本编辑流式响应完成，操作: {request.action}")
 
         except ValueError as e:
             # 发送错误事件
             error_data = {'event': 'error', 'error': '参数错误', 'detail': str(e)}
-            yield f"data: {json.dumps(error_data)}\n\n"
+            yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
             logger.error(f"文本编辑参数错误: {e}")
 
         except Exception as e:
             # 发送错误事件
             error_data = {'event': 'error', 'error': '编辑失败', 'detail': str(e)}
-            yield f"data: {json.dumps(error_data)}\n\n"
+            yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
             logger.error(f"文本编辑失败: {e}")
 
     # 返回流式响应

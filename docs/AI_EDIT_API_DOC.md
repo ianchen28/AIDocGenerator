@@ -50,7 +50,7 @@
   - `academic`: 学术风格，符合学术写作规范
   - `literary`: 文学风格，富有文学性和艺术美感
 - `command` (可选): 自定义编辑指令，仅在 `action` 为 `custom` 时必填
-- `context` (可选): 上下文信息，仅在 `action` 为 `continue_writing` 时必填
+- `context` (可选): 上下文信息，仅在 `action` 为 `continue_writing` 时可选
 
 **响应 (Response)**:
 - 成功响应 (200 OK): Server-Sent Events (SSE) 流式响应
@@ -221,7 +221,7 @@ data: {"text": "。"}
 data: {"event": "end", "action": "expand"}
 ```
 
-### 示例 E：续写功能
+### 示例 E：续写功能（带上下文）
 
 **请求体**:
 ```json
@@ -251,7 +251,40 @@ data: {"text": "。"}
 data: {"event": "end", "action": "continue_writing"}
 ```
 
-### 示例 F：自定义编辑
+### 示例 F：续写功能（不带上下文）
+
+**请求体**:
+```json
+{
+  "action": "continue_writing",
+  "text": "人工智能技术正在快速发展，机器学习算法在各个领域都有广泛应用。"
+}
+```
+
+**响应流示例**:
+```
+data: {"event": "start", "action": "continue_writing"}
+
+data: {"text": "特别是在"}
+
+data: {"text": "医疗"}
+
+data: {"text": "、"}
+
+data: {"text": "金融"}
+
+data: {"text": "和"}
+
+data: {"text": "交通"}
+
+data: {"text": "等行业"}
+
+data: {"text": "。"}
+
+data: {"event": "end", "action": "continue_writing"}
+```
+
+### 示例 G：自定义编辑
 
 **请求体**:
 ```json

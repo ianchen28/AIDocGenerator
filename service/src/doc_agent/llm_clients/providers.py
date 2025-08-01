@@ -660,7 +660,27 @@ class InternalLLMClient(LLMClient):
                                     delta = chunk["choices"][0].get(
                                         "delta", {})
                                     if "content" in delta and delta["content"]:
-                                        yield delta["content"]
+                                        content = delta["content"]
+                                        # 调试：检查内容是否为 Unicode 编码
+                                        if content.startswith('\\u'):
+                                            logger.debug(
+                                                f"检测到 Unicode 编码内容: {content}")
+                                            # 尝试解码 Unicode 转义序列
+                                            try:
+                                                decoded_content = content.encode(
+                                                    'utf-8').decode(
+                                                        'unicode_escape')
+                                                logger.debug(
+                                                    f"解码后内容: {decoded_content}"
+                                                )
+                                                yield decoded_content
+                                            except Exception as e:
+                                                logger.warning(
+                                                    f"Unicode 解码失败: {e}, 使用原始内容"
+                                                )
+                                                yield content
+                                        else:
+                                            yield content
                             except json.JSONDecodeError:
                                 continue
 

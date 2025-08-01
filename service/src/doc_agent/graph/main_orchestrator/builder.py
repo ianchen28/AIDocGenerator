@@ -371,6 +371,9 @@ def finalize_document_node(state: ResearchState) -> dict:
         final_document_parts.append(f"\n{cleaned_content}\n")
         final_document_parts.append("\n---\n")
 
+    # 参考文献将由 bibliography_node 在后续步骤中添加
+    logger.info("📚 参考文献将在后续步骤中由 bibliography_node 添加")
+
     # 合并为最终文档
     final_document = "\n".join(final_document_parts)
 
@@ -521,7 +524,7 @@ def build_main_orchestrator_graph(initial_research_node,
     # 融合编辑后进入文档最终化
     workflow.add_edge("fusion_editor", "finalize_document")
 
-    # 最终化后进入参考文献生成
+    # 文档最终化后进入参考文献生成
     workflow.add_edge("finalize_document", "generate_bibliography")
 
     # 参考文献生成后结束

@@ -22,7 +22,7 @@ from doc_agent.graph.callbacks import create_redis_callback_handler
 from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
 from doc_agent.graph.chapter_workflow import router as chapter_router
 from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
-from doc_agent.graph.fast_builder import build_fast_main_workflow
+# 快速构建器已删除，统一使用配置控制复杂度
 from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
 from doc_agent.graph.main_orchestrator.builder import (
     build_document_graph,
@@ -202,15 +202,8 @@ class Container:
             chapter_workflow_graph=self.chapter_graph,
             fusion_editor_node=main_fusion_editor_node)
 
-        # 编译快速模式的主工作流图
-        self.fast_main_graph = build_fast_main_workflow(
-            web_search_tool=self.web_search_tool,
-            es_search_tool=self.es_search_tool,
-            reranker_tool=self.reranker_tool,
-            llm_client=self.llm_client)
-
         print("   - Main Orchestrator Graph compiled successfully.")
-        print("   - Fast Main Orchestrator Graph compiled successfully.")
+        print("   - 快速模式已统一到配置控制中")
         print("✅ Container initialization complete.")
 
     def get_graph_runnable_for_job(self, job_id: str, genre: str = "default"):
@@ -500,7 +493,7 @@ class Container:
 
     def get_fast_graph_runnable_for_job(self, job_id: str):
         """
-        为指定作业获取带有Redis回调处理器的快速图执行器
+        为指定作业获取快速模式的图执行器（已统一到配置控制）
         Args:
             job_id: 作业ID，用于创建特定的回调处理器
         """
@@ -508,12 +501,12 @@ class Container:
         redis_handler = create_redis_callback_handler(
             job_id, self._get_redis_publisher())
 
-        # 使用回调处理器配置快速图
-        configured_fast_graph = self.fast_main_graph.with_config(
-            {"callbacks": [redis_handler]})
+        # 使用标准图，但通过配置控制快速模式
+        configured_graph = self._get_genre_aware_graph("default",
+                                                       redis_handler)
 
-        logger.info(f"为作业 {job_id} 创建了带回调处理器的快速图执行器")
-        return configured_fast_graph
+        logger.info(f"为作业 {job_id} 创建了快速模式图执行器（通过配置控制）")
+        return configured_graph
 
     async def cleanup(self):
         """清理资源 (保持不变)"""

@@ -59,11 +59,25 @@ async def run_stage_two_document_generation(
                 initial_state):
             node_name = list(step_output.keys())[0]
             logger.info(f"✅ [Stage 2] Finished step: [ {node_name} ]")
-            final_result_state = list(step_output.values())[0]
+            step_result = list(step_output.values())[0]
+
+            # 检查步骤结果是否有效
+            if step_result is not None:
+                final_result_state = step_result
+                logger.debug(f"📊 步骤 {node_name} 返回有效结果")
+            else:
+                logger.warning(f"⚠️  步骤 {node_name} 返回 None")
+
     except Exception as e:
         logger.error(f"❌ [Stage 2] Error during document generation: {e}",
                      exception=e)
         return None
+
+    # 如果最终状态为None，尝试使用初始状态
+    if final_result_state is None:
+        logger.warning("⚠️  最终状态为None，使用初始状态")
+        final_result_state = initial_state
+
     logger.success("✅✅✅ STAGE 2: Document Generation Complete! ✅✅✅\n")
     return final_result_state
 
@@ -100,7 +114,6 @@ async def main():
             topic=topic,
             style_guide_content=STYLE_GUIDE_CONTENT,
             requirements_content=REQUIREMENTS_CONTENT,
-            # ... 其他字段 ...
             initial_sources=[],
             document_outline={},
             chapters_to_process=[],
@@ -127,7 +140,6 @@ async def main():
             topic=topic,
             document_outline=generated_outline,
             style_guide_content=STYLE_GUIDE_CONTENT,
-            # ... 其他字段 ...
             initial_sources=[],
             requirements_content="",
             chapters_to_process=[],
