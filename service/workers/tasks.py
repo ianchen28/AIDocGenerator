@@ -37,14 +37,22 @@ async def get_redis_client() -> redis.Redis:
 @celery_app.task
 def generate_outline_from_query_task(job_id: str,
                                      task_prompt: str,
-                                     context_files: dict = None) -> str:
+                                     is_online: bool = False,
+                                     context_files: dict = None,
+                                     style_guide_content: str = None,
+                                     requirements: str = None,
+                                     redis_stream_key: str = None) -> str:
     """
     从查询生成大纲的异步任务
 
     Args:
         job_id: 作业ID
         task_prompt: 用户的核心指令
+        is_online: 是否调用web搜索
         context_files: 上下文文件列表（可选）
+        style_guide_content: 风格指南内容（可选）
+        requirements: 编写要求（可选）
+        redis_stream_key: Redis流key（可选）
 
     Returns:
         任务状态
@@ -55,7 +63,10 @@ def generate_outline_from_query_task(job_id: str,
         # 使用同步方式运行异步函数
         return asyncio.run(
             _generate_outline_from_query_task_async(job_id, task_prompt,
-                                                    context_files))
+                                                    is_online, context_files,
+                                                    style_guide_content,
+                                                    requirements,
+                                                    redis_stream_key))
     except Exception as e:
         logger.error(f"大纲生成任务失败: {e}")
         return "FAILED"
@@ -63,7 +74,11 @@ def generate_outline_from_query_task(job_id: str,
 
 async def _generate_outline_from_query_task_async(job_id: str,
                                                   task_prompt: str,
-                                                  context_files: dict = None
+                                                  is_online: bool = False,
+                                                  context_files: dict = None,
+                                                  style_guide_content: str = None,
+                                                  requirements: str = None,
+                                                  redis_stream_key: str = None
                                                   ) -> str:
     """异步大纲生成任务的内部实现"""
     try:
@@ -78,13 +93,21 @@ async def _generate_outline_from_query_task_async(job_id: str,
                                              task_prompt=task_prompt)
 
         logger.info(f"Job {job_id}: 开始生成大纲，主题: '{task_prompt[:50]}...'")
+        logger.info(f"  is_online: {is_online}")
+        logger.info(f"  context_files: {len(context_files) if context_files else 0} 个文件")
+        logger.info(f"  style_guide_content: {bool(style_guide_content)}")
+        logger.info(f"  requirements: {bool(requirements)}")
+        logger.info(f"  redis_stream_key: {redis_stream_key}")
 
         # TODO: 调用新的"从 Query 到大纲"的 LangGraph 图
         # 这里将替换为实际的图执行逻辑
         # outline_graph = get_outline_generation_graph()
         # result = await outline_graph.ainvoke({
         #     "task_prompt": task_prompt,
-        #     "context_files": context_files
+        #     "is_online": is_online,
+        #     "context_files": context_files,
+        #     "style_guide_content": style_guide_content,
+        #     "requirements": requirements
         # })
 
         # 模拟大纲生成过程

@@ -10,12 +10,9 @@ from typing import Any
 from loguru import logger
 
 from doc_agent.core.config import settings
-from doc_agent.graph.common import (
-    merge_sources_with_deduplication, )
-from doc_agent.graph.common import (
-    parse_es_search_results as _parse_es_search_results, )
-from doc_agent.graph.common import (
-    parse_web_search_results as _parse_web_search_results, )
+from doc_agent.graph.common import merge_sources_with_deduplication
+from doc_agent.graph.common import parse_es_search_results as _parse_es_search_results
+from doc_agent.graph.common import parse_web_search_results as _parse_web_search_results
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.providers import EmbeddingClient
 from doc_agent.tools.es_search import ESSearchTool
@@ -40,13 +37,13 @@ async def async_researcher_node(
     从状态中获取 search_queries，使用搜索工具收集相关信息
     优先使用向量检索，如果失败则回退到文本搜索
     使用重排序工具对搜索结果进行优化
-    
+
     Args:
         state: 研究状态，包含 search_queries
         web_search_tool: 网络搜索工具
         es_search_tool: Elasticsearch搜索工具
         reranker_tool: 重排序工具（可选）
-        
+
     Returns:
         dict: 包含 gathered_sources 的字典，包含 Source 对象列表
     """
@@ -116,20 +113,11 @@ async def async_researcher_node(
     for i, query in enumerate(search_queries, 1):
         logger.info(f"执行搜索查询 {i}/{len(search_queries)}: {query}")
 
-        # 网络搜索
-        web_results = ""
-        try:
-            # 使用异步搜索方法
-            web_results = await web_search_tool.search_async(query)
-            if "模拟" in web_results or "mock" in web_results.lower():
-                logger.info(f"网络搜索返回模拟结果，跳过: {query}")
-                web_results = ""
-        except Exception as e:
-            logger.error(f"网络搜索失败: {str(e)}")
-            web_results = ""
-
-        # ES搜索 - 使用新的搜索和重排序功能
-        es_results = ""
+        # ============================
+        # ES搜索
+        # ============================
+        es_raw_results = None
+        es_str_results = ""
         try:
             if embedding_client:
                 # 尝试向量检索
@@ -173,7 +161,7 @@ async def async_researcher_node(
                                 'min_score':
                                 complexity_config.get('min_score', 0.3)
                             })
-                        es_results = formatted_es_results
+                        es_str_results = formatted_es_results
                         logger.info(
                             f"✅ 向量检索+重排序执行成功，结果长度: {len(formatted_es_results)}"
                         )
@@ -191,7 +179,7 @@ async def async_researcher_node(
                                 'min_score':
                                 complexity_config.get('min_score', 0.3)
                             })
-                        es_results = formatted_es_results
+                        es_str_results = formatted_es_results
                         logger.info(
                             f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}"
                         )
@@ -209,7 +197,7 @@ async def async_researcher_node(
                             'min_score':
                             complexity_config.get('min_score', 0.3)
                         })
-                    es_results = formatted_es_results
+                    es_str_results = formatted_es_results
                     logger.info(
                         f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
             else:
@@ -226,21 +214,30 @@ async def async_researcher_node(
                     config={
                         'min_score': complexity_config.get('min_score', 0.3)
                     })
-                es_results = formatted_es_results
+                es_str_results = formatted_es_results
                 logger.info(
                     f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
 
         except Exception as e:
             logger.error(f"❌ ES搜索失败: {str(e)}")
-            es_results = f"ES搜索失败: {str(e)}"
+            es_str_results = f"ES搜索失败: {str(e)}"
 
-        # 根据复杂度配置决定是否截断结果
-        truncate_length = complexity_config.get('data_truncate_length', -1)
-        if truncate_length > 0:
-            if es_results and len(es_results) > truncate_length:
-                es_results = es_results[:truncate_length] + "\n... (结果已截断)"
-            if web_results and len(web_results) > truncate_length:
-                web_results = web_results[:truncate_length] + "\n... (结果已截断)"
+        # ============================
+        # 网络搜索
+        # ============================
+        web_results = ""
+        try:
+            # 使用异步搜索方法
+            web_results = await web_search_tool.search_async(query)
+            if "模拟" in web_results or "mock" in web_results.lower():
+                logger.info(f"网络搜索返回模拟结果，跳过: {query}")
+                web_results = ""
+            if "搜索失败" in web_results:
+                logger.error(f"网络搜索失败: {web_results}")
+                web_results = ""
+        except Exception as e:
+            logger.error(f"网络搜索失败: {str(e)}")
+            web_results = ""
 
         # 处理网络搜索结果
         if web_results and web_results.strip():
@@ -266,10 +263,10 @@ async def async_researcher_node(
                 logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
 
         # 处理ES搜索结果
-        if es_results and es_results.strip():
+        if es_str_results and es_str_results.strip():
             try:
                 # 解析ES搜索结果，创建 Source 对象
-                es_sources = _parse_es_search_results(es_results, query,
+                es_sources = _parse_es_search_results(es_str_results, query,
                                                       source_id_counter)
 
                 # 使用新的去重逻辑
@@ -287,6 +284,14 @@ async def async_researcher_node(
                 )
             except Exception as e:
                 logger.error(f"❌ 解析ES搜索结果失败: {str(e)}")
+
+        # 根据复杂度配置决定是否截断结果
+        truncate_length = complexity_config.get('data_truncate_length', -1)
+        if truncate_length > 0:
+            if es_str_results and len(es_str_results) > truncate_length:
+                es_str_results = es_str_results[:truncate_length] + "\n... (结果已截断)"
+            if web_results and len(web_results) > truncate_length:
+                web_results = web_results[:truncate_length] + "\n... (结果已截断)"
 
     # 合并所有信源（包括现有的和新的）
     final_sources = merge_sources_with_deduplication(all_sources,

@@ -1,0 +1,28 @@
+{
+    "contextFiles": [
+        {
+            "updateDate": 1754018774000,
+            "isContentRefer": null,
+            "attachmentType": 0,
+            "isWritingRequirement": null,
+            "isStyleImitative": null,
+            "sessionId": 1951106983556190214,
+            "attachmentFileSize": 12341,
+            "knowledgeId": 1917036801803659703,
+            "deleteFlag": 0,
+            "createBy": "zhang_hy5",
+            "attachmentFileType": "docx",
+            "updateBy": "zhang_hy5",
+            "attachmentName": "表格内公式.docx",
+            "id": 402,
+            "knowledgeBaseId": 1910317878493385715,
+            "attachmentFileToken": "eb31f7496636d42d2945254c4db91ae0",
+            "attachmentSource": "上传大纲",
+            "createDate": 1754018774000
+        }
+    ],
+    "isOnline": false,
+    "sessionId": 1951106983556190214,
+    "taskPrompt": "生成一篇大纲"
+}
+

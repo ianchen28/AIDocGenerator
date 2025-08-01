@@ -54,10 +54,34 @@ class JobResponse(BaseModel):
 # --- Outline Generation Models ---
 class OutlineGenerationRequest(BaseModel):
     """大纲生成请求模型"""
-    job_id: str = Field(..., description="由后端生成的唯一任务ID")
-    task_prompt: str = Field(..., description="用户的核心指令")
-    context_files: Optional[list[ContextFile]] = Field(None,
-                                                       description="上下文文件列表")
+    session_id: str = Field(...,
+                            alias="sessionId",
+                            description="会话ID，类似job_id")
+    task_prompt: str = Field(..., alias="taskPrompt", description="用户的核心指令")
+    is_online: bool = Field(False, alias="isOnline", description="是否调用web搜索")
+    context_files: Optional[list[dict]] = Field(None,
+                                                alias="contextFiles",
+                                                description="相关上传文件列表")
+
+    # 文件相关字段（用于后续处理）
+    attachment_type: Optional[int] = Field(
+        None,
+        alias="attachmentType",
+        description="附件类型(0-大纲模板/1-上传参考资料/2-知识选择参考资料)")
+    attachment_file_token: Optional[str] = Field(None,
+                                                 alias="attachmentFileToken",
+                                                 description="文件唯一token")
+    is_content_refer: Optional[int] = Field(None,
+                                            alias="isContentRefer",
+                                            description="是否内容参考(0-否/1-是)")
+    is_style_imitative: Optional[int] = Field(None,
+                                              alias="isStyleImitative",
+                                              description="是否风格仿写(0-否/1-是)")
+    is_writing_requirement: Optional[int] = Field(
+        None, alias="isWritingRequirement", description="是否编写要求(0-否/1-是)")
+
+    class Config:
+        populate_by_name = True
 
 
 # --- Outline Models ---
@@ -114,6 +138,14 @@ class GenerationRequest(BaseModel):
 class TaskCreationResponse(BaseModel):
     """任务创建后的API响应"""
     job_id: str = Field(..., description="唯一任务ID")
+
+
+class OutlineGenerationResponse(BaseModel):
+    """大纲生成响应模型"""
+    session_id: str = Field(..., description="会话ID")
+    redis_stream_key: str = Field(..., description="Redis流响应的key，用于前端监听")
+    status: str = Field(..., description="任务状态")
+    message: str = Field(..., description="响应消息")
 
 
 class TaskStatusResponse(BaseModel):

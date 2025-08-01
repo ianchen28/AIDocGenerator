@@ -9,6 +9,7 @@ from doc_agent.schemas import (
     DocumentGenerationRequest,
     EditActionRequest,
     OutlineGenerationRequest,
+    OutlineGenerationResponse,
     TaskCreationResponse,
 )
 
@@ -102,16 +103,16 @@ async def edit_text(request: EditActionRequest,
 
 
 @router.post("/jobs/outline",
-             response_model=TaskCreationResponse,
+             response_model=OutlineGenerationResponse,
              status_code=status.HTTP_202_ACCEPTED)
 async def generate_outline_from_query(request: OutlineGenerationRequest):
     """
     大纲生成接口
 
     接收用户查询和可选的上下文文件，触发异步大纲生成任务。
-    立即返回任务ID，实际的大纲生成在后台进行。
+    立即返回Redis流key，实际的大纲生成在后台进行并通过Redis流推送进度。
     """
-    logger.info(f"收到大纲生成请求，job_id: {request.job_id}")
+    logger.info(f"收到大纲生成请求，session_id: {request.session_id}")
 
     try:
         # 验证请求数据
@@ -119,26 +120,49 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="任务提示不能为空")
 
+        # 生成Redis流key
+        redis_stream_key = f"outline_generation:{request.session_id}"
+
         # 记录请求信息
         logger.info("大纲生成请求详情:")
-        logger.info(f"  job_id: {request.job_id}")
+        logger.info(f"  session_id: {request.session_id}")
         logger.info(f"  task_prompt: {request.task_prompt[:100]}...")
+        logger.info(f"  is_online: {request.is_online}")
         logger.info(
             f"  context_files: {len(request.context_files) if request.context_files else 0} 个文件"
         )
+        logger.info(f"  redis_stream_key: {redis_stream_key}")
+
+        # 处理文件相关逻辑
+        style_guide_content = None
+        requirements = None
+        if request.context_files:
+            logger.info("开始处理上传文件...")
+            from doc_agent.tools.file_processor import process_context_files
+            style_guide_content, requirements = process_context_files(
+                request.context_files)
+            logger.info(
+                f"文件处理完成 - style_guide: {bool(style_guide_content)}, requirements: {bool(requirements)}"
+            )
 
         # 触发 Celery 任务
         from workers.tasks import generate_outline_from_query_task
         generate_outline_from_query_task.delay(
-            job_id=request.job_id,
+            job_id=request.session_id,  # 使用session_id作为job_id
             task_prompt=request.task_prompt,
-            context_files=request.context_files.model_dump()
-            if request.context_files else None)
+            is_online=request.is_online,
+            context_files=request.context_files,
+            style_guide_content=style_guide_content,
+            requirements=requirements,
+            redis_stream_key=redis_stream_key)
 
-        # 临时占位：记录任务已接收
-        logger.info(f"大纲生成任务已接收，job_id: {request.job_id}")
+        # 记录任务已接收
+        logger.info(f"大纲生成任务已接收，session_id: {request.session_id}")
 
-        return TaskCreationResponse(job_id=request.job_id)
+        return OutlineGenerationResponse(session_id=request.session_id,
+                                         redis_stream_key=redis_stream_key,
+                                         status="ACCEPTED",
+                                         message="大纲生成任务已提交，请通过Redis流监听进度")
 
     except HTTPException:
         raise

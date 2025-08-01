@@ -51,12 +51,11 @@ async def run_stage_one_outline_generation(
 
 async def run_stage_two_document_generation(
         initial_state: ResearchState) -> dict:
-    # ... (此函数内容修改为返回最终状态) ...
     logger.info("🚀🚀🚀 STAGE 2: Starting Document Generation Workflow 🚀🚀🚀")
     final_result_state = None
     try:
-        async for step_output in container.document_graph.astream(
-                initial_state):
+        async_stream = container.document_graph.astream(initial_state)
+        async for step_output in async_stream:
             node_name = list(step_output.keys())[0]
             logger.info(f"✅ [Stage 2] Finished step: [ {node_name} ]")
             step_result = list(step_output.values())[0]
