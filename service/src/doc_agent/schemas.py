@@ -63,6 +63,16 @@ class OutlineGenerationRequest(BaseModel):
                                                 alias="contextFiles",
                                                 description="相关上传文件列表")
 
+    @model_validator(mode='before')
+    @classmethod
+    def validate_session_id(cls, data):
+        """验证并转换sessionId为字符串"""
+        if isinstance(data, dict) and 'sessionId' in data:
+            # 将long类型的sessionId转换为字符串
+            if isinstance(data['sessionId'], (int, float)):
+                data['sessionId'] = str(data['sessionId'])
+        return data
+
     # 文件相关字段（用于后续处理）
     attachment_type: Optional[int] = Field(
         None,
@@ -148,6 +158,16 @@ class OutlineGenerationResponse(BaseModel):
                                   description="Redis流响应的key，用于前端监听")
     status: str = Field(..., description="任务状态")
     message: str = Field(..., description="响应消息")
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_session_id(cls, data):
+        """验证并转换sessionId为字符串"""
+        if isinstance(data, dict) and 'sessionId' in data:
+            # 将long类型的sessionId转换为字符串
+            if isinstance(data['sessionId'], (int, float)):
+                data['sessionId'] = str(data['sessionId'])
+        return data
 
     class Config:
         populate_by_name = True
