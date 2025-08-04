@@ -120,8 +120,8 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="任务提示不能为空")
 
-        # 生成Redis流key
-        redis_stream_key = f"outline_generation:{request.session_id}"
+        # 生成Redis流key - 直接使用session_id作为流名称
+        redis_stream_key = str(request.session_id)
 
         # 记录请求信息
         logger.info("大纲生成请求详情:")

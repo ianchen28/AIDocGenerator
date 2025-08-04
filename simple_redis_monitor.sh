@@ -73,7 +73,7 @@ main() {
     echo "=================================="
     echo -e "${BLUE}服务器:${NC} $REDIS_HOST:$REDIS_PORT"
     echo -e "${BLUE}任务ID:${NC} $JOB_ID"
-    echo -e "${BLUE}流:${NC} job_events:$JOB_ID"
+    echo -e "${BLUE}流:${NC} $JOB_ID"
     echo -e "${BLUE}超时:${NC} ${BLOCK_TIMEOUT}ms"
     echo ""
     
@@ -83,7 +83,7 @@ main() {
     fi
     
     # 检查流是否存在
-    local stream_key="job_events:$JOB_ID"
+    local stream_key="$JOB_ID"  # 直接使用JOB_ID作为流名称
     local stream_length=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" XLEN "$stream_key" 2>/dev/null)
     
     if [[ "$stream_length" == "0" || -z "$stream_length" ]]; then

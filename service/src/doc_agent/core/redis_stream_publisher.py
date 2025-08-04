@@ -43,8 +43,8 @@ class RedisStreamPublisher:
             Exception: 当发布失败时抛出异常
         """
         try:
-            # 构造 Stream 名称
-            stream_name = f"job_events:{job_id}"
+            # 构造 Stream 名称 - 直接使用job_id作为流名称
+            stream_name = str(job_id)
 
             # 准备事件数据
             event_payload = {
@@ -234,7 +234,7 @@ class RedisStreamPublisher:
             dict: Stream 信息，如果不存在则返回 None
         """
         try:
-            stream_name = f"job_events:{job_id}"
+            stream_name = str(job_id)  # 直接使用job_id作为流名称
             info = await self.redis_client.xinfo_stream(stream_name)
             return info
         except Exception as e:
@@ -252,7 +252,7 @@ class RedisStreamPublisher:
             int: Stream 中的事件数量
         """
         try:
-            stream_name = f"job_events:{job_id}"
+            stream_name = str(job_id)  # 直接使用job_id作为流名称
             length = await self.redis_client.xlen(stream_name)
             return length
         except Exception as e:

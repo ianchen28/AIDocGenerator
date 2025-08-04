@@ -149,8 +149,8 @@ class RedisStreamConsumer:
             event_type = event_data.get(
                 "eventType", event_data.get("event_type", "unknown"))
 
-            # 从 Stream 名称提取 job_id
-            job_id = stream.split(":", 1)[1] if ":" in stream else "unknown"
+            # 从 Stream 名称提取 job_id - 现在stream名称就是job_id
+            job_id = stream
 
             logger.debug(
                 f"📨 收到消息: {message_id} -> {event_type} (job_id: {job_id})")

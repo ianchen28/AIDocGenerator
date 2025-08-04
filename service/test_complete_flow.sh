@@ -27,7 +27,7 @@ echo "  Session ID: $SESSION_ID"
 echo "  Redis Stream Key: $REDIS_STREAM_KEY"
 
 # 2. 转换Redis流key
-JOB_EVENTS_KEY="job_events:$SESSION_ID"
+JOB_EVENTS_KEY="$SESSION_ID"  # 直接使用session_id作为流名称
 echo "  Job Events Key: $JOB_EVENTS_KEY"
 
 # 3. 等待任务开始

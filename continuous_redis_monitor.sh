@@ -118,7 +118,8 @@ check_redis_connection() {
 # 获取所有流
 get_all_streams() {
     echo -e "${BLUE}📋 获取所有流...${NC}"
-    redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" --raw KEYS "job_events:*" | head -10
+    # 查找所有数字ID的流（session_id）
+    redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" --raw KEYS "*" | grep -E '^[0-9]+$|^-[0-9]+$' | head -10
 }
 
 # 美化输出函数
@@ -163,7 +164,7 @@ pretty_print_message() {
 
 # 监控单个流
 monitor_single_stream() {
-    local stream_key="job_events:$JOB_ID"
+    local stream_key="$JOB_ID"  # 直接使用JOB_ID作为流名称
     local last_id="0"
     
     echo -e "${BLUE}🔍 开始监控流: $stream_key${NC}"
@@ -205,8 +206,8 @@ monitor_all_streams() {
     echo -e "${YELLOW}按 Ctrl+C 停止监控${NC}"
     echo ""
     
-    # 获取所有流
-    local streams=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" --raw KEYS "job_events:*" 2>/dev/null)
+    # 获取所有流 - 查找数字ID的流
+    local streams=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" --raw KEYS "*" 2>/dev/null | grep -E '^[0-9]+$|^-[0-9]+$')
     
     if [[ -z "$streams" ]]; then
         echo -e "${YELLOW}⚠️  没有找到任何流${NC}"
@@ -255,7 +256,7 @@ main() {
         echo -e "${BLUE}模式:${NC} 监控所有流"
     else
         echo -e "${BLUE}任务ID:${NC} $JOB_ID"
-        echo -e "${BLUE}流:${NC} job_events:$JOB_ID"
+        echo -e "${BLUE}流:${NC} $JOB_ID"
     fi
     
     if [[ "$PRETTY_OUTPUT" == true ]]; then

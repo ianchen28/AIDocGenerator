@@ -24,7 +24,7 @@ def decode_redis_stream_data(job_id: str):
                     password='xJrhp*4mnHxbBWN2grqq',
                     decode_responses=True)
 
-    stream_key = f"job_events:{job_id}"
+    stream_key = job_id  # 直接使用job_id作为流名称
 
     try:
         # 获取流长度
@@ -75,7 +75,7 @@ def decode_specific_message(job_id: str, message_id: str):
                     password='xJrhp*4mnHxbBWN2grqq',
                     decode_responses=True)
 
-    stream_key = f"job_events:{job_id}"
+    stream_key = job_id  # 直接使用job_id作为流名称
 
     try:
         # 获取特定消息

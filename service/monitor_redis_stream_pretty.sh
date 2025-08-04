@@ -13,7 +13,7 @@ if [ $# -eq 0 ]; then
 fi
 
 JOB_ID="$1"
-STREAM_KEY="job_events:$JOB_ID"
+STREAM_KEY="$JOB_ID"  # 直接使用JOB_ID作为流名称
 
 echo "监控流: $STREAM_KEY"
 echo ""
@@ -45,7 +45,7 @@ r = redis.Redis(
     decode_responses=True
 )
 
-stream_key = 'job_events:$JOB_ID'
+stream_key = '$JOB_ID'
 last_id = '0'
 
 print('开始监控...')

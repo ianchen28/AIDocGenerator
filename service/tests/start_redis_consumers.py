@@ -35,7 +35,7 @@ class ConsumerGroupManager:
                 redis_url, "doc_gen_consumers")
 
             # 启动消费者组，监听所有作业事件
-            stream_name = "job_events:*"  # 通配符模式，监听所有作业
+            stream_name = "*"  # 通配符模式，监听所有数字ID流
             await self.consumer_group.start(stream_name)
 
             self.is_running = True

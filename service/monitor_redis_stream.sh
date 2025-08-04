@@ -28,10 +28,10 @@ echo "监听流: $STREAM_KEY"
 echo "按 Ctrl+C 停止监听"
 echo ""
 
-# 如果流key是outline_generation格式，转换为job_events格式
+# 如果流key是outline_generation格式，直接使用session_id
 if [[ "$STREAM_KEY" == outline_generation:* ]]; then
     JOB_ID=$(echo "$STREAM_KEY" | sed 's/outline_generation://')
-    STREAM_KEY="job_events:$JOB_ID"
+    STREAM_KEY="$JOB_ID"
     echo "转换后的流key: $STREAM_KEY"
 fi
 
