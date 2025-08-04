@@ -4,7 +4,15 @@
 # AIDocGenerator - 快速启动脚本
 # =================================================================
 
+# 默认端口
+DEFAULT_PORT=8000
+
+# 解析命令行参数
+PORT=${1:-$DEFAULT_PORT}
+
 echo "🚀 启动 AI 文档生成器服务..."
+echo "端口: $PORT"
+echo ""
 
 # --- 步骤 1: 激活 conda 环境 ---
 echo "🔵 Step 1: 激活 conda 环境..."
@@ -24,11 +32,19 @@ echo "   - ✅ 依赖安装完成"
 
 # --- 步骤 3: 启动服务 ---
 echo "🔵 Step 3: 启动开发服务器..."
-nohup ./start_dev_server_alt_port.sh > output.log 2>&1 &
+echo "   - 使用端口: $PORT"
+echo "   - 服务地址: http://127.0.0.1:$PORT"
+echo "   - API文档: http://127.0.0.1:$PORT/docs"
+
+# 启动服务并传递端口参数
+nohup ./start_dev_server.sh $PORT > output.log 2>&1 &
 SERVER_PID=$!
 echo "   - ✅ 服务已启动，PID: $SERVER_PID"
-echo "   - 服务地址: http://127.0.0.1:8001"
 echo "   - 查看日志: tail -f output.log"
 
 echo ""
 echo "🎉 启动完成！"
+echo "📝 使用说明:"
+echo "   - 测试API: curl http://127.0.0.1:$PORT/api/v1/jobs/outline"
+echo "   - 查看文档: http://127.0.0.1:$PORT/docs"
+echo "   - 停止服务: kill $SERVER_PID"

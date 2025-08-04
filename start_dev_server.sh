@@ -1,8 +1,20 @@
 #!/bin/bash
 
 # =================================================================
-# AIDocGenerator - 一键启动开发环境脚本
+# AIDocGenerator - 统一启动开发环境脚本
 # =================================================================
+
+# 默认端口
+DEFAULT_PORT=8000
+
+# 解析命令行参数
+PORT=${1:-$DEFAULT_PORT}
+
+# 显示启动信息
+echo "🚀 AIDocGenerator 开发环境启动脚本"
+echo "=================================="
+echo "端口: $PORT"
+echo ""
 
 # 定义一个函数用于优雅地关闭后台进程
 cleanup() {
@@ -11,7 +23,7 @@ cleanup() {
     # 检查 Celery Worker 进程是否存在，如果存在则终止
     if [ -n "$CELERY_PID" ]; then
         echo "   - Stopping Celery Worker (PID: $CELERY_PID)..."
-        kill $CELERY_PID
+        kill $CELERY_PID 2>/dev/null
     fi
     echo "✅ All services stopped."
     exit 0
@@ -86,12 +98,13 @@ sleep 5
 
 # --- 步骤 4: 启动 FastAPI 服务 ---
 echo "🔵 Step 4: Starting FastAPI server in the foreground..."
-echo "   - FastAPI will be available at http://127.0.0.1:8000"
+echo "   - FastAPI will be available at http://127.0.0.1:$PORT"
+echo "   - API Documentation: http://127.0.0.1:$PORT/docs"
 echo "   - Press Ctrl+C to stop all services."
 
 # 进入 service 目录运行 uvicorn
 # 这样 uvicorn 就能正确找到模块
-(cd service && uvicorn api.main:app --reload --host 0.0.0.0 --port 8000)
+(cd service && uvicorn api.main:app --reload --host 0.0.0.0 --port $PORT)
 
 # 脚本会在这里阻塞，直到 uvicorn 进程被终止 (Ctrl+C)
 # 当 uvicorn 结束后，trap 会被触发，调用 cleanup 函数
