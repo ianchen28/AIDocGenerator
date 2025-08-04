@@ -18,7 +18,9 @@ from doc_agent.llm_clients.providers import EmbeddingClient
 from doc_agent.tools.es_search import ESSearchTool
 from doc_agent.tools.reranker import RerankerTool
 from doc_agent.tools.web_search import WebSearchTool
-from doc_agent.utils.search_utils import search_and_rerank
+from doc_agent.utils.search_utils import search_and_rerank, format_search_results
+from doc_agent.tools.es_service import ESSearchResult
+from doc_agent.tools.reranker import RerankedSearchResult, RerankerTool
 
 
 def researcher_node(state: ResearchState,
@@ -116,7 +118,7 @@ async def async_researcher_node(
         # ============================
         # ES搜索
         # ============================
-        es_raw_results = None
+        es_raw_results: list[RerankedSearchResult] = []
         es_str_results = ""
         try:
             if embedding_client:
@@ -161,6 +163,8 @@ async def async_researcher_node(
                                 'min_score':
                                 complexity_config.get('min_score', 0.3)
                             })
+                        # 添加新的结果
+                        es_raw_results.extend(reranked_results)
                         es_str_results = formatted_es_results
                         logger.info(
                             f"✅ 向量检索+重排序执行成功，结果长度: {len(formatted_es_results)}"
@@ -214,6 +218,8 @@ async def async_researcher_node(
                     config={
                         'min_score': complexity_config.get('min_score', 0.3)
                     })
+                # 添加新的结果
+                es_raw_results.extend(reranked_results)
                 es_str_results = formatted_es_results
                 logger.info(
                     f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
@@ -225,7 +231,7 @@ async def async_researcher_node(
         # ============================
         # 网络搜索
         # ============================
-        web_raw_results = None
+        web_raw_results = []
         web_str_results = ""
         try:
             # 使用异步搜索方法
@@ -239,29 +245,6 @@ async def async_researcher_node(
         except Exception as e:
             logger.error(f"网络搜索失败: {str(e)}")
             web_str_results = ""
-
-        # 处理网络搜索结果
-        if web_str_results and web_str_results.strip():
-            try:
-                # 解析网络搜索结果，创建 Source 对象
-                web_sources = _parse_web_search_results(
-                    web_str_results, query, source_id_counter)
-
-                # 使用新的去重逻辑
-                deduplicated_web_sources = merge_sources_with_deduplication(
-                    web_sources, existing_sources)
-                new_web_sources = [
-                    s for s in deduplicated_web_sources
-                    if s not in existing_sources
-                ]
-
-                all_sources.extend(new_web_sources)
-                source_id_counter += len(new_web_sources)
-                logger.info(
-                    f"✅ 从网络搜索中提取到 {len(web_sources)} 个源，去重后新增 {len(new_web_sources)} 个"
-                )
-            except Exception as e:
-                logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
 
         # 处理ES搜索结果
         if es_str_results and es_str_results.strip():
@@ -285,6 +268,29 @@ async def async_researcher_node(
                 )
             except Exception as e:
                 logger.error(f"❌ 解析ES搜索结果失败: {str(e)}")
+
+        # 处理网络搜索结果
+        if web_str_results and web_str_results.strip():
+            try:
+                # 解析网络搜索结果，创建 Source 对象
+                web_sources = _parse_web_search_results(
+                    web_str_results, query, source_id_counter)
+
+                # 使用新的去重逻辑
+                deduplicated_web_sources = merge_sources_with_deduplication(
+                    web_sources, existing_sources)
+                new_web_sources = [
+                    s for s in deduplicated_web_sources
+                    if s not in existing_sources
+                ]
+
+                all_sources.extend(new_web_sources)
+                source_id_counter += len(new_web_sources)
+                logger.info(
+                    f"✅ 从网络搜索中提取到 {len(web_sources)} 个源，去重后新增 {len(new_web_sources)} 个"
+                )
+            except Exception as e:
+                logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
 
         # 根据复杂度配置决定是否截断结果
         truncate_length = complexity_config.get('data_truncate_length', -1)

@@ -7,8 +7,8 @@ from typing import Any, Optional
 
 from loguru import logger
 
-from ..tools.es_service import ESSearchResult
-from ..tools.reranker import RerankedSearchResult, RerankerTool
+from doc_agent.tools.es_service import ESSearchResult
+from doc_agent.tools.reranker import RerankedSearchResult, RerankerTool
 
 
 def format_search_results(results: list[ESSearchResult],
