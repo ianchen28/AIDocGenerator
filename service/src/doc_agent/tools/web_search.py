@@ -5,113 +5,14 @@
 """
 
 import asyncio
-import functools
-import re
-import time
 from typing import Any, Optional
 
 import aiohttp
-from bs4 import BeautifulSoup
 from loguru import logger
 
+from doc_agent.utils.decorators import timer
 
-def timer(func=None, *, log_level="info"):
-    """计算函数执行时间的装饰器"""
-
-    def decorator(func):
-
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            start_time = time.time()
-            result = func(*args, **kwargs)
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            log_func = getattr(logger, log_level)
-            log_func(f"函数 {func.__name__} 执行耗时: {elapsed_time:.4f} 秒")
-            return result
-
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            start_time = time.time()
-            result = await func(*args, **kwargs)
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            log_func = getattr(logger, log_level)
-            log_func(f"异步函数 {func.__name__} 执行耗时: {elapsed_time:.4f} 秒")
-            return result
-
-        if asyncio.iscoroutinefunction(func):
-            return async_wrapper
-        return sync_wrapper
-
-    if func is None:
-        return decorator
-    return decorator(func)
-
-
-class WebScraper:
-    """网页内容抓取器"""
-
-    def __init__(self):
-        self.logger = logger.bind(name="web_scraper")
-
-    async def fetch_full_content(self,
-                                 url: str,
-                                 timeout: int = 10) -> Optional[str]:
-        """
-        异步获取网页完整内容
-
-        Args:
-            url: 网页URL
-            timeout: 超时时间（秒）
-
-        Returns:
-            网页的文本内容，失败时返回None
-        """
-        try:
-            timeout_obj = aiohttp.ClientTimeout(total=timeout)
-            async with aiohttp.ClientSession(timeout=timeout_obj) as session:
-                async with session.get(url) as response:
-                    response.raise_for_status()
-                    html = await response.text()
-                    return self.extract_text_from_html(html)
-        except Exception as e:
-            self.logger.error(f"获取网页内容失败 {url}: {e}")
-            return None
-
-    def extract_text_from_html(self, html: str) -> str:
-        """
-        从HTML中提取文本内容
-
-        Args:
-            html: HTML字符串
-
-        Returns:
-            提取的文本内容
-        """
-        try:
-            soup = BeautifulSoup(html, 'html.parser')
-
-            # 移除script和style标签
-            for script in soup(["script", "style"]):
-                script.decompose()
-
-            # 获取文本
-            text = soup.get_text()
-
-            # 清理文本
-            lines = (line.strip() for line in text.splitlines())
-            chunks = (phrase.strip() for line in lines
-                      for phrase in line.split("  "))
-            text = ' '.join(chunk for chunk in chunks if chunk)
-
-            # 移除多余的空白字符
-            text = re.sub(r'\s+', ' ', text)
-
-            return text
-        except Exception as e:
-            self.logger.error(f"HTML文本提取失败: {e}")
-            return ""
+from .web_scraper import WebScraper
 
 
 class WebSearchConfig:
@@ -170,8 +71,10 @@ class WebSearchTool:
             logger.warning("未提供API密钥，将使用配置中的token")
 
     @timer(log_level="info")
-    async def get_web_search(self,
-                             query: str) -> Optional[list[dict[str, Any]]]:
+    async def get_web_search(
+            self,
+            query: str,
+            top_k: int = 10) -> Optional[list[dict[str, Any]]]:
         """
         异步请求外部搜索接口并返回结果
 
@@ -182,7 +85,7 @@ class WebSearchTool:
             如果请求成功，返回响应的数据；否则返回None
         """
         headers = {"X-API-KEY-AUTH": f"Bearer {self.config.token}"}
-        params = {"queryStr": query, "count": self.config.count}
+        params = {"queryStr": query, "count": top_k}
 
         # 创建aiohttp超时对象
         timeout_obj = aiohttp.ClientTimeout(total=self.config.timeout)
@@ -228,10 +131,10 @@ class WebSearchTool:
                         self.logger.error("达到最大重试次数，请求失败")
                         return None
 
-    async def get_web_docs(
-            self,
-            query: str,
-            fetch_full_content: bool = None) -> list[dict[str, Any]]:
+    async def get_web_docs(self,
+                           query: str,
+                           fetch_full_content: bool = None,
+                           top_k: int = 10) -> list[dict[str, Any]]:
         """
         获取web搜索结果并格式化为文档格式
 
@@ -242,7 +145,7 @@ class WebSearchTool:
         Returns:
             格式化的文档列表
         """
-        net_info = await self.get_web_search(query)
+        net_info = await self.get_web_search(query, top_k=top_k)
         if not net_info:
             return []
 
@@ -302,12 +205,13 @@ class WebSearchTool:
         """
         return await self.web_scraper.fetch_full_content(url)
 
-    def search(self, query: str) -> str:
+    def search(self, query: str, top_k: int = 10) -> str:
         """
         同步搜索接口（用于兼容性）
 
         Args:
             query: 搜索查询字符串
+            top_k: 保留搜索结果数量
 
         Returns:
             str: 搜索结果的文本表示
@@ -327,7 +231,7 @@ class WebSearchTool:
                 asyncio.set_event_loop(loop)
                 try:
                     web_docs = loop.run_until_complete(
-                        self.get_web_docs(query))
+                        self.get_web_docs(query, top_k=top_k))
                 finally:
                     loop.close()
 
@@ -356,12 +260,13 @@ class WebSearchTool:
             logger.error(f"网络搜索失败: {str(e)}")
             return f"搜索失败: {str(e)}"
 
-    async def search_async(self, query: str) -> str:
+    async def search_async(self, query: str, top_k: int = 10) -> str:
         """
         异步搜索接口
 
         Args:
             query: 搜索查询字符串
+            top_k: 保留搜索结果数量
 
         Returns:
             str: 搜索结果的文本表示
@@ -369,7 +274,7 @@ class WebSearchTool:
         logger.info(f"开始异步网络搜索，查询: '{query[:50]}...'")
 
         try:
-            web_docs = await self.get_web_docs(query)
+            web_docs = await self.get_web_docs(query, top_k=top_k)
 
             if not web_docs:
                 return f"搜索失败或无结果: {query}"

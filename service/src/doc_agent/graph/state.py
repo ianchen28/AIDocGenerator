@@ -1,7 +1,5 @@
 # service/src/doc_agent/graph/state.py
-from typing import Annotated, Any, Optional, TypedDict
-
-from langgraph.graph.message import add_messages
+from typing import Any, Optional, TypedDict
 
 from doc_agent.schemas import Source
 
@@ -15,6 +13,8 @@ class ResearchState(TypedDict):
     # 日志追踪 ID
     run_id: Optional[str]  # 用于日志追踪的唯一标识符
 
+    # 原始 prompt
+    task_prompt: str
     # 研究主题
     topic: str
 
@@ -22,11 +22,14 @@ class ResearchState(TypedDict):
     style_guide_content: Optional[str]  # 样式指南内容
     requirements_content: Optional[str]  # 需求文档内容
 
-    # 第一层: 上层研究的初始研究结果
-    initial_sources: list[Source]  # 初始研究结果
+    # 以上为输入信息
+    # -- 篇章级研究状态 --
+    # 大纲结构
+    document_outline: dict
 
-    # 文档结构
-    document_outline: dict  # 结构化的大纲，包含章节和部分
+    # 搜索信息源
+    # id -> Source
+    sources: dict[str, Source]
 
     # 章节处理
     chapters_to_process: list[
@@ -38,22 +41,12 @@ class ResearchState(TypedDict):
         str,
         Any]]  # e.g., [{"title": "...", "content": "...", "summary": "..."}]
 
-    # 最终输出
-    final_document: str  # 完整的、拼接的文档
+    # -- 章节级研究状态 --
+    # 研究计划
+    research_plan: str
+    # 搜索查询列表
+    search_queries: list[str]
+    # 每章节信息源列表
+    chapter_research_list: list[dict[str, Any]]
 
-    # 章节级研究状态
-    research_plan: str  # 当前章节的研究计划
-    search_queries: list[str]  # 当前章节的搜索查询列表
-    gathered_sources: list[Source]  # 当前章节收集的数据
-
-    # 源追踪 - 用于引用和溯源
-    sources: list[Source]  # 当前章节收集的所有信息源
-
-    # 全局引用源追踪 - 用于最终参考文献
-    cited_sources: dict  # 存储所有唯一源，按ID索引
-
-    # 当前章节的引用源 - 用于章节级引用追踪
-    cited_sources_in_chapter: list[Source]  # 当前章节引用的源列表
-
-    # 对话历史
-    messages: Annotated[list, add_messages]
+    final_document: str

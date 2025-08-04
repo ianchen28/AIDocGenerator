@@ -1,18 +1,33 @@
+import uuid
 # service/src/doc_agent/schemas.py
 from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, Field, model_validator
 
 
+def generate_short_id():
+    # 生成短效唯一的 ID，方便在 prompt 中使用
+    return str(uuid.uuid4())[:8]
+
+
 # --- Source Models ---
 class Source(BaseModel):
-    """信息源模型，用于追踪和引用信息来源"""
-    id: int = Field(..., description="唯一顺序标识符，用于引用（如 1, 2, 3...）")
-    source_type: str = Field(
-        ..., description="信息源类型（如 'webpage', 'document', 'es_result'）")
-    title: str = Field(..., description="信息源标题")
-    url: Optional[str] = Field(None, description="信息源URL，如果可用")
-    content: str = Field(..., description="信息源的实际文本内容片段")
+
+    # 定义一个Source类，继承自BaseModel
+    id: str = Field(default_factory=generate_short_id,
+                    description="一个短效唯一的ID，方便在prompt中使用"
+                    )  # 定义一个id属性，类型为str，默认值为generate_short_id函数的返回值
+    type: Literal["web", "db",
+                  "file"] = Field(..., description="数据源类型，只能是web、db、file之一")
+    title: str = Field(..., description="数据源标题")
+    url: str = Field(..., description="数据源URL")
+    content: str = Field(..., description="数据源内容")
+
+    raw_content: str = Field(..., description="原始内容")
+    summary: str = Field(..., description="摘要")
+
+    class Config:
+        frozen = True
 
 
 # --- Context Models ---

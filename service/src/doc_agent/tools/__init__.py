@@ -6,6 +6,7 @@ from .code_execute import CodeExecuteTool
 from .es_search import ESSearchTool
 from .reranker import RerankerTool
 from .web_search import WebSearchTool
+from .web_scraper import WebScraper, fetch_url_content, fetch_url_with_metadata
 
 # 全局工具注册表，用于跟踪需要关闭的ES工具
 _es_tools_registry: set[ESSearchTool] = set()
@@ -95,6 +96,16 @@ def get_code_execute_tool() -> CodeExecuteTool:
     return CodeExecuteTool()
 
 
+def get_web_scraper_tool() -> WebScraper:
+    """
+    获取网页抓取工具实例
+    
+    Returns:
+        WebScraper: 配置好的网页抓取工具
+    """
+    return WebScraper()
+
+
 def get_all_tools():
     """
     获取所有可用的工具
@@ -106,5 +117,6 @@ def get_all_tools():
         "web_search": get_web_search_tool(),
         "es_search": get_es_search_tool(),
         "code_execute": get_code_execute_tool(),
+        "web_scraper": get_web_scraper_tool(),
     }
     return tools
