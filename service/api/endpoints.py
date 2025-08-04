@@ -150,11 +150,35 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
         from workers.celery_app import celery_app
         logger.info("准备提交 Celery 任务...")
 
+        # 构建带密码的 broker_url 进行连接测试
+        from doc_agent.core.config import settings
+
+        # 从 config.yaml 中读取 Redis 配置
+        if hasattr(settings, '_yaml_config') and settings._yaml_config:
+            redis_config = settings._yaml_config.get('redis', {})
+            redis_host = redis_config.get('host', 'localhost')
+            redis_port = redis_config.get('port', 6379)
+            redis_db = redis_config.get('db', 0)
+            redis_password = redis_config.get('password', None)
+
+            # 按照要求的逻辑构建 URL
+            if redis_password:
+                broker_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            else:
+                broker_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+        else:
+            # 如果无法从 YAML 读取，使用环境变量中的 URL
+            import os
+            broker_url = os.environ.get('REDIS_URL',
+                                        'redis://localhost:6379/0')
+
         # 测试 Celery 连接
         try:
-            logger.info(f"Celery broker URL: {celery_app.conf.broker_url}")
-            # 测试连接
-            inspect_result = celery_app.control.inspect().active()
+            logger.info(f"测试 broker URL: {broker_url}")
+            # 创建临时的 Celery 实例进行连接测试
+            from celery import Celery
+            test_celery = Celery('test', broker=broker_url, backend=broker_url)
+            inspect_result = test_celery.control.inspect().active()
             logger.info(f"Celery 连接测试成功: {inspect_result}")
         except Exception as e:
             logger.error(f"Celery 连接测试失败: {e}")

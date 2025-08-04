@@ -4,7 +4,7 @@
 REDIS_HOST="10.215.149.74"
 REDIS_PORT="26379"
 REDIS_PASSWORD="xJrhp*4mnHxbBWN2grqq"
-JOB_ID="test-monitor-001"
+JOB_ID="1951106983556190200"
 
 echo "🔍 Redis 流监控工具"
 echo "=================="

@@ -145,7 +145,9 @@ class RedisStreamConsumer:
         try:
             # 解析事件数据
             event_data = json.loads(fields.get("data", "{}"))
-            event_type = event_data.get("event_type", "unknown")
+            # 兼容两种事件类型键名
+            event_type = event_data.get(
+                "eventType", event_data.get("event_type", "unknown"))
 
             # 从 Stream 名称提取 job_id
             job_id = stream.split(":", 1)[1] if ":" in stream else "unknown"

@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 import httpx
 from loguru import logger
 
-from .base import BaseOutputParser, LLMClient
+from doc_agent.llm_clients.base import BaseOutputParser, LLMClient
 
 
 class ReasoningParser(BaseOutputParser):
@@ -794,3 +794,11 @@ class EmbeddingClient(LLMClient):
         """
         raise NotImplementedError("Embedding客户端不支持流式输出")
         yield  # 这行永远不会执行，只是为了满足类型注解
+
+
+if __name__ == "__main__":
+    client = InternalLLMClient(base_url="http://10.238.130.28:10004/v1",
+                               api_key="EMPTY",
+                               model_name="hdy_model",
+                               reasoning=True)
+    print(client.invoke("你好"))

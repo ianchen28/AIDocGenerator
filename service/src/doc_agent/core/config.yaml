@@ -18,6 +18,15 @@
 #    - 内容检查器
 
 # ================================================
+# Redis 服务配置
+# ================================================
+redis:
+  host: "10.215.149.74"
+  port: 26379
+  db: 0
+  password: "xJrhp*4mnHxbBWN2grqq"
+
+# ================================================
 # Logging 服务配置
 # ================================================
 
@@ -45,12 +54,12 @@ supported_models:
     type: "enterprise_generate"
     model_id: "hdy_model"
     # model_id: "Qwen3-235B-A22B"
-    url: ${ONE_API_BASE}
-    # url: "http://10.218.108.245:9966/v1"
+    # url: ${ONE_API_BASE}
+    url: "http://10.238.130.28:10004/v1"
     reasoning: "True"
     description: "千问 235b 最强推理模型量化版"
-    api_key: "${ONE_API_KEY}"
-    # api_key: "EMPTY"
+    # api_key: "${ONE_API_KEY}"
+    api_key: "EMPTY"
   qwen_72b:
     name: "Qwen2.5-72B (基础)"
     type: "enterprise_generate"
