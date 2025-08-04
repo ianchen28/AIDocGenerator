@@ -1,5 +1,5 @@
 # service/src/doc_agent/schemas.py
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -54,9 +54,9 @@ class JobResponse(BaseModel):
 # --- Outline Generation Models ---
 class OutlineGenerationRequest(BaseModel):
     """大纲生成请求模型"""
-    session_id: str = Field(...,
-                            alias="sessionId",
-                            description="会话ID，类似job_id")
+    session_id: Union[str, int] = Field(...,
+                                        alias="sessionId",
+                                        description="会话ID，类似job_id，支持字符串或长整型")
     task_prompt: str = Field(..., alias="taskPrompt", description="用户的核心指令")
     is_online: bool = Field(False, alias="isOnline", description="是否调用web搜索")
     context_files: Optional[list[dict]] = Field(None,
@@ -142,7 +142,9 @@ class TaskCreationResponse(BaseModel):
 
 class OutlineGenerationResponse(BaseModel):
     """大纲生成响应模型"""
-    session_id: str = Field(..., alias="sessionId", description="会话ID")
+    session_id: Union[str, int] = Field(...,
+                                        alias="sessionId",
+                                        description="会话ID，支持字符串或长整型")
     redis_stream_key: str = Field(...,
                                   alias="redisStreamKey",
                                   description="Redis流响应的key，用于前端监听")

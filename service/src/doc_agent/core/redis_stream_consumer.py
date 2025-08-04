@@ -6,7 +6,7 @@ Redis Streams 消费者组实现
 
 import asyncio
 import json
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import redis.asyncio as redis
 from loguru import logger
@@ -311,40 +311,46 @@ class RedisStreamConsumerGroup:
 
 
 # 预定义的事件处理器
-async def default_task_started_handler(job_id: str, event_data: dict):
+async def default_task_started_handler(job_id: Union[str, int],
+                                       event_data: dict):
     """默认的任务开始处理器"""
     task_type = event_data.get("task_type", "unknown")
     logger.info(f"🚀 任务开始: {job_id} -> {task_type}")
 
 
-async def default_task_progress_handler(job_id: str, event_data: dict):
+async def default_task_progress_handler(job_id: Union[str, int],
+                                        event_data: dict):
     """默认的任务进度处理器"""
     task_type = event_data.get("task_type", "unknown")
     progress = event_data.get("progress", "")
     logger.info(f"🔄 任务进度: {job_id} -> {task_type} - {progress}")
 
 
-async def default_task_completed_handler(job_id: str, event_data: dict):
+async def default_task_completed_handler(job_id: Union[str, int],
+                                         event_data: dict):
     """默认的任务完成处理器"""
     task_type = event_data.get("task_type", "unknown")
     logger.info(f"✅ 任务完成: {job_id} -> {task_type}")
 
 
-async def default_task_failed_handler(job_id: str, event_data: dict):
+async def default_task_failed_handler(job_id: Union[str, int],
+                                      event_data: dict):
     """默认的任务失败处理器"""
     task_type = event_data.get("task_type", "unknown")
     error = event_data.get("error", "")
     logger.error(f"❌ 任务失败: {job_id} -> {task_type} - {error}")
 
 
-async def default_outline_generated_handler(job_id: str, event_data: dict):
+async def default_outline_generated_handler(job_id: Union[str, int],
+                                            event_data: dict):
     """默认的大纲生成完成处理器"""
     outline = event_data.get("outline", {})
     title = outline.get("title", "Unknown")
     logger.info(f"📋 大纲生成完成: {job_id} -> {title}")
 
 
-async def default_document_generated_handler(job_id: str, event_data: dict):
+async def default_document_generated_handler(job_id: Union[str, int],
+                                             event_data: dict):
     """默认的文档生成完成处理器"""
     document = event_data.get("document", {})
     title = document.get("title", "Unknown")

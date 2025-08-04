@@ -5,7 +5,7 @@ Redis Streams 事件发布器
 """
 
 import json
-from typing import Optional
+from typing import Optional, Union
 
 from loguru import logger
 
@@ -27,7 +27,7 @@ class RedisStreamPublisher:
         self.redis_client = redis_client
         logger.info("Redis Streams 发布器初始化完成")
 
-    async def publish_event(self, job_id: str,
+    async def publish_event(self, job_id: Union[str, int],
                             event_data: dict) -> Optional[str]:
         """
         发布事件到 Redis Stream
@@ -66,8 +66,8 @@ class RedisStreamPublisher:
             logger.error(f"事件发布失败: job_id={job_id}, error={e}")
             raise Exception(f"发布事件失败: {str(e)}") from e
 
-    async def publish_task_started(self, job_id: str, task_type: str,
-                                   **kwargs) -> Optional[str]:
+    async def publish_task_started(self, job_id: Union[str, int],
+                                   task_type: str, **kwargs) -> Optional[str]:
         """
         发布任务开始事件
         
@@ -89,7 +89,8 @@ class RedisStreamPublisher:
 
         return await self.publish_event(job_id, event_data)
 
-    async def publish_task_progress(self, job_id: str, task_type: str,
+    async def publish_task_progress(self, job_id: Union[str,
+                                                        int], task_type: str,
                                     progress: str, **kwargs) -> Optional[str]:
         """
         发布任务进度事件
@@ -115,7 +116,7 @@ class RedisStreamPublisher:
         return await self.publish_event(job_id, event_data)
 
     async def publish_task_completed(self,
-                                     job_id: str,
+                                     job_id: Union[str, int],
                                      task_type: str,
                                      result: dict = None,
                                      **kwargs) -> Optional[str]:
@@ -142,7 +143,8 @@ class RedisStreamPublisher:
 
         return await self.publish_event(job_id, event_data)
 
-    async def publish_task_failed(self, job_id: str, task_type: str,
+    async def publish_task_failed(self, job_id: Union[str,
+                                                      int], task_type: str,
                                   error: str, **kwargs) -> Optional[str]:
         """
         发布任务失败事件
@@ -167,7 +169,7 @@ class RedisStreamPublisher:
 
         return await self.publish_event(job_id, event_data)
 
-    async def publish_outline_generated(self, job_id: str,
+    async def publish_outline_generated(self, job_id: Union[str, int],
                                         outline: dict) -> Optional[str]:
         """
         发布大纲生成完成事件
@@ -189,7 +191,7 @@ class RedisStreamPublisher:
 
         return await self.publish_event(job_id, event_data)
 
-    async def publish_document_generated(self, job_id: str,
+    async def publish_document_generated(self, job_id: Union[str, int],
                                          document: dict) -> Optional[str]:
         """
         发布文档生成完成事件
@@ -221,7 +223,7 @@ class RedisStreamPublisher:
         from datetime import datetime
         return datetime.now().isoformat()
 
-    async def get_stream_info(self, job_id: str) -> Optional[dict]:
+    async def get_stream_info(self, job_id: Union[str, int]) -> Optional[dict]:
         """
         获取 Stream 信息
         
@@ -239,7 +241,7 @@ class RedisStreamPublisher:
             logger.warning(f"获取 Stream 信息失败: job_id={job_id}, error={e}")
             return None
 
-    async def get_stream_length(self, job_id: str) -> int:
+    async def get_stream_length(self, job_id: Union[str, int]) -> int:
         """
         获取 Stream 长度
         

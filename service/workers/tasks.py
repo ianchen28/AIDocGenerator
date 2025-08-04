@@ -1,5 +1,6 @@
 import asyncio
 import json
+from typing import Union
 
 import redis.asyncio as redis
 from loguru import logger
@@ -36,7 +37,7 @@ async def get_redis_client() -> redis.Redis:
 
 
 @celery_app.task
-def generate_outline_from_query_task(job_id: str,
+def generate_outline_from_query_task(job_id: Union[str, int],
                                      task_prompt: str,
                                      is_online: bool = False,
                                      context_files: dict = None,
@@ -74,7 +75,7 @@ def generate_outline_from_query_task(job_id: str,
 
 
 async def _generate_outline_from_query_task_async(
-        job_id: str,
+        job_id: Union[str, int],
         task_prompt: str,
         is_online: bool = False,
         context_files: dict = None,
@@ -188,7 +189,7 @@ async def _generate_outline_from_query_task_async(
 
 
 @celery_app.task
-def generate_document_from_outline_task(job_id: str, outline: dict) -> str:
+def generate_document_from_outline_task(job_id: Union[str, int], outline: dict) -> str:
     """
     从大纲生成文档的异步任务
 
@@ -210,7 +211,7 @@ def generate_document_from_outline_task(job_id: str, outline: dict) -> str:
         return "FAILED"
 
 
-async def _generate_document_from_outline_task_async(job_id: str,
+async def _generate_document_from_outline_task_async(job_id: Union[str, int],
                                                      outline: dict) -> str:
     """异步文档生成任务的内部实现"""
     try:
@@ -308,7 +309,7 @@ async def _generate_document_from_outline_task_async(job_id: str,
 
 
 @celery_app.task
-def get_job_status(job_id: str) -> dict:
+def get_job_status(job_id: Union[str, int]) -> dict:
     """
     获取任务状态
 
@@ -326,7 +327,7 @@ def get_job_status(job_id: str) -> dict:
         return {"status": "error", "error": str(e)}
 
 
-async def _get_job_status_async(job_id: str) -> dict:
+async def _get_job_status_async(job_id: Union[str, int]) -> dict:
     """异步获取任务状态的内部实现"""
     try:
         redis = await get_redis_client()
@@ -362,7 +363,7 @@ def test_celery_task(message: str) -> str:
 
 
 @celery_app.task
-def generate_document_celery(job_id: str, topic: str) -> dict:
+def generate_document_celery(job_id: Union[str, int], topic: str) -> dict:
     """
     使用 Celery 执行文档生成任务
     
