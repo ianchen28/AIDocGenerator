@@ -2,6 +2,9 @@
 
 ## TODO
 
+service/docs/ARCHITECTURE_REFACTOR_PROPOSAL.md
+service/docs/REFACTOR_IMPLEMENTATION_PLAN.md
+
 - [-] Redis 流式输出 (没搞定)
 - [ ] word 等文件的解析，ocr 调用返回内容的融入
 - [ ] 输入文档的解析

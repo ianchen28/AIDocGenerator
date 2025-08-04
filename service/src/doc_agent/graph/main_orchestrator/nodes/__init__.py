@@ -12,9 +12,11 @@ from .generation import bibliography_node, outline_generation_node, split_chapte
 from .research import initial_research_node
 
 __all__ = [
+    # before write
     'initial_research_node',
     'outline_generation_node',
     'split_chapters_node',
+    # after write
     'bibliography_node',
     'fusion_editor_node',
 ]
