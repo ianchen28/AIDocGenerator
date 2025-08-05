@@ -10,6 +10,7 @@ import re
 from loguru import logger
 
 from doc_agent.schemas import Source
+from doc_agent.tools.reranker import RerankedSearchResult
 
 
 def parse_llm_json_response(response: str) -> dict:
@@ -206,186 +207,84 @@ def parse_reflection_response(response: str) -> list[str]:
         return []
 
 
-def parse_web_search_results(web_results: str, query: str,
+def parse_web_search_results(web_raw_results: list[dict], query: str,
                              start_id: int) -> list[Source]:
     """
     解析网络搜索结果，创建 Source 对象列表
-    
+
     Args:
         web_results: 网络搜索的原始结果字符串
         query: 搜索查询
         start_id: 起始ID
-        
+
     Returns:
         list[Source]: Source 对象列表
     """
+
+    # web_raw_result:
+    # {
+    #     "url": web_page.get("url", ""),
+    #     "doc_id": web_page.get("file_name", ""),
+    #     "doc_type": "text",
+    #     "domain_ids": ["web"],
+    #     "meta_data": web_page,
+    #     "text": content,
+    #     "_id": web_page.get("materialId", ""),
+    #     "rank": str(index + 1),
+    #     "full_content_fetched": web_page.get('full_content_fetched',
+    #                                             False)
+    # }
+
     sources = []
-    current_id = start_id
 
-    try:
-        # 简单的解析逻辑：按行分割，提取标题和URL
-        lines = web_results.split('\n')
-        current_title = ""
-        current_url = ""
-        current_content = ""
+    for index, web_raw_result in enumerate(web_raw_results):
+        source = Source(
+            id=start_id + index,
+            source_type="webpage",
+            title=web_raw_result['meta_data'].get('docName', ''),
+            url=web_raw_result['url'],
+            content=web_raw_result['text'][:500] + "..."
+            if len(web_raw_result['text']) > 500 else web_raw_result['text'])
 
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # 尝试提取标题和URL
-            if line.startswith('http') or line.startswith('https'):
-                # 这是一个URL
-                if current_title and current_content:
-                    # 创建前一个源
-                    source = Source(
-                        id=current_id,
-                        source_type="webpage",
-                        title=current_title,
-                        url=current_url,
-                        content=current_content[:500] + "..."
-                        if len(current_content) > 500 else current_content)
-                    sources.append(source)
-                    current_id += 1
-
-                current_url = line
-                current_title = ""
-                current_content = ""
-            elif line.startswith('标题:') or line.startswith('Title:'):
-                current_title = line.split(':', 1)[1].strip()
-            elif line.startswith('内容:') or line.startswith('Content:'):
-                current_content = line.split(':', 1)[1].strip()
-            elif not current_title and len(
-                    line) > 10 and not line.startswith('==='):
-                # 可能是标题
-                current_title = line
-            elif current_title and len(line) > 20:
-                # 可能是内容
-                current_content += " " + line
-
-        # 处理最后一个源
-        if current_title and current_content:
-            source = Source(
-                id=current_id,
-                source_type="webpage",
-                title=current_title,
-                url=current_url,
-                content=current_content[:500] +
-                "..." if len(current_content) > 500 else current_content)
-            sources.append(source)
-
-        # 如果没有解析到任何源，创建一个默认源
-        if not sources:
-            source = Source(id=current_id,
-                            source_type="webpage",
-                            title=f"网络搜索结果 - {query}",
-                            url="",
-                            content=web_results[:500] +
-                            "..." if len(web_results) > 500 else web_results)
-            sources.append(source)
-
-    except Exception as e:
-        logger.error(f"解析网络搜索结果失败: {str(e)}")
-        # 创建默认源
-        source = Source(id=start_id,
-                        source_type="webpage",
-                        title=f"网络搜索结果 - {query}",
-                        url="",
-                        content=web_results[:500] +
-                        "..." if len(web_results) > 500 else web_results)
         sources.append(source)
 
     return sources
 
 
-def parse_es_search_results(es_results: str, query: str,
-                            start_id: int) -> list[Source]:
+def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
+                            query: str, start_id: int) -> list[Source]:
     """
     解析ES搜索结果，创建 Source 对象列表
-    
+
     Args:
-        es_results: ES搜索的原始结果字符串
+        es_raw_results: ES搜索结果
         query: 搜索查询
         start_id: 起始ID
-        
+
     Returns:
         list[Source]: Source 对象列表
     """
+
+    # RerankedSearchResult
+    # id: str
+    # original_content: str
+    # div_content: str = ""
+    # source: str = ""
+    # score: float = 0.0
+    # rerank_score: float = 0.0  # 重排序评分
+    # metadata: dict[str, Any] = None
+    # alias_name: str = ""
+
     sources = []
-    current_id = start_id
 
-    try:
-        # 解析ES搜索结果
-        lines = es_results.split('\n')
-        current_title = ""
-        current_content = ""
-        current_url = ""
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # 尝试提取文档信息
-            if line.startswith('文档标题:') or line.startswith('Title:'):
-                current_title = line.split(':', 1)[1].strip()
-            elif line.startswith('文档内容:') or line.startswith('Content:'):
-                current_content = line.split(':', 1)[1].strip()
-            elif line.startswith('文档URL:') or line.startswith('URL:'):
-                current_url = line.split(':', 1)[1].strip()
-            elif line.startswith('---') or line.startswith('==='):
-                # 分隔符，处理前一个文档
-                if current_title and current_content:
-                    source = Source(
-                        id=current_id,
+    for index, es_raw_result in enumerate(es_raw_results):
+        source = Source(id=start_id + index,
                         source_type="es_result",
-                        title=current_title,
-                        url=current_url,
-                        content=current_content[:500] + "..."
-                        if len(current_content) > 500 else current_content)
-                    sources.append(source)
-                    current_id += 1
-                    current_title = ""
-                    current_content = ""
-                    current_url = ""
-            elif not current_title and len(line) > 10:
-                # 可能是标题
-                current_title = line
-            elif current_title and len(line) > 20:
-                # 可能是内容
-                current_content += " " + line
-
-        # 处理最后一个文档
-        if current_title and current_content:
-            source = Source(
-                id=current_id,
-                source_type="es_result",
-                title=current_title,
-                url=current_url,
-                content=current_content[:500] +
-                "..." if len(current_content) > 500 else current_content)
-            sources.append(source)
-
-        # 如果没有解析到任何源，创建一个默认源
-        if not sources:
-            source = Source(id=start_id,
-                            source_type="es_result",
-                            title=f"知识库搜索结果 - {query}",
-                            url="",
-                            content=es_results[:500] +
-                            "..." if len(es_results) > 500 else es_results)
-            sources.append(source)
-
-    except Exception as e:
-        logger.error(f"解析ES搜索结果失败: {str(e)}")
-        # 创建默认源
-        source = Source(id=start_id,
-                        source_type="es_result",
-                        title=f"知识库搜索结果 - {query}",
-                        url="",
-                        content=es_results[:500] +
-                        "..." if len(es_results) > 500 else es_results)
+                        title=es_raw_result.metadata.get('file_name', ''),
+                        url=es_raw_result.metadata.get('url', ''),
+                        content=es_raw_result.original_content[:500] +
+                        "..." if len(es_raw_result.original_content) > 500 else
+                        es_raw_result.original_content)
         sources.append(source)
 
     return sources

@@ -235,13 +235,16 @@ async def async_researcher_node(
         web_str_results = ""
         try:
             # 使用异步搜索方法
-            web_raw_results = await web_search_tool.search_async(query)
-            if "模拟" in web_raw_results or "mock" in web_raw_results.lower():
+            web_raw_results, web_str_results = await web_search_tool.search_async(
+                query)
+            if "模拟" in web_str_results or "mock" in web_str_results.lower():
                 logger.info(f"网络搜索返回模拟结果，跳过: {query}")
                 web_str_results = ""
+                web_raw_results = []
             if "搜索失败" in web_str_results:
                 logger.error(f"网络搜索失败: {web_str_results}")
                 web_str_results = ""
+                web_raw_results = []
         except Exception as e:
             logger.error(f"网络搜索失败: {str(e)}")
             web_str_results = ""
@@ -250,22 +253,12 @@ async def async_researcher_node(
         if es_str_results and es_str_results.strip():
             try:
                 # 解析ES搜索结果，创建 Source 对象
-                es_sources = _parse_es_search_results(es_str_results, query,
+                es_sources = _parse_es_search_results(es_raw_results, query,
                                                       source_id_counter)
 
-                # 使用新的去重逻辑
-                deduplicated_es_sources = merge_sources_with_deduplication(
-                    es_sources, existing_sources)
-                new_es_sources = [
-                    s for s in deduplicated_es_sources
-                    if s not in existing_sources
-                ]
-
-                all_sources.extend(new_es_sources)
-                source_id_counter += len(new_es_sources)
-                logger.info(
-                    f"✅ 从ES搜索中提取到 {len(es_sources)} 个源，去重后新增 {len(new_es_sources)} 个"
-                )
+                all_sources.extend(es_sources)
+                source_id_counter += len(es_sources)
+                logger.info(f"✅ 从ES搜索中提取到 {len(es_sources)} 个源")
             except Exception as e:
                 logger.error(f"❌ 解析ES搜索结果失败: {str(e)}")
 
@@ -274,31 +267,13 @@ async def async_researcher_node(
             try:
                 # 解析网络搜索结果，创建 Source 对象
                 web_sources = _parse_web_search_results(
-                    web_str_results, query, source_id_counter)
+                    web_raw_results, query, source_id_counter)
 
-                # 使用新的去重逻辑
-                deduplicated_web_sources = merge_sources_with_deduplication(
-                    web_sources, existing_sources)
-                new_web_sources = [
-                    s for s in deduplicated_web_sources
-                    if s not in existing_sources
-                ]
-
-                all_sources.extend(new_web_sources)
-                source_id_counter += len(new_web_sources)
-                logger.info(
-                    f"✅ 从网络搜索中提取到 {len(web_sources)} 个源，去重后新增 {len(new_web_sources)} 个"
-                )
+                all_sources.extend(web_sources)
+                source_id_counter += len(web_sources)
+                logger.info(f"✅ 从网络搜索中提取到 {len(web_sources)} 个源")
             except Exception as e:
                 logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
-
-        # 根据复杂度配置决定是否截断结果
-        truncate_length = complexity_config.get('data_truncate_length', -1)
-        if truncate_length > 0:
-            if es_str_results and len(es_str_results) > truncate_length:
-                es_str_results = es_str_results[:truncate_length] + "\n... (结果已截断)"
-            if web_str_results and len(web_str_results) > truncate_length:
-                web_str_results = web_str_results[:truncate_length] + "\n... (结果已截断)"
 
     # 合并所有信源（包括现有的和新的）
     final_sources = merge_sources_with_deduplication(all_sources,

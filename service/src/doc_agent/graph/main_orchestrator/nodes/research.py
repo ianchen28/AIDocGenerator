@@ -91,18 +91,23 @@ async def initial_research_node(state: ResearchState,
         logger.info(f"执行初始搜索 {i}/{len(initial_queries)}: {query}")
 
         # 网络搜索
-        web_results = ""
+        web_raw_results = []
+        web_str_results = ""
         try:
             # 使用异步搜索方法
-            web_results = await web_search_tool.search_async(query)
-            if "模拟" in web_results or "mock" in web_results.lower():
-                web_results = ""
+            web_raw_results, web_str_results = await web_search_tool.search_async(
+                query)
+            if "模拟" in web_str_results or "mock" in web_str_results.lower():
+                web_str_results = ""
+                web_raw_results = []
         except Exception as e:
             logger.error(f"网络搜索失败: {str(e)}")
-            web_results = ""
+            web_str_results = ""
+            web_raw_results = []
 
         # ES搜索
-        es_results = ""
+        es_raw_results = []
+        es_str_results = ""
         try:
             if embedding_client:
                 # 尝试向量检索
@@ -123,29 +128,30 @@ async def initial_research_node(state: ResearchState,
 
                     if query_vector:
                         # 使用向量检索
-                        es_results = await search_and_rerank(
-                            query, es_search_tool, reranker_tool, query_vector)
-                        logger.info(f"✅ 向量检索+重排序执行成功，结果长度: {len(es_results)}")
+                        _, es_raw_results, es_str_results = await search_and_rerank(
+                            es_search_tool, query, query_vector, reranker_tool)
+                        logger.info(
+                            f"✅ 向量检索+重排序执行成功，结果长度: {len(es_raw_results)}")
                     else:
                         # 回退到文本搜索
-                        es_results = await es_search_tool.search(query)
-                        logger.info(f"✅ 文本搜索执行成功，结果长度: {len(es_results)}")
+                        es_raw_results = await es_search_tool.search(query)
+                        logger.info(f"✅ 文本搜索执行成功，结果长度: {len(es_raw_results)}")
 
                 except Exception as e:
                     logger.warning(f"⚠️  向量检索失败，使用文本搜索: {str(e)}")
-                    es_results = await es_search_tool.search(query)
+                    es_raw_results = await es_search_tool.search(query)
             else:
                 # 直接使用文本搜索
-                es_results = await es_search_tool.search(query)
+                es_raw_results = await es_search_tool.search(query)
 
         except Exception as e:
             logger.error(f"ES搜索失败: {str(e)}")
-            es_results = ""
+            es_raw_results = []
 
         # 处理搜索结果并创建Source对象
-        if web_results and web_results.strip():
+        if web_str_results and web_str_results.strip():
             try:
-                web_sources = parse_web_search_results(web_results, query,
+                web_sources = parse_web_search_results(web_raw_results, query,
                                                        source_id_counter)
                 all_sources.extend(web_sources)
                 source_id_counter += len(web_sources)
@@ -153,11 +159,11 @@ async def initial_research_node(state: ResearchState,
             except Exception as e:
                 logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
 
-        if es_results and len(es_results) > 0:
+        if es_raw_results and len(es_raw_results) > 0:
             try:
                 # 将ESSearchResult列表转换为字符串格式
-                es_results_str = _convert_es_results_to_string(es_results)
-                es_sources = parse_es_search_results(es_results_str, query,
+                es_results_str = _convert_es_results_to_string(es_raw_results)
+                es_sources = parse_es_search_results(es_raw_results, query,
                                                      source_id_counter)
                 all_sources.extend(es_sources)
                 source_id_counter += len(es_sources)

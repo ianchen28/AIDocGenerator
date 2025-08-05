@@ -231,7 +231,7 @@ class WebSearchTool:
     async def get_web_docs(
             self,
             query: str,
-            fetch_full_content: bool = None) -> list[dict[str, Any]]:
+            fetch_full_content: bool = True) -> list[dict[str, Any]]:
         """
         获取web搜索结果并格式化为文档格式
 
@@ -246,9 +246,6 @@ class WebSearchTool:
         if not net_info:
             return []
 
-        # 确定是否获取完整内容
-        should_fetch_full = fetch_full_content if fetch_full_content is not None else self.config.fetch_full_content
-
         # 处理每个搜索结果
         web_docs = []
         for index, web_page in enumerate(net_info):
@@ -256,7 +253,7 @@ class WebSearchTool:
             content = web_page.get('materialContent', '')
 
             # 如果需要获取完整内容且当前内容较短（少于200字符）
-            if should_fetch_full and len(content) < 200 and web_page.get(
+            if fetch_full_content and len(content) < 200 and web_page.get(
                     'url'):
                 self.logger.info(f"获取完整内容: {web_page.get('url')}")
                 try:
@@ -276,7 +273,8 @@ class WebSearchTool:
             # 格式化文档
             web_page["file_name"] = web_page.get("docName", "")
             doc = {
-                "doc_id": web_page.get("url", ""),
+                "url": web_page.get("url", ""),
+                "doc_id": web_page.get("file_name", ""),
                 "doc_type": "text",
                 "domain_ids": ["web"],
                 "meta_data": web_page,
@@ -356,7 +354,9 @@ class WebSearchTool:
             logger.error(f"网络搜索失败: {str(e)}")
             return f"搜索失败: {str(e)}"
 
-    async def search_async(self, query: str) -> str:
+    async def search_async(self,
+                           query: str,
+                           fetch_full_content: bool = True) -> str:
         """
         异步搜索接口
 
@@ -369,17 +369,17 @@ class WebSearchTool:
         logger.info(f"开始异步网络搜索，查询: '{query[:50]}...'")
 
         try:
-            web_docs = await self.get_web_docs(query)
+            web_docs = await self.get_web_docs(query, fetch_full_content)
 
             if not web_docs:
                 return f"搜索失败或无结果: {query}"
 
             # 格式化结果
             result = f"Search results for: {query}\n\n"
-            for i, doc in enumerate(web_docs[:3]):  # 只显示前3个结果
+            for i, doc in enumerate(web_docs):
                 meta = doc['meta_data']
                 title = meta.get('docName', 'Unknown')
-                url = doc['doc_id']
+                url = doc['url']
                 content = doc['text'][:200] + "..." if len(
                     doc['text']) > 200 else doc['text']
 
@@ -390,7 +390,7 @@ class WebSearchTool:
                 result += f"   内容预览: {content}\n\n"
 
             logger.info("异步网络搜索完成")
-            return result
+            return web_docs, result
 
         except Exception as e:
             logger.error(f"异步网络搜索失败: {str(e)}")
