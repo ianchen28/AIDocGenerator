@@ -72,7 +72,8 @@ def writer_node(state: ResearchState,
     previous_chapters_context = _build_previous_chapters_context(
         completed_chapters_content)
 
-    available_sources_text = _format_sources_to_text(gathered_sources)
+    available_sources_text = _format_sources_to_text(
+        gathered_sources, state.get("current_citation_index", 0))
 
     # 获取文档生成器配置
     document_writer_config = settings.get_agent_component_config(

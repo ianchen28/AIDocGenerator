@@ -82,6 +82,7 @@ def sample_research_state():
         }],
         "current_chapter_index":
         0,
+        "current_citation_index": 0,  # 添加引用索引初始化
 
         # 已完成章节内容
         "completed_chapters_content": [],

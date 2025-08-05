@@ -14,7 +14,7 @@ from loguru import logger
 from doc_agent.schemas import Source
 
 
-def format_sources_to_text(sources: list[Source]) -> str:
+def format_sources_to_text(sources: list[Source], start_idx: int = 1) -> str:
     """
     将 Source 对象列表格式化为文本格式，用于向后兼容
     
@@ -29,7 +29,7 @@ def format_sources_to_text(sources: list[Source]) -> str:
 
     formatted_text = "收集到的信息源:\n\n"
 
-    for i, source in enumerate(sources, 1):
+    for i, source in enumerate(sources, start_idx):
         formatted_text += f"=== 信息源 {i} ===\n"
         formatted_text += f"标题: {source.title}\n"
         if source.url:

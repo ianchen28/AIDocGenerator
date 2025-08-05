@@ -117,6 +117,7 @@ async def main():
             document_outline={},
             chapters_to_process=[],
             current_chapter_index=0,
+            current_citation_index=0,  # 添加引用索引初始化
             completed_chapters=[],
             final_document="",
             messages=[],
@@ -143,6 +144,7 @@ async def main():
             requirements_content="",
             chapters_to_process=[],
             current_chapter_index=0,
+            current_citation_index=0,  # 添加引用索引初始化
             completed_chapters=[],
             final_document="",
             sources=[],

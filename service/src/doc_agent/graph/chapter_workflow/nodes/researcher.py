@@ -81,9 +81,11 @@ async def async_researcher_node(
     existing_sources = state.get("gathered_sources", [])
     if existing_sources:
         logger.info(f"📚 发现现有信源 {len(existing_sources)} 个，将进行去重处理")
-        # 更新源ID计数器
-        source_id_counter = max([source.id for source in existing_sources],
-                                default=0) + 1
+        # 更新源ID计数器 - 安全获取，提供默认值
+        source_id_counter = state.get("current_citation_index", 0)
+    else:
+        # 如果没有现有信源，确保有默认的引用索引
+        source_id_counter = state.get("current_citation_index", 0)
 
     # 获取embedding配置
     embedding_config = settings.supported_models.get("gte_qwen")
