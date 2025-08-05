@@ -10,6 +10,18 @@ from typing import Optional, Union
 from loguru import logger
 
 
+def escape_newlines(obj):
+    if isinstance(obj, str):
+        return obj.replace('\n', '\\n').replace('\r', '\\r')
+    elif isinstance(obj, dict):
+        return {key: escape_newlines(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [escape_newlines(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(escape_newlines(item) for item in obj)
+    return obj
+
+
 class RedisStreamPublisher:
     """
     Redis Streams 事件发布器
@@ -43,14 +55,16 @@ class RedisStreamPublisher:
             Exception: 当发布失败时抛出异常
         """
         try:
+            # 对事件数据进行换行符转义处理
+            escaped_event_data = escape_newlines(event_data)
             # 构造 Stream 名称 - 直接使用job_id作为流名称
             stream_name = str(job_id)
 
             # 准备事件数据
             event_payload = {
-                "data": json.dumps(event_data, ensure_ascii=False),
-                "timestamp": event_data.get("timestamp", ""),
-                "eventType": event_data.get("eventType", "unknown")
+                "data": json.dumps(escaped_event_data, ensure_ascii=False),
+                # "timestamp": escaped_event_data.get("timestamp", ""),
+                # "eventType": escaped_event_data.get("eventType", "unknown")
             }
 
             # 发布事件到 Redis Stream
