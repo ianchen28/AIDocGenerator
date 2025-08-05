@@ -63,8 +63,8 @@ class RedisStreamPublisher:
             # 准备事件数据
             event_payload = {
                 "data": json.dumps(escaped_event_data, ensure_ascii=False),
-                "timestamp": escaped_event_data.get("timestamp", ""),
-                "eventType": escaped_event_data.get("eventType", "unknown")
+                # "timestamp": escaped_event_data.get("timestamp", ""),
+                # "eventType": escaped_event_data.get("eventType", "unknown")
             }
 
             # 发布事件到 Redis Stream
