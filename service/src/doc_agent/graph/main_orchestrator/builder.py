@@ -1,12 +1,14 @@
 # service/src/doc_agent/graph/main_orchestrator/builder.py
-from loguru import logger
 import pprint
-from typing import Dict, Any
-from langgraph.graph import StateGraph, END
-from ..state import ResearchState
-from . import nodes
-from ...llm_clients.base import LLMClient
-from ...llm_clients import get_llm_client
+from typing import Any, Dict
+
+from langgraph.graph import END, StateGraph
+from loguru import logger
+
+from doc_agent.graph.main_orchestrator import nodes
+from doc_agent.graph.state import ResearchState
+from doc_agent.llm_clients import get_llm_client
+from doc_agent.llm_clients.base import LLMClient
 
 
 def create_chapter_processing_node(chapter_workflow_graph):

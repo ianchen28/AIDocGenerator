@@ -16,8 +16,8 @@ V1_DEFAULT = """
 **已完成的章节内容（用于保持连贯性）:**
 {previous_chapters_context}
 
-**当前章节的研究数据:**
-{gathered_data}
+**本章可用信息源**
+{available_sources_text}
 
 **写作任务:**
 基于提供的研究数据，为当前章节撰写内容。请遵循以下要求：
@@ -65,7 +65,7 @@ V1_SIMPLE = """
 {previous_chapters_context}
 
 **当前章节的研究数据:**
-{gathered_data}
+{available_sources_text}
 
 **写作任务:**
 基于研究数据撰写当前章节，确保与前面章节连贯，使用Markdown格式，以##开始章节标题。
@@ -86,7 +86,7 @@ V2_WITH_CITATIONS = """
 {previous_chapters_context}
 
 **当前章节的研究数据:**
-{gathered_data}
+{available_sources_text}
 
 **可用信息源列表:**
 {available_sources}
@@ -161,7 +161,7 @@ V2_SIMPLE_CITATIONS = """
 - 章节序号: 第{chapter_number}章（共{total_chapters}章）
 
 **当前章节的研究数据:**
-{gathered_data}
+{available_sources_text}
 
 **可用信息源列表:**
 {available_sources}
@@ -222,10 +222,7 @@ V3_CONTEXT_AWARE = """
 {previous_chapters_context}
 
 **当前章节的研究数据:**
-{gathered_data}
-
-**可用信息源列表:**
-{available_sources}
+{available_sources_text}
 
 **重要引用规则:**
 在撰写每个段落或关键陈述时，你必须严格遵循以下规则：
@@ -306,11 +303,8 @@ V4_WITH_STYLE_GUIDE = """
 **已完成的章节内容（用于保持连贯性）:**
 {previous_chapters_context}
 
-**当前章节的研究数据:**
-{gathered_data}
-
-**可用信息源列表:**
-{available_sources}
+**当前章节的可用信息源列表:**
+{available_sources_text}
 
 **重要引用规则:**
 在撰写每个段落或关键陈述时，你必须严格遵循以下规则：
@@ -398,7 +392,7 @@ V1_FALLBACK = """
 {previous_chapters_context}
 
 **研究数据:**
-{gathered_data}
+{available_sources_text}
 
 **写作要求:**
 1. 基于研究数据撰写内容，确保信息准确性和完整性
@@ -419,11 +413,8 @@ V2_FALLBACK_SIMPLE = """
 **章节描述:** {chapter_description}
 **章节编号:** {chapter_number}/{total_chapters}
 
-**可用信息源:**
-{available_sources}
-
-**研究数据:**
-{gathered_data}
+**本章可用信息源*
+{available_sources_text}
 
 **写作要求:**
 1. 基于研究数据撰写内容，确保信息准确性和完整性

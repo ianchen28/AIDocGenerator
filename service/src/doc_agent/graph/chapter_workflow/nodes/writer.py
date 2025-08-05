@@ -66,28 +66,13 @@ def writer_node(state: ResearchState,
 
     # 从状态中获取研究数据
     gathered_sources = state.get("gathered_sources", [])
-    gathered_data = state.get("gathered_data", "")  # 保持向后兼容
-
-    # 如果没有收集到源数据，尝试使用旧的 gathered_data
-    if not gathered_sources and not gathered_data:
-        return {
-            "final_document": f"## {chapter_title}\n\n由于没有收集到相关数据，无法生成章节内容。",
-            "cited_sources_in_chapter": []
-        }
 
     # 构建上下文
     context_for_writing = _build_writing_context(completed_chapters)
     previous_chapters_context = _build_previous_chapters_context(
         completed_chapters_content)
 
-    # 格式化可用信息源列表
-    available_sources_text = _format_available_sources(gathered_sources)
-
-    # 如果没有gathered_data但有sources，生成向后兼容的数据
-    if gathered_sources and not gathered_data:
-        gathered_data = _format_sources_to_text(gathered_sources)
-    elif not gathered_data:
-        gathered_data = "没有收集到相关数据"
+    available_sources_text = _format_sources_to_text(gathered_sources)
 
     # 获取文档生成器配置
     document_writer_config = settings.get_agent_component_config(
@@ -116,14 +101,14 @@ def writer_node(state: ResearchState,
     prompt = _build_prompt(prompt_template, topic, chapter_title,
                            chapter_description, current_chapter_index,
                            chapters_to_process, previous_chapters_context,
-                           gathered_data, available_sources_text,
-                           context_for_writing, style_guide_content)
+                           available_sources_text, context_for_writing,
+                           style_guide_content)
 
     # 限制 prompt 长度
     prompt = _truncate_prompt_if_needed(prompt, previous_chapters_context,
                                         completed_chapters_content,
-                                        gathered_data, topic, chapter_title,
-                                        chapter_description,
+                                        available_sources_text, topic,
+                                        chapter_title, chapter_description,
                                         current_chapter_index,
                                         chapters_to_process, prompt_selector)
 
@@ -296,9 +281,6 @@ def _get_fallback_prompt_template() -> str:
 **可用信息源:**
 {available_sources}
 
-**研究数据:**
-{gathered_data}
-
 **写作要求:**
 1. 基于研究数据撰写内容，确保信息准确性和完整性
 2. 保持章节结构清晰，逻辑连贯
@@ -313,9 +295,8 @@ def _get_fallback_prompt_template() -> str:
 
 def _build_prompt(prompt_template, topic, chapter_title, chapter_description,
                   current_chapter_index, chapters_to_process,
-                  previous_chapters_context, gathered_data,
-                  available_sources_text, context_for_writing,
-                  style_guide_content):
+                  previous_chapters_context, available_sources_text,
+                  context_for_writing, style_guide_content):
     """构建完整的提示词"""
     if style_guide_content and style_guide_content.strip():
         # 格式化样式指南内容
@@ -330,8 +311,7 @@ def _build_prompt(prompt_template, topic, chapter_title, chapter_description,
             total_chapters=len(chapters_to_process),
             previous_chapters_context=previous_chapters_context
             or "这是第一章，没有前置内容。",
-            gathered_data=gathered_data,
-            available_sources=available_sources_text,
+            available_sources_text=available_sources_text,
             context_for_writing=context_for_writing,
             style_guide_content=formatted_style_guide)
     else:
@@ -344,16 +324,15 @@ def _build_prompt(prompt_template, topic, chapter_title, chapter_description,
             total_chapters=len(chapters_to_process),
             previous_chapters_context=previous_chapters_context
             or "这是第一章，没有前置内容。",
-            gathered_data=gathered_data,
-            available_sources=available_sources_text,
+            available_sources_text=available_sources_text,
             context_for_writing=context_for_writing)
 
 
 def _truncate_prompt_if_needed(prompt, previous_chapters_context,
-                               completed_chapters_content, gathered_data,
-                               topic, chapter_title, chapter_description,
-                               current_chapter_index, chapters_to_process,
-                               prompt_selector):
+                               completed_chapters_content,
+                               available_sources_text, topic, chapter_title,
+                               chapter_description, current_chapter_index,
+                               chapters_to_process, prompt_selector):
     """如果提示词过长，进行截断处理"""
     max_prompt_length = 30000
 
@@ -372,15 +351,15 @@ def _truncate_prompt_if_needed(prompt, previous_chapters_context,
         ])
 
     # 如果研究数据也太长，进行截断
-    if len(gathered_data) > 15000:
-        gathered_data = gathered_data[:15000] + "\n\n... (研究数据已截断)"
+    if len(available_sources_text) > 15000:
+        available_sources_text = available_sources_text[:15000] + "\n\n... (研究数据已截断)"
 
     # 使用简化的模板重新构建prompt
     simple_prompt_template = _get_fallback_prompt_template()
 
     # 即使截断，也要保留基本的源信息
     available_sources_text = "可用信息源列表:\n\n"
-    if len(gathered_data) > 1000:  # 如果数据很长，只显示前几个源
+    if len(available_sources_text) > 1000:  # 如果数据很长，只显示前几个源
         available_sources_text += "由于数据量较大，仅显示部分信息源。请基于研究数据撰写内容，并正确引用。\n\n"
 
     prompt = simple_prompt_template.format(
@@ -389,8 +368,7 @@ def _truncate_prompt_if_needed(prompt, previous_chapters_context,
         chapter_description=chapter_description,
         chapter_number=current_chapter_index + 1,
         total_chapters=len(chapters_to_process),
-        gathered_data=gathered_data,
-        available_sources=available_sources_text)
+        available_sources_text=available_sources_text)
 
     logger.info(f"📝 截断后 writer prompt 长度: {len(prompt)} 字符")
     return prompt

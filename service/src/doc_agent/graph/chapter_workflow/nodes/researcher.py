@@ -275,16 +275,15 @@ async def async_researcher_node(
             except Exception as e:
                 logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
 
-    # 合并所有信源（包括现有的和新的）
-    final_sources = merge_sources_with_deduplication(all_sources,
-                                                     existing_sources)
-
     # 返回结构化的源列表
+    old_source_count = len(existing_sources)
+    new_source_count = len(all_sources)
+    added_source_count = new_source_count - old_source_count
     logger.info(
-        f"✅ 总共收集到 {len(final_sources)} 个信息源（原有 {len(existing_sources)} 个，新增 {len(all_sources)} 个）"
+        f"✅ 信源数：{old_source_count} -- +{new_source_count} --> {added_source_count}"
     )
-    for i, source in enumerate(final_sources[:5], 1):  # 只显示前5个源作为预览
+    for i, source in enumerate(all_sources[:5], 1):  # 只显示前5个源作为预览
         logger.debug(
             f"  {i}. [{source.id}] {source.title} ({source.source_type})")
 
-    return {"gathered_sources": final_sources}
+    return {"gathered_sources": all_sources}
