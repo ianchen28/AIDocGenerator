@@ -53,16 +53,11 @@ class RedisStreamPublisher:
             i = await self.redis_client.incr(counter_key)
             id_str = f"{job_id}-{i}"
             # 准备事件数据
-            event_payload = {
-                "data": json.dumps(event_data, ensure_ascii=False),
-                "timestamp": event_data.get("timestamp", ""),
-                "eventType": event_data.get("eventType", "unknown"),
-                "redis_id": id_str
-            }
+            event_data["redis_id"] = id_str
 
             event_id = await self.redis_client.xadd(
                 stream_name,
-                {"data": json.dumps(event_payload, ensure_ascii=False)},
+                {"data": json.dumps(event_data, ensure_ascii=False)},
                 id=id_str)
 
             logger.info(
