@@ -13,6 +13,7 @@ class Source(BaseModel):
     title: str = Field(..., description="信息源标题")
     url: Optional[str] = Field(None, description="信息源URL，如果可用")
     content: str = Field(..., description="信息源的实际文本内容片段")
+    cited: bool = Field(False, description="是否被引用")
 
 
 # --- Context Models ---

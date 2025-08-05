@@ -86,9 +86,6 @@ def writer_node(state: ResearchState,
         max_tokens = 4000
         extra_params = {}
 
-    # 根据复杂度调整参数
-    timeout = complexity_config.get('llm_timeout', 180)
-
     # 获取样式指南内容
     style_guide_content = state.get("style_guide_content", "")
 
@@ -129,16 +126,18 @@ def writer_node(state: ResearchState,
             response = f"## {chapter_title}\n\n{response}"
 
         # 处理引用标记
-        processed_response, cited_sources = _process_citations_inline(
-            response, gathered_sources, state)
+        _update_cited_sources_inplace(response, gathered_sources)
 
+        # 后处理
+        final_document = _response_postprocess(response)
+
+        # 根据引用标记，对相关文献进行标记，并更新状态
+        cited_sources = [source for source in gathered_sources if source.cited]
         logger.info(f"✅ 章节生成完成，引用了 {len(cited_sources)} 个信息源")
-        for source in cited_sources:
-            logger.debug(f"  📚 引用源: [{source.id}] {source.title}")
 
         # 返回当前章节的内容和引用源
         return {
-            "final_document": processed_response,
+            "final_document": final_document,
             "cited_sources_in_chapter": cited_sources
         }
 
@@ -374,93 +373,28 @@ def _truncate_prompt_if_needed(prompt, previous_chapters_context,
     return prompt
 
 
-def _process_citations_inline(
-        raw_text: str, available_sources: list[Source],
-        state: ResearchState) -> tuple[str, list[Source]]:
-    """
-    处理LLM输出中的引用标记，提取引用的源并格式化文本
-    使用新的信源管理逻辑避免重复引用
-    
+def _update_cited_sources_inplace(raw_text: str,
+                                  available_sources: list[Source]) -> None:
+    """ 根据 raw_text 中的内容，识别 <[n]> 标记，并更新 available_sources 中 id 为 n 的 cited 字段
+
     Args:
         raw_text: LLM的原始输出文本
         available_sources: 可用的信息源列表
-        state: 研究状态
-        
-    Returns:
-        tuple[str, list[Source]]: (处理后的文本, 引用的源列表)
     """
-    processed_text = raw_text
-    cited_sources = []
+    # 识别 <[n]> 标记，并更新 available_sources 中 id 为 n 的 cited 字段
+    cited_sources = re.findall(r'<\[(\d+)\]>', raw_text)
+    for source_id in cited_sources:
+        source = next((s for s in available_sources if s.id == int(source_id)),
+                      None)
+        if source:
+            source.cited = True
 
-    # 获取全局已引用的信源列表（从状态中获取）
-    global_cited_sources = state.get("cited_sources", {})
-    all_existing_sources = list(
-        global_cited_sources.values()) if global_cited_sources else []
 
-    # 创建源ID到源对象的映射
-    source_map = {source.id: source for source in available_sources}
-
-    def _replace_sources_tag(match):
-        """替换引用标记的辅助函数，使用新的信源管理逻辑"""
-        try:
-            # 提取源ID列表，例如从 [1, 3] 中提取 [1, 3]
-            content = match.group(1).strip()
-
-            if not content:  # 空标签 <sources>[]</sources>
-                logger.debug("  📝 处理空引用标记（综合分析）")
-                return ""  # 移除空标签
-
-            # 解析源ID列表
-            source_ids = []
-            for id_str in content.split(','):
-                id_str = id_str.strip()
-                if id_str.isdigit():
-                    source_ids.append(int(id_str))
-
-            logger.debug(f"  📚 解析到源ID: {source_ids}")
-
-            # 收集引用的源并生成引用标记
-            citation_markers = []
-            for source_id in source_ids:
-                if source_id in source_map:
-                    source = source_map[source_id]
-
-                    # 使用新的信源管理逻辑获取正确的ID
-                    correct_source_id = get_or_create_source_id(
-                        source, all_existing_sources)
-
-                    # 如果ID不同，说明找到了重复信源
-                    if correct_source_id != source_id:
-                        logger.info(
-                            f"    🔄 发现重复信源: [{source_id}] -> [{correct_source_id}] {source.title}"
-                        )
-
-                    # 添加到引用列表（避免重复添加）
-                    if source not in cited_sources:
-                        cited_sources.append(source)
-
-                    citation_markers.append(f"[{correct_source_id}]")
-                    logger.debug(
-                        f"    ✅ 添加引用源: [{correct_source_id}] {source.title}")
-                else:
-                    logger.warning(f"    ⚠️  未找到源ID: {source_id}")
-
-            # 返回格式化的引用标记
-            return "".join(citation_markers)
-
-        except Exception as e:
-            logger.error(f"❌ 处理引用标记失败: {e}")
-            return ""  # 移除无效标签
-
-    # 使用正则表达式替换所有引用标记
-    sources_pattern = r'<sources>\[([^\]]*)\]</sources>'
-    processed_text = re.sub(sources_pattern, _replace_sources_tag,
-                            processed_text)
-
-    # 额外处理：移除任何剩余的引用占位符
-    processed_text = re.sub(r'\[引用需补充，暂为空\]', '', processed_text)
-    processed_text = re.sub(r'<sources>\[\]</sources>', '', processed_text)
-
-    logger.info(f"✅ 引用处理完成，引用了 {len(cited_sources)} 个信息源")
-
-    return processed_text, cited_sources
+def _response_postprocess(response: str) -> str:
+    """ 对 LLM 的原始输出进行后处理，包括：
+    1. 删除前后的 ``` 标记
+    2. 其他后处理
+    """
+    # 删除前后的 ``` 标记
+    response = re.sub(r'```.*?```', '', response, flags=re.DOTALL)
+    return response

@@ -66,7 +66,7 @@ def outline_generation_node(state: ResearchState,
     try:
         # 根据复杂度调整参数
         temperature = 0.7
-        max_tokens = complexity_config.get('chapter_target_words', 2000)
+        max_tokens = 2000
 
         response = llm_client.invoke(prompt,
                                      temperature=temperature,
@@ -220,6 +220,9 @@ def _get_outline_prompt_template(complexity_config, prompt_selector, genre):
 
 def _parse_outline_response(response: str, complexity_config) -> dict:
     """解析大纲生成响应"""
+    # 清除收尾的 ```json 和 ```
+    response = response.replace('```json', '').replace('```', '').strip()
+    #
     try:
         # 尝试解析JSON
         import re
@@ -246,19 +249,39 @@ def _generate_default_outline(topic: str, complexity_config) -> dict:
     if max_chapters <= 0:
         max_chapters = 3
 
-    chapters = []
-    for i in range(min(max_chapters, 3)):  # 最多3章
-        chapters.append({
-            "chapter_number": i + 1,
-            "chapter_title": f"{topic} - 第{i + 1}部分",
-            "description": f"关于{topic}的第{i + 1}部分内容",
-            "key_points": [f"{topic}相关要点"]
-        })
+    # 根据主题生成更合适的大纲
+    if "水电站" in topic or "水电" in topic:
+        chapters = [{
+            "chapter_number": 1,
+            "chapter_title": "水电站建造概述",
+            "description": "介绍水电站建造的基本概念、重要性和技术特点",
+            "key_points": ["水电站类型", "建造流程", "技术标准"]
+        }, {
+            "chapter_number": 2,
+            "chapter_title": "建造过程中的主要问题",
+            "description": "详细分析水电站建造过程中可能遇到的技术和管理问题",
+            "key_points": ["地质问题", "技术难题", "管理挑战"]
+        }, {
+            "chapter_number": 3,
+            "chapter_title": "解决方案与最佳实践",
+            "description": "提供针对各类问题的解决方案和行业最佳实践",
+            "key_points": ["技术方案", "管理措施", "预防策略"]
+        }]
+    else:
+        # 通用大纲
+        chapters = []
+        for i in range(min(max_chapters, 3)):
+            chapters.append({
+                "chapter_number": i + 1,
+                "chapter_title": f"{topic} - 第{i + 1}部分",
+                "description": f"关于{topic}的第{i + 1}部分内容",
+                "key_points": [f"{topic}相关要点"]
+            })
 
     return {
         "title": f"{topic} 研究报告",
-        "summary": f"本文档深入探讨了{topic}的相关内容。",
-        "chapters": chapters
+        "summary": f"本文档深入探讨了{topic}的相关内容，包括问题分析和解决方案。",
+        "chapters": chapters[:max_chapters]  # 确保不超过最大章节数
     }
 
 

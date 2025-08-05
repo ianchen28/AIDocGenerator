@@ -145,6 +145,8 @@ async def main():
             current_chapter_index=0,
             completed_chapters=[],
             final_document="",
+            sources=[],
+            all_sources=[],
             messages=[],
             run_id=run_id,  # 【新增】添加 run_id 到状态
         )

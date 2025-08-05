@@ -29,15 +29,41 @@ FAST_OUTLINE_GENERATION_PROMPT = """
             "chapter_number": 1,
             "chapter_title": "第一章标题",
             "description": "本章的简要描述",
-            "key_points": ["要点1", "要点2"],
-            "estimated_sections": 2
+            "estimated_sub_sections": 2,
+            "sub_sections": [
+                {{
+                    "section_number": 1.1,
+                    "section_title": "第一节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2"]
+                }},
+                {{
+                    "section_number": 1.2,
+                    "section_title": "第二节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2"]
+                }}
+            ]
         }},
         {{
             "chapter_number": 2,
             "chapter_title": "第二章标题",
             "description": "本章的简要描述",
-            "key_points": ["要点1", "要点2"],
-            "estimated_sections": 2
+            "estimated_sub_sections": 2,
+            "sub_sections": [
+                {{
+                    "section_number": 2.1,
+                    "section_title": "第一节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2"]
+                }},
+                {{
+                    "section_number": 2.2,
+                    "section_title": "第二节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2"]
+                }}
+            ]
         }}
     ],
     "total_chapters": 2,
@@ -46,6 +72,7 @@ FAST_OUTLINE_GENERATION_PROMPT = """
 
 **重要提示**:
 - 只生成2-3个章节
+- 要生成两层大纲结构
 - 章节标题应该简洁明了
 - 描述应该简短但清晰
 - 必须输出有效的JSON格式

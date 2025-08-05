@@ -46,14 +46,12 @@ class ResearchState(TypedDict):
     search_queries: list[str]  # 当前章节的搜索查询列表
     gathered_sources: list[Source]  # 当前章节收集的数据
 
-    # 源追踪 - 用于引用和溯源
-    sources: list[Source]  # 当前章节收集的所有信息源
+    # 源追踪
+    sources: list[Source]  # 当前章节收集的所有信息源，章节生成后并入 all_sources
+    all_sources: list[Source]  # 所有章节收集的所有信息源
 
     # 全局引用源追踪 - 用于最终参考文献
     cited_sources: dict  # 存储所有唯一源，按ID索引
-
-    # 当前章节的引用源 - 用于章节级引用追踪
-    cited_sources_in_chapter: list[Source]  # 当前章节引用的源列表
 
     # 对话历史
     messages: Annotated[list, add_messages]

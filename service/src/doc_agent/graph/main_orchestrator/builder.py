@@ -88,21 +88,51 @@ def create_chapter_processing_node(chapter_workflow_graph):
             chapter_result = await chapter_workflow_graph.ainvoke(
                 chapter_workflow_input)
 
-            # 调试：打印章节工作流的完整输出
+            # 详细的调试信息
             logger.info(f"📊 章节工作流输出键: {list(chapter_result.keys())}")
-            logger.info(f"📊 章节工作流输出: {chapter_result}")
+            logger.info(f"📊 章节工作流完整输出: {chapter_result}")
 
-            # 从结果中提取章节内容和引用源
-            chapter_content = chapter_result.get("final_document", "")
+            # 检查关键字段是否存在
+            if "final_document" in chapter_result:
+                logger.info(
+                    f"✅ 找到 final_document，长度: {len(chapter_result['final_document'])}"
+                )
+            else:
+                logger.warning("⚠️  未找到 final_document 字段")
+
+            if "cited_sources_in_chapter" in chapter_result:
+                cited_sources = chapter_result["cited_sources_in_chapter"]
+                logger.info(
+                    f"✅ 找到 cited_sources_in_chapter，数量: {len(cited_sources)}")
+                if cited_sources:
+                    logger.info(
+                        f"📚 引用源示例: {cited_sources[0].title if hasattr(cited_sources[0], 'title') else '无标题'}"
+                    )
+            else:
+                logger.warning("⚠️  未找到 cited_sources_in_chapter 字段")
+
             cited_sources_in_chapter = chapter_result.get(
                 "cited_sources_in_chapter", [])
 
+            # 安全地计算最大引用索引
+            if cited_sources_in_chapter and len(cited_sources_in_chapter) > 0:
+                max_citation_index = max(
+                    [source.id for source in cited_sources_in_chapter])
+            else:
+                max_citation_index = 0  # 如果没有引用源，使用默认值
+
+            # 从结果中提取章节内容和引用源
+            chapter_content = chapter_result.get("final_document", "")
+            state["all_sources"].extend(cited_sources_in_chapter)
+
             if not chapter_content:
-                logger.warning(f"⚠️  章节工作流未返回内容，使用默认内容")
+                logger.warning("⚠️  章节工作流未返回内容，使用默认内容")
                 chapter_content = f"## {chapter_title}\n\n章节内容生成失败。"
 
             logger.info(f"✅ 章节处理完成，内容长度: {len(chapter_content)} 字符")
-            logger.info(f"📚 章节引用源数量: {len(cited_sources_in_chapter)}")
+            logger.info(
+                f"📚 章节引用源数量: {len(chapter_result.get('cited_sources_in_chapter', []))}"
+            )
 
             # 生成章节摘要
             logger.info(f"📝 开始生成章节摘要: {chapter_title}")
@@ -133,7 +163,7 @@ def create_chapter_processing_node(chapter_workflow_graph):
                 current_chapter_summary = f"章节摘要生成失败: {str(e)}"
 
             # 更新章节索引
-            updated_chapter_index = current_chapter_index + 1
+            updated_chapter_index = max_citation_index + 1
 
             # 更新全局引用源
             current_cited_sources = state.get("cited_sources", {})
@@ -380,7 +410,7 @@ def finalize_document_node(state: ResearchState) -> dict:
     final_document = "\n".join(final_document_parts)
 
     logger.info(f"✅ 最终文档生成完成，总长度: {len(final_document)} 字符")
-    logger.info(f"📊 包含 {len(completed_chapters_content)} 个章节")
+    logger.info(f"�� 包含 {len(completed_chapters_content)} 个章节")
 
     return {"final_document": final_document}
 

@@ -80,6 +80,22 @@ def build_chapter_workflow_graph(
             logger.info(
                 f"📚 Writer节点返回了 {len(result['cited_sources_in_chapter'])} 个引用源"
             )
+            logger.info(f"📚 Writer节点完整返回值: {result}")
+
+            # 验证返回值结构
+            logger.info(f"📊 Writer节点返回值键: {list(result.keys())}")
+            logger.info(f"📊 Writer节点返回值类型: {type(result)}")
+
+            # 检查 cited_sources_in_chapter 的内容
+            cited_sources = result["cited_sources_in_chapter"]
+            logger.info(
+                f"📚 cited_sources_in_chapter 类型: {type(cited_sources)}")
+            logger.info(f"📚 cited_sources_in_chapter 长度: {len(cited_sources)}")
+            if cited_sources:
+                logger.info(f"📚 第一个引用源: {cited_sources[0]}")
+        else:
+            logger.warning("⚠️  Writer节点返回值中没有 cited_sources_in_chapter 字段")
+            logger.info(f"📚 Writer节点完整返回值: {result}")
 
         return result
 
