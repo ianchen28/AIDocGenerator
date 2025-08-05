@@ -10,24 +10,14 @@ from typing import Optional, Union
 from loguru import logger
 
 
-def escape_newlines(obj):
-    if isinstance(obj, str):
-        return obj.replace('\n', '\\n').replace('\r', '\\r')
-    elif isinstance(obj, dict):
-        return {key: escape_newlines(value) for key, value in obj.items()}
-    elif isinstance(obj, list):
-        return [escape_newlines(item) for item in obj]
-    elif isinstance(obj, tuple):
-        return tuple(escape_newlines(item) for item in obj)
-    return obj
-
-
 class RedisStreamPublisher:
     """
     Redis Streams 事件发布器
     
     用于向 Redis Streams 发布任务相关的事件，支持异步操作。
     """
+
+    job_idx = {}
 
     def __init__(self, redis_client):
         """
@@ -55,23 +45,23 @@ class RedisStreamPublisher:
             Exception: 当发布失败时抛出异常
         """
         try:
-            # 对事件数据进行换行符转义处理
-            escaped_event_data = escape_newlines(event_data)
             # 构造 Stream 名称 - 直接使用job_id作为流名称
             stream_name = str(job_id)
 
-            # 准备事件数据
-            event_payload = {
-                "data": json.dumps(escaped_event_data, ensure_ascii=False),
-                # "timestamp": escaped_event_data.get("timestamp", ""),
-                # "eventType": escaped_event_data.get("eventType", "unknown")
-            }
-
             # 发布事件到 Redis Stream
-            event_id = await self.redis_client.xadd(stream_name, event_payload)
+            counter_key = f"stream_counter:{stream_name}"
+            i = await self.redis_client.incr(counter_key)
+            id_str = f"{job_id}-{i}"
+            # 准备事件数据
+            event_data["redis_id"] = id_str
+
+            event_id = await self.redis_client.xadd(
+                stream_name,
+                {"data": json.dumps(event_data, ensure_ascii=False)},
+                id=id_str)
 
             logger.info(
-                f"事件发布成功: job_id={job_id}, event_id={event_id}, event_type={event_data.get('event_type', 'unknown')}"
+                f"事件发布成功: job_id={job_id}, event_id={event_id}, event_type={event_data.get('event_type', 'unknown')}, i={i}"
             )
 
             return event_id
