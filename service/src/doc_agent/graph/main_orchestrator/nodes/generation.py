@@ -90,21 +90,21 @@ def split_chapters_node(state: ResearchState) -> dict:
     将文档大纲拆分为独立的章节任务列表
     根据配置限制章节数量
 
-    大纲范例：
+    大纲范例（新格式）：
 
     {
         "title": "水电站建造过程中的问题与解决方案",
         "summary": "本报告旨在探讨水电站建造过程中常见的问题及其解决措施，从施工技术、环境条件和项目管理等多个角度进行分析，以期为未来的水电站建设提供参考。",
         "chapters": [
             {
-                "chapter_number": 1,
-                "chapter_title": "施工技术问题",
+                "number": 1,
+                "title": "施工技术问题",
                 "description": "本章详细分析了水电站建造过程中的具体施工技术问题及其解决方案，包括基坑开挖、混凝土浇筑和模板缺陷等方面。",
-                "sub_sections": [
+                "sections": [
                     {
-                        "section_number": 1.1,
-                        "section_title": "基坑土石方开挖问题",
-                        "section_description": "讨论基坑开挖过程中常见的问题，如边坡坡比不符、超欠挖等，并提出相应的解决措施。",
+                        "number": 1.1,
+                        "title": "基坑土石方开挖问题",
+                        "description": "讨论基坑开挖过程中常见的问题，如边坡坡比不符、超欠挖等，并提出相应的解决措施。",
                         "key_points": [
                             "基坑边坡坡比与设计图纸不符",
                             "存在大量超欠挖，导致二次开挖",
@@ -112,9 +112,9 @@ def split_chapters_node(state: ResearchState) -> dict:
                         ]
                     },
                     {
-                        "section_number": 1.2,
-                        "section_title": "地下水丰富情况下的混凝土浇筑问题",
-                        "section_description": "分析在地下水丰富的条件下进行混凝土浇筑时可能出现的问题，如水泥浆被冲走、混凝土被水浸泡等，并提供解决方案。",
+                        "number": 1.2,
+                        "title": "地下水丰富情况下的混凝土浇筑问题",
+                        "description": "分析在地下水丰富的条件下进行混凝土浇筑时可能出现的问题，如水泥浆被冲走、混凝土被水浸泡等，并提供解决方案。",
                         "key_points": [
                             "岩石裂隙水无法有效外排",
                             "混凝土浇筑过程中水泥浆被冲走",
@@ -122,9 +122,9 @@ def split_chapters_node(state: ResearchState) -> dict:
                         ]
                     },
                     {
-                        "section_number": 1.3,
-                        "section_title": "混凝土模板缺陷问题",
-                        "section_description": "探讨混凝土浇筑过程中模板可能出现的缺陷，如跑模、炸模、漏浆等，并提出预防措施。",
+                        "number": 1.3,
+                        "title": "混凝土模板缺陷问题",
+                        "description": "探讨混凝土浇筑过程中模板可能出现的缺陷，如跑模、炸模、漏浆等，并提出预防措施。",
                         "key_points": [
                             "模板固定不牢导致跑模、炸模",
                             "模板密封不良导致漏浆",
@@ -134,14 +134,14 @@ def split_chapters_node(state: ResearchState) -> dict:
                 ]
             },
             {
-                "chapter_number": 2,
-                "chapter_title": "施工环境与条件问题",
+                "number": 2,
+                "title": "施工环境与条件问题",
                 "description": "本章分析了水电站建造过程中面临的复杂施工环境和条件，包括地形、气候等因素，并提供相应的应对策略。",
-                "sub_sections": [
+                "sections": [
                     {
-                        "section_number": 2.1,
-                        "section_title": "地形条件问题",
-                        "section_description": "讨论水电站建设地点的地形条件对施工的影响，如工作场地狭小、地形陡峭等，并提出解决方案。",
+                        "number": 2.1,
+                        "title": "地形条件问题",
+                        "description": "讨论水电站建设地点的地形条件对施工的影响，如工作场地狭小、地形陡峭等，并提出解决方案。",
                         "key_points": [
                             "工作场地狭小，施工空间有限",
                             "地形陡峭，施工难度大",
@@ -149,9 +149,9 @@ def split_chapters_node(state: ResearchState) -> dict:
                         ]
                     },
                     {
-                        "section_number": 2.2,
-                        "section_title": "气候条件问题",
-                        "section_description": "分析恶劣气候条件对水电站施工的影响，如雨季施工、高温或低温施工等，并提供应对措施。",
+                        "number": 2.2,
+                        "title": "气候条件问题",
+                        "description": "分析恶劣气候条件对水电站施工的影响，如雨季施工、高温或低温施工等，并提供应对措施。",
                         "key_points": [
                             "雨季施工导致排水困难",
                             "高温或低温影响施工进度和质量",
@@ -159,9 +159,9 @@ def split_chapters_node(state: ResearchState) -> dict:
                         ]
                     },
                     {
-                        "section_number": 2.3,
-                        "section_title": "资源与材料供应问题",
-                        "section_description": "探讨水电站建设过程中资源与材料供应的挑战，尤其是在偏远地区，并提出解决办法。",
+                        "number": 2.3,
+                        "title": "资源与材料供应问题",
+                        "description": "探讨水电站建设过程中资源与材料供应的挑战，尤其是在偏远地区，并提出解决办法。",
                         "key_points": [
                             "偏远地区材料供应不足",
                             "运输成本高，供应链不稳定",
@@ -185,60 +185,57 @@ def split_chapters_node(state: ResearchState) -> dict:
     complexity_config = settings.get_complexity_config()
     max_chapters = complexity_config.get('max_chapters', -1)
 
-    logger.info(f"📂 开始拆分章节任务 (模式: {complexity_config['level']})")
+    chapters_to_process = []
+    chapters = document_outline['chapters']
 
-    # 从大纲中提取章节信息
-    chapters = document_outline.get("chapters", [])
-
-    # 根据配置限制章节数量
+    # 限制章节数量
     if max_chapters > 0:
         chapters = chapters[:max_chapters]
-        logger.info(f"🔧 限制章节数量为 {len(chapters)} 个")
 
-    # 创建章节任务列表
-    chapters_to_process = []
     for chapter in chapters:
-        # 获取子节信息
-        sub_sections = chapter.get("sub_sections", [])
+        # 兼容新旧格式
+        chapter_title = chapter.get('title', chapter.get('chapter_title', ''))
+        chapter_number = chapter.get('number',
+                                     chapter.get('chapter_number', 0))
+        description = chapter.get('description', '')
 
-        # 根据复杂度调整预估章节数
-        estimated_sections = len(sub_sections) if sub_sections else (
-            2 if complexity_config['level'] == 'fast' else 3)
+        # 兼容新旧格式：sections vs sub_sections
+        sections = chapter.get('sections', chapter.get('sub_sections', []))
 
-        chapter_task = {
-            "chapter_number":
-            chapter.get("chapter_number",
-                        len(chapters_to_process) + 1),
-            "chapter_title":
-            chapter.get("chapter_title", f"第{len(chapters_to_process) + 1}章"),
-            "description":
-            chapter.get("description", ""),
-            "key_points":
-            chapter.get("key_points", []),
-            "estimated_sections":
-            estimated_sections,
-            "sub_sections":
-            sub_sections,  # 添加子节信息
-            "research_data":
-            ""
-        }
-        chapters_to_process.append(chapter_task)
+        # 转换子节格式
+        sub_sections = []
+        for section in sections:
+            # 兼容新旧格式
+            section_title = section.get('title',
+                                        section.get('section_title', ''))
+            section_number = section.get('number',
+                                         section.get('section_number', 0))
+            section_description = section.get(
+                'description', section.get('section_description', ''))
+            key_points = section.get('key_points', [])
 
-    logger.info(f"✅ 成功创建 {len(chapters_to_process)} 个章节任务")
+            sub_sections.append({
+                "section_number": section_number,
+                "section_title": section_title,
+                "section_description": section_description,
+                "key_points": key_points
+            })
 
-    # 打印章节列表和子节信息
-    for chapter in chapters_to_process:
-        sub_sections = chapter.get("sub_sections", [])
+        chapters_to_process.append({
+            "chapter_number": chapter_number,
+            "chapter_title": chapter_title,
+            "description": description,
+            "key_points": [],
+            "estimated_sections": len(sub_sections),
+            "sub_sections": sub_sections,
+            "research_data": ""
+        })
+
+    logger.info(f"✅ 章节拆分完成，共 {len(chapters_to_process)} 个章节")
+    for i, chapter in enumerate(chapters_to_process):
         logger.info(
-            f"  📄 第{chapter['chapter_number']}章: {chapter['chapter_title']} ({len(sub_sections)} 子节)"
+            f"  📖 第{i+1}章: {chapter['chapter_title']} ({len(chapter['sub_sections'])} 子节)"
         )
-
-        for sub_section in sub_sections:
-            sub_title = sub_section.get("section_title", "未命名子节")
-            key_points = sub_section.get("key_points", [])
-            logger.info(
-                f"    📝 {sub_section.get('section_number', '?')}: {sub_title} ({len(key_points)} 要点)"
-            )
 
     return {
         "chapters_to_process": chapters_to_process,
@@ -288,9 +285,9 @@ def _get_outline_prompt_template(complexity_config, prompt_selector, genre):
     """获取大纲生成的提示词模板"""
     try:
         if complexity_config['use_simplified_prompts']:
-            # 快速模式使用简化提示词
-            from doc_agent.fast_prompts import FAST_OUTLINE_GENERATION_PROMPT
-            return FAST_OUTLINE_GENERATION_PROMPT
+            # 快速模式使用简化提示词 - 现在从prompts模块获取
+            from doc_agent.prompts.outline_generation import V4_FAST
+            return V4_FAST
 
         # 标准模式使用完整提示词
         if prompt_selector:
@@ -453,7 +450,7 @@ def _parse_outline_response(response: str, complexity_config) -> dict:
 
 def _validate_and_fix_outline_structure(outline: dict,
                                         complexity_config: dict) -> dict:
-    """验证和修复大纲结构，确保三级结构完整"""
+    """验证和修复大纲结构，确保三级结构完整，支持新旧格式"""
 
     if 'chapters' not in outline:
         logger.warning("大纲缺少chapters字段，使用默认大纲")
@@ -463,45 +460,69 @@ def _validate_and_fix_outline_structure(outline: dict,
     fixed_chapters = []
 
     for i, chapter in enumerate(chapters):
-        # 确保章节有基本字段
-        if 'chapter_title' not in chapter:
-            chapter['chapter_title'] = f"第{i+1}章"
+        # 兼容新旧格式：chapter_title -> title
+        if 'title' not in chapter and 'chapter_title' in chapter:
+            chapter['title'] = chapter['chapter_title']
+        elif 'title' not in chapter:
+            chapter['title'] = f"第{i+1}章"
+
+        # 兼容新旧格式：chapter_number -> number
+        if 'number' not in chapter and 'chapter_number' in chapter:
+            chapter['number'] = chapter['chapter_number']
+        elif 'number' not in chapter:
+            chapter['number'] = i + 1
+
         if 'description' not in chapter:
             chapter['description'] = f"第{i+1}章的内容描述"
-        if 'chapter_number' not in chapter:
-            chapter['chapter_number'] = i + 1
 
-        # 检查是否有sub_sections，如果没有则添加默认的
-        if 'sub_sections' not in chapter or not chapter['sub_sections']:
-            logger.info(f"章节 {chapter['chapter_title']} 缺少子节，添加默认子节")
-            chapter['sub_sections'] = [{
-                "section_number": float(f"{i+1}.1"),
-                "section_title": f"{chapter['chapter_title']}概述",
-                "section_description": f"{chapter['chapter_title']}的基本概述",
+        # 兼容新旧格式：sections -> sub_sections
+        sections_key = 'sections' if 'sections' in chapter else 'sub_sections'
+        if sections_key not in chapter or not chapter[sections_key]:
+            logger.info(f"章节 {chapter['title']} 缺少子节，添加默认子节")
+            chapter[sections_key] = [{
+                "number": float(f"{i+1}.1"),
+                "title": f"{chapter['title']}概述",
+                "description": f"{chapter['title']}的基本概述",
                 "key_points": ["要点1", "要点2", "要点3"]
             }, {
-                "section_number": float(f"{i+1}.2"),
-                "section_title": f"{chapter['chapter_title']}分析",
-                "section_description": f"{chapter['chapter_title']}的深入分析",
+                "number": float(f"{i+1}.2"),
+                "title": f"{chapter['title']}分析",
+                "description": f"{chapter['title']}的深入分析",
                 "key_points": ["要点1", "要点2", "要点3"]
             }, {
-                "section_number": float(f"{i+1}.3"),
-                "section_title": f"{chapter['chapter_title']}总结",
-                "section_description": f"{chapter['chapter_title']}的总结和展望",
+                "number": float(f"{i+1}.3"),
+                "title": f"{chapter['title']}总结",
+                "description": f"{chapter['title']}的总结和展望",
                 "key_points": ["要点1", "要点2", "要点3"]
             }]
         else:
-            # 验证子节结构
-            for j, sub_section in enumerate(chapter['sub_sections']):
-                if 'section_title' not in sub_section:
-                    sub_section['section_title'] = f"第{i+1}.{j+1}节"
-                if 'section_description' not in sub_section:
-                    sub_section['section_description'] = f"第{i+1}.{j+1}节的描述"
-                if 'section_number' not in sub_section:
-                    sub_section['section_number'] = float(f"{i+1}.{j+1}")
-                if 'key_points' not in sub_section or not sub_section[
-                        'key_points']:
-                    sub_section['key_points'] = ["要点1", "要点2", "要点3"]
+            # 验证子节结构，兼容新旧格式
+            for j, section in enumerate(chapter[sections_key]):
+                # 兼容新旧格式：section_title -> title
+                if 'title' not in section and 'section_title' in section:
+                    section['title'] = section['section_title']
+                elif 'title' not in section:
+                    section['title'] = f"第{i+1}.{j+1}节"
+
+                # 兼容新旧格式：section_description -> description
+                if 'description' not in section and 'section_description' in section:
+                    section['description'] = section['section_description']
+                elif 'description' not in section:
+                    section['description'] = f"第{i+1}.{j+1}节的描述"
+
+                # 兼容新旧格式：section_number -> number
+                if 'number' not in section and 'section_number' in section:
+                    section['number'] = section['section_number']
+                elif 'number' not in section:
+                    section['number'] = float(f"{i+1}.{j+1}")
+
+                if 'key_points' not in section or not section['key_points']:
+                    section['key_points'] = ["要点1", "要点2", "要点3"]
+
+        # 统一使用新格式
+        if 'sections' not in chapter and sections_key in chapter:
+            chapter['sections'] = chapter[sections_key]
+            del chapter[sections_key]
 
         fixed_chapters.append(chapter)
 
@@ -509,26 +530,26 @@ def _validate_and_fix_outline_structure(outline: dict,
     while len(fixed_chapters) < 3:
         chapter_num = len(fixed_chapters) + 1
         fixed_chapters.append({
-            "chapter_number":
+            "number":
             chapter_num,
-            "chapter_title":
+            "title":
             f"第{chapter_num}章",
             "description":
             f"第{chapter_num}章的内容描述",
-            "sub_sections": [{
-                "section_number": float(f"{chapter_num}.1"),
-                "section_title": f"第{chapter_num}章概述",
-                "section_description": f"第{chapter_num}章的基本概述",
+            "sections": [{
+                "number": float(f"{chapter_num}.1"),
+                "title": f"第{chapter_num}章概述",
+                "description": f"第{chapter_num}章的基本概述",
                 "key_points": ["要点1", "要点2", "要点3"]
             }, {
-                "section_number": float(f"{chapter_num}.2"),
-                "section_title": f"第{chapter_num}章分析",
-                "section_description": f"第{chapter_num}章的深入分析",
+                "number": float(f"{chapter_num}.2"),
+                "title": f"第{chapter_num}章分析",
+                "description": f"第{chapter_num}章的深入分析",
                 "key_points": ["要点1", "要点2", "要点3"]
             }, {
-                "section_number": float(f"{chapter_num}.3"),
-                "section_title": f"第{chapter_num}章总结",
-                "section_description": f"第{chapter_num}章的总结和展望",
+                "number": float(f"{chapter_num}.3"),
+                "title": f"第{chapter_num}章总结",
+                "description": f"第{chapter_num}章的总结和展望",
                 "key_points": ["要点1", "要点2", "要点3"]
             }]
         })
@@ -550,36 +571,36 @@ def _generate_default_outline(topic: str, complexity_config) -> dict:
         chapters = []
         for i in range(min(max_chapters, 3)):
             chapters.append({
-                "chapter_number":
+                "number":
                 i + 1,
-                "chapter_title":
+                "title":
                 f"{topic} - 第{i + 1}部分",
                 "description":
                 f"关于{topic}的第{i + 1}部分内容",
-                "sub_sections": [{
-                    "section_number":
+                "sections": [{
+                    "number":
                     float(f"{i+1}.1"),
-                    "section_title":
+                    "title":
                     f"第{i+1}部分概述",
-                    "section_description":
+                    "description":
                     f"第{i+1}部分的基本概述",
                     "key_points":
                     [f"{topic}概述要点1", f"{topic}概述要点2", f"{topic}概述要点3"]
                 }, {
-                    "section_number":
+                    "number":
                     float(f"{i+1}.2"),
-                    "section_title":
+                    "title":
                     f"第{i+1}部分分析",
-                    "section_description":
+                    "description":
                     f"第{i+1}部分的深入分析",
                     "key_points":
                     [f"{topic}分析要点1", f"{topic}分析要点2", f"{topic}分析要点3"]
                 }, {
-                    "section_number":
+                    "number":
                     float(f"{i+1}.3"),
-                    "section_title":
+                    "title":
                     f"第{i+1}部分总结",
-                    "section_description":
+                    "description":
                     f"第{i+1}部分的总结和展望",
                     "key_points":
                     [f"{topic}总结要点1", f"{topic}总结要点2", f"{topic}总结要点3"]

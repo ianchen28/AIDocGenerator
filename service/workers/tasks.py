@@ -103,19 +103,31 @@ async def _generate_outline_from_query_task_async(
         logger.info(f"  requirements: {bool(requirements)}")
         logger.info(f"  redis_stream_key: {redis_stream_key}")
 
-        # TODO: 调用新的"从 Query 到大纲"的 LangGraph 图
-        # 这里将替换为实际的图执行逻辑
-        # outline_graph = get_outline_generation_graph()
-        # result = await outline_graph.ainvoke({
-        #     "task_prompt": task_prompt,
-        #     "is_online": is_online,
-        #     "context_files": context_files,
-        #     "style_guide_content": style_guide_content,
-        #     "requirements": requirements
-        # })
+        # 使用真正的工作流生成大纲
+        from doc_agent.core.container import container
+        from doc_agent.graph.state import ResearchState
+        import uuid
 
-        # 模拟大纲生成过程
-        await asyncio.sleep(3)  # 模拟处理时间
+        # 创建初始状态
+        run_id = f"run-{uuid.uuid4().hex[:8]}"
+        initial_state = ResearchState(
+            topic=task_prompt,
+            style_guide_content=style_guide_content or "",
+            requirements_content=requirements or "",
+            initial_sources=[],
+            document_outline={},
+            chapters_to_process=[],
+            current_chapter_index=0,
+            current_citation_index=1,
+            completed_chapters=[],
+            final_document="",
+            sources=[],
+            all_sources=[],
+            cited_sources=[],
+            cited_sources_in_chapter=[],
+            messages=[],
+            run_id=run_id,
+        )
 
         # 发布进度事件
         await publisher.publish_task_progress(job_id=job_id,
@@ -123,38 +135,70 @@ async def _generate_outline_from_query_task_async(
                                               progress="正在分析用户需求",
                                               step="analysis")
 
-        await asyncio.sleep(2)
+        # 执行真正的工作流
+        outline_result = None
+        try:
+            logger.info(
+                f"🔍 [API Task] 开始执行工作流，初始状态: {initial_state.get('topic', 'unknown')}"
+            )
 
-        await publisher.publish_task_progress(job_id=job_id,
-                                              task_type="outline_generation",
-                                              progress="正在搜索相关信息",
-                                              step="search")
+            async for step_output in container.outline_graph.astream(
+                    initial_state):
+                node_name = list(step_output.keys())[0]
+                logger.info(f"✅ [API Task] Finished step: [ {node_name} ]")
+                step_result = list(step_output.values())[0]
 
-        await asyncio.sleep(2)
+                # 发布进度事件
+                await publisher.publish_task_progress(
+                    job_id=job_id,
+                    task_type="outline_generation",
+                    progress=f"已完成步骤: {node_name}",
+                    step=node_name)
 
-        await publisher.publish_task_progress(job_id=job_id,
-                                              task_type="outline_generation",
-                                              progress="正在生成大纲结构",
-                                              step="structure")
+                logger.info(
+                    f"🔍 [API Task] Step result keys: {list(step_result.keys()) if step_result else 'None'}"
+                )
 
-        # 生成示例大纲
-        outline_result = {
-            "title":
-            f"基于'{task_prompt}'的技术文档",
-            "nodes": [{
-                "id": "node_1",
-                "title": "引言",
-                "content_summary": f"介绍{task_prompt}的基本概念和背景"
-            }, {
-                "id": "node_2",
-                "title": "技术原理",
-                "content_summary": f"详细解释{task_prompt}的核心原理"
-            }, {
-                "id": "node_3",
-                "title": "应用场景",
-                "content_summary": f"展示{task_prompt}的实际应用案例"
-            }]
-        }
+                if step_result and "document_outline" in step_result:
+                    outline_result = step_result.get("document_outline")
+                    logger.info(
+                        f"✅ [API Task] 找到 document_outline，结构: {list(outline_result.keys()) if outline_result else 'None'}"
+                    )
+                    break
+                else:
+                    logger.warning(
+                        f"⚠️  [API Task] Step {node_name} 没有返回 document_outline"
+                    )
+
+        except Exception as e:
+            logger.error(f"❌ [API Task] Error during outline generation: {e}")
+            logger.error(
+                f"❌ [API Task] Exception details: {type(e).__name__}: {str(e)}"
+            )
+            import traceback
+            logger.error(f"❌ [API Task] Traceback: {traceback.format_exc()}")
+            raise e
+
+        if not outline_result:
+            # 如果工作流失败，使用备用方案
+            logger.warning("⚠️  工作流失败，使用备用大纲生成方案")
+            outline_result = {
+                "title":
+                f"基于'{task_prompt}'的技术文档",
+                "nodes": [{
+                    "id": "node_1",
+                    "title": "引言",
+                    "content_summary": f"介绍{task_prompt}的基本概念和背景"
+                }, {
+                    "id": "node_2",
+                    "title": "技术原理",
+                    "content_summary": f"详细解释{task_prompt}的核心原理"
+                }, {
+                    "id": "node_3",
+                    "title": "应用场景",
+                    "content_summary": f"展示{task_prompt}的实际应用案例"
+                }]
+            }
 
         # 发布大纲生成完成事件
         await publisher.publish_outline_generated(job_id, outline_result)
@@ -189,7 +233,8 @@ async def _generate_outline_from_query_task_async(
 
 
 @celery_app.task
-def generate_document_from_outline_task(job_id: Union[str, int], outline: dict) -> str:
+def generate_document_from_outline_task(job_id: Union[str, int],
+                                        outline: dict) -> str:
     """
     从大纲生成文档的异步任务
 
@@ -345,6 +390,112 @@ async def _get_job_status_async(job_id: Union[str, int]) -> dict:
 
 # Celery 任务导入
 from .celery_app import celery_app
+
+
+@celery_app.task
+def run_main_workflow(job_id: str, topic: str, genre: str = "default") -> str:
+    """
+    主要的异步工作流函数
+    使用真实的图执行器和Redis回调处理器
+
+    Args:
+        job_id: 任务ID
+        topic: 文档主题
+        genre: 文档类型，用于选择相应的prompt策略
+
+    Returns:
+        任务状态
+    """
+    logger.info(f"主工作流开始 - Job ID: {job_id}, Topic: {topic}, Genre: {genre}")
+
+    try:
+        # 使用同步方式运行异步函数
+        return asyncio.run(_run_main_workflow_async(job_id, topic, genre))
+    except Exception as e:
+        logger.error(f"主工作流任务失败: {e}")
+        return "FAILED"
+
+
+async def _run_main_workflow_async(job_id: str,
+                                   topic: str,
+                                   genre: str = "default") -> str:
+    """异步主工作流任务的内部实现"""
+    try:
+        # 获取Redis客户端
+        redis = await get_redis_client()
+
+        # 更新任务状态为进行中
+        await redis.hset(f"job:{job_id}",
+                         mapping={
+                             "status": "processing",
+                             "topic": topic,
+                             "genre": genre,
+                             "started_at": str(asyncio.get_event_loop().time())
+                         })
+
+        # 获取带有Redis回调处理器的图执行器
+        logger.info(f"Job {job_id}: 获取图执行器...")
+        container = get_container()
+        runnable = container.get_graph_runnable_for_job(job_id, genre)
+
+        # 创建初始状态
+        from doc_agent.graph.state import ResearchState
+        import uuid
+
+        run_id = f"run-{uuid.uuid4().hex[:8]}"
+        initial_state = ResearchState(
+            topic=topic,
+            style_guide_content="",
+            requirements_content="",
+            initial_sources=[],
+            document_outline={},
+            chapters_to_process=[],
+            current_chapter_index=0,
+            current_citation_index=1,
+            completed_chapters=[],
+            final_document="",
+            sources=[],
+            all_sources=[],
+            cited_sources=[],
+            cited_sources_in_chapter=[],
+            messages=[],
+            run_id=run_id,
+        )
+
+        logger.info(f"Job {job_id}: 开始执行工作流...")
+
+        # 执行工作流
+        async for step_output in runnable.astream(initial_state):
+            node_name = list(step_output.keys())[0]
+            logger.info(f"Job {job_id}: 完成步骤 [{node_name}]")
+
+        # 更新任务状态为完成
+        await redis.hset(f"job:{job_id}",
+                         mapping={
+                             "status": "completed",
+                             "completed_at":
+                             str(asyncio.get_event_loop().time())
+                         })
+
+        logger.info(f"Job {job_id}: 工作流执行完成")
+        return "COMPLETED"
+
+    except Exception as e:
+        logger.error(f"Job {job_id}: 工作流执行失败: {e}")
+
+        # 更新任务状态为失败
+        try:
+            await redis.hset(f"job:{job_id}",
+                             mapping={
+                                 "status": "failed",
+                                 "error": str(e),
+                                 "failed_at":
+                                 str(asyncio.get_event_loop().time())
+                             })
+        except Exception as update_error:
+            logger.error(f"更新任务状态失败: {update_error}")
+
+        return "FAILED"
 
 
 @celery_app.task

@@ -311,14 +311,26 @@ def finalize_document_node(state: ResearchState) -> dict:
     final_document_parts.append("\n## 目录\n")
     chapters = document_outline.get("chapters", [])
     for i, chapter in enumerate(chapters):
-        chapter_title = chapter.get("chapter_title", f"第{i+1}章")
-        final_document_parts.append(f"{i+1}. {chapter_title}\n")
+        # 兼容新旧格式
+        chapter_title = chapter.get('title',
+                                    chapter.get('chapter_title', f'第{i+1}章'))
+        chapter_number = chapter.get('number',
+                                     chapter.get('chapter_number', i + 1))
+        final_document_parts.append(f"{chapter_number}. {chapter_title}\n")
 
     final_document_parts.append("\n---\n")
 
     # 添加所有章节内容（进行格式清理）
-    for chapter_content in completed_chapters_content:
-        cleaned_content = _clean_chapter_content(chapter_content)
+    for i, chapter_content in enumerate(completed_chapters_content):
+        # 获取章节信息用于标题编号
+        chapter_info = chapters[i] if i < len(chapters) else {}
+        chapter_number = chapter_info.get(
+            'number', chapter_info.get('chapter_number', i + 1))
+        chapter_title = chapter_info.get(
+            'title', chapter_info.get('chapter_title', f'第{i+1}章'))
+
+        cleaned_content = _clean_chapter_content(chapter_content,
+                                                 chapter_number, chapter_title)
         final_document_parts.append(f"\n{cleaned_content}\n")
         final_document_parts.append("\n---\n")
 
@@ -329,17 +341,21 @@ def finalize_document_node(state: ResearchState) -> dict:
     final_document = "\n".join(final_document_parts)
 
     logger.info(f"✅ 最终文档生成完成，总长度: {len(final_document)} 字符")
-    logger.info(f"�� 包含 {len(completed_chapters_content)} 个章节")
+    logger.info(f"📖 包含 {len(completed_chapters_content)} 个章节")
 
     return {"final_document": final_document}
 
 
-def _clean_chapter_content(content: str) -> str:
+def _clean_chapter_content(content: str,
+                           chapter_number: int = None,
+                           chapter_title: str = "") -> str:
     """
     清理章节内容格式
     
     Args:
         content: 原始章节内容
+        chapter_number: 章节编号
+        chapter_title: 章节标题
         
     Returns:
         str: 清理后的内容
@@ -364,20 +380,27 @@ def _clean_chapter_content(content: str) -> str:
     cleaned_lines = []
 
     for line in lines:
-        # 将一级标题 (# 标题) 降级为二级标题 (## 标题)
-        if line.startswith('# ') and not line.startswith('## '):
-            # 这是一级标题，需要降级
-            line = '#' + line  # 添加一个 # 变成二级标题
+        # 处理章节标题：将 ## 章节标题 转换为 ## 编号. 章节标题
+        if line.startswith('## ') and not line.startswith('### '):
+            # 这是章节标题，需要添加编号
+            if chapter_number and chapter_title:
+                # 如果标题已经包含编号，保持不变
+                if line.strip() == f"## {chapter_title}":
+                    line = f"## {chapter_number}. {chapter_title}"
+                else:
+                    # 否则使用提供的编号和标题
+                    line = f"## {chapter_number}. {chapter_title}"
+            # 保持二级标题层级不变
 
-        # 将二级标题 (## 标题) 降级为三级标题 (### 标题)
-        elif line.startswith('## ') and not line.startswith('### '):
-            # 这是二级标题，需要降级
-            line = '#' + line  # 添加一个 # 变成三级标题
-
-        # 将三级标题 (### 标题) 降级为四级标题 (#### 标题)
+        # 处理子节标题：将 ### 子节标题 转换为 ### 编号. 子节标题
         elif line.startswith('### ') and not line.startswith('#### '):
-            # 这是三级标题，需要降级
-            line = '#' + line  # 添加一个 # 变成四级标题
+            # 这是子节标题，保持三级标题层级
+            pass
+
+        # 处理子节的子节标题：将 #### 子节标题 转换为 #### 编号. 子节标题
+        elif line.startswith('#### ') and not line.startswith('##### '):
+            # 这是子节的子节标题，保持四级标题层级
+            pass
 
         cleaned_lines.append(line)
 

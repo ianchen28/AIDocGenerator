@@ -47,46 +47,50 @@ else
     echo "   - ✅ Redis server is running."
 fi
 
-# --- 步骤 2: 激活 conda 环境 ---
-echo "🔵 Step 2: Activating conda environment..."
-# 尝试激活 ai-doc 环境
-if command -v conda &> /dev/null; then
-    # 尝试直接激活
-    if conda activate ai-doc 2>/dev/null; then
-        echo "   - ✅ ai-doc environment activated"
-    else
-        # 如果直接激活失败，尝试使用 source 方式
-        echo "   - ⚠️ 无法直接激活 ai-doc 环境，尝试使用 source 方式..."
-        if [ -f ~/miniforge3/etc/profile.d/conda.sh ]; then
-            source ~/miniforge3/etc/profile.d/conda.sh
-        elif [ -f ~/miniconda3/etc/profile.d/conda.sh ]; then
-            source ~/miniconda3/etc/profile.d/conda.sh
-        elif [ -f ~/anaconda3/etc/profile.d/conda.sh ]; then
-            source ~/anaconda3/etc/profile.d/conda.sh
-        fi
-        if conda activate ai-doc; then
-            echo "   - ✅ ai-doc 环境已激活"
-        else
-            echo "   - ❌ 无法激活 ai-doc 环境，请手动激活后重新运行脚本"
-            exit 1
-        fi
-    fi
-else
-    echo "   - ❌ conda 命令未找到，请确保已安装 conda"
+# --- 步骤 2: 检查 conda 环境 ---
+echo "🔵 Step 2: Checking conda environment..."
+# 检查当前是否在正确的环境中
+if [[ "$CONDA_DEFAULT_ENV" != "ai-doc" ]]; then
+    echo "   - ⚠️  Warning: Not in ai-doc environment (current: $CONDA_DEFAULT_ENV)"
+    echo "   - Please ensure you're in the ai-doc environment before running this script"
+    echo "   - Run: conda activate ai-doc"
     exit 1
+else
+    echo "   - ✅ Running in ai-doc environment"
 fi
 
 # --- 步骤 3: 启动 Celery Worker ---
 echo "🔵 Step 3: Starting Celery Worker in the background..."
 
-# 设置正确的 Redis URL
-export REDIS_URL=redis://10.215.149.74:26379/0
+# 从配置文件读取Redis配置
+REDIS_CONFIG=$(python -c "
+import sys
+sys.path.append('service/src')
+from doc_agent.core.config import settings
+config = settings.redis_config
+print(f'{config[\"host\"]}:{config[\"port\"]}:{config[\"db\"]}:{config.get(\"password\", \"\")}')
+")
 
-# 调用 service/workers 目录中的 start_celery.sh 脚本，并在后台运行
-# `&` 符号让命令在后台执行
-# `2>&1` 将标准错误重定向到标准输出
-# `>` 将输出重定向到日志文件
-(cd service && REDIS_URL=redis://:xJrhp*4mnHxbBWN2grqq@10.215.149.74:26379/0 python -m workers.celery_worker worker --loglevel=info) > celery_worker.log 2>&1 &
+if [ $? -ne 0 ]; then
+    echo "   - ❌ 无法读取Redis配置，使用默认配置"
+    REDIS_HOST="127.0.0.1"
+    REDIS_PORT="6379"
+    REDIS_DB="0"
+    REDIS_PASSWORD=""
+else
+    IFS=':' read -r REDIS_HOST REDIS_PORT REDIS_DB REDIS_PASSWORD <<< "$REDIS_CONFIG"
+    echo "   - 📋 Redis配置: $REDIS_HOST:$REDIS_PORT (DB: $REDIS_DB)"
+fi
+
+# 构建Redis URL
+if [ -n "$REDIS_PASSWORD" ]; then
+    REDIS_URL="redis://:$REDIS_PASSWORD@$REDIS_HOST:$REDIS_PORT/$REDIS_DB"
+else
+    REDIS_URL="redis://$REDIS_HOST:$REDIS_PORT/$REDIS_DB"
+fi
+
+# 启动Celery Worker
+(cd service && REDIS_URL="$REDIS_URL" python -m workers.celery_worker worker --loglevel=info) > celery_worker.log 2>&1 &
 
 # 获取刚刚启动的后台进程的 PID (Process ID)
 CELERY_PID=$!
@@ -95,6 +99,15 @@ echo "   - Logs are being written to celery_worker.log"
 
 # 等待几秒钟，确保 Celery Worker 完成初始化
 sleep 5
+
+# 检查 Celery Worker 是否成功启动
+if ps -p $CELERY_PID > /dev/null; then
+    echo "   - ✅ Celery Worker is running"
+else
+    echo "   - ❌ Celery Worker failed to start"
+    echo "   - Check celery_worker.log for details"
+    exit 1
+fi
 
 # --- 步骤 4: 启动 FastAPI 服务 ---
 echo "🔵 Step 4: Starting FastAPI server in the foreground..."

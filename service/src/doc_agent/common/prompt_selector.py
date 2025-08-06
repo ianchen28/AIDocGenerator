@@ -91,7 +91,7 @@ class PromptSelector:
         基于工作流类型、节点名称和 genre 获取特定的 prompt。
 
         Args:
-            workflow_type (str): 工作流类型（例如："chapter_workflow", "fast_prompts"）
+            workflow_type (str): 工作流类型（例如："chapter_workflow", "prompts"）
             node_name (str): 节点名称（例如："writer", "planner", "supervisor"）
             genre (str): genre 类型（例如："work_report", "speech_draft"），默认为 "default"
 
@@ -322,14 +322,9 @@ class PromptSelector:
 
         return prompts
 
-    def list_available_workflows(self) -> list:
-        """
-        列出可用的工作流类型。
-
-        Returns:
-            list: 可用工作流类型的列表
-        """
-        return ["prompts", "fast_prompts", "chapter_workflow"]
+    def get_available_workflows(self) -> list[str]:
+        """获取可用的工作流列表"""
+        return ["prompts", "chapter_workflow"]
 
     def list_available_nodes(self, workflow_type: str) -> list:
         """
@@ -344,12 +339,7 @@ class PromptSelector:
         if workflow_type == "prompts":
             return [
                 "writer", "planner", "supervisor", "content_processor",
-                "outline_generation"
-            ]
-        elif workflow_type == "fast_prompts":
-            return [
-                "writer", "planner", "supervisor", "content_processor",
-                "outline_generation"
+                "outline_generation", "reflection", "ai_editor"
             ]
         elif workflow_type == "chapter_workflow":
             return ["planner", "writer", "researcher", "supervisor"]

@@ -293,11 +293,29 @@ def main():
                         action="store_true",
                         default=True,
                         help="使用美化输出格式")
-    parser.add_argument("--host", default="10.215.149.74", help="Redis主机地址")
-    parser.add_argument("--port", type=int, default=26379, help="Redis端口")
-    parser.add_argument("--password",
-                        default="xJrhp*4mnHxbBWN2grqq",
-                        help="Redis密码")
+
+    # 尝试从配置文件读取默认Redis配置
+    try:
+        import sys
+        import os
+        sys.path.append('service/src')
+        from doc_agent.core.config import settings
+        redis_config = settings.redis_config
+        default_host = redis_config.get('host', '127.0.0.1')
+        default_port = redis_config.get('port', 6379)
+        default_password = redis_config.get('password', '')
+    except Exception:
+        # 如果无法读取配置，使用默认值
+        default_host = "127.0.0.1"
+        default_port = 6379
+        default_password = ""
+
+    parser.add_argument("--host", default=default_host, help="Redis主机地址")
+    parser.add_argument("--port",
+                        type=int,
+                        default=default_port,
+                        help="Redis端口")
+    parser.add_argument("--password", default=default_password, help="Redis密码")
     parser.add_argument("--db", type=int, default=0, help="Redis数据库")
 
     args = parser.parse_args()

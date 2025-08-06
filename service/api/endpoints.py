@@ -145,8 +145,8 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
                 f"文件处理完成 - style_guide: {bool(style_guide_content)}, requirements: {bool(requirements)}"
             )
 
-        # 触发 Celery 任务
-        from workers.tasks import generate_outline_from_query_task
+        # 触发 Celery 任务 - 使用最新的 run_main_workflow
+        from workers.tasks import run_main_workflow
         from workers.celery_app import celery_app
         logger.info("准备提交 Celery 任务...")
 
@@ -190,15 +190,11 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None,
-                lambda: generate_outline_from_query_task.apply_async(
+                lambda: run_main_workflow.apply_async(
                     kwargs={
                         'job_id': request.session_id,  # 使用session_id作为job_id
-                        'task_prompt': request.task_prompt,
-                        'is_online': request.is_online,
-                        'context_files': request.context_files,
-                        'style_guide_content': style_guide_content,
-                        'requirements': requirements,
-                        'redis_stream_key': redis_stream_key
+                        'topic': request.task_prompt,
+                        'genre': 'default'  # 使用默认genre，后续可扩展
                     },
                     countdown=0,
                     expires=300  # 5分钟过期

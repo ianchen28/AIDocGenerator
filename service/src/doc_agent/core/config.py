@@ -163,10 +163,7 @@ class AppSettings(BaseSettings):
     tavily: TavilySettings = TavilySettings()
     agent: AgentSettings = AgentSettings()
     logging: LoggingSettings = LoggingSettings()
-    redis_url: str = Field(
-        "redis://:xJrhp*4mnHxbBWN2grqq@10.215.149.74:26379/0",
-        alias="REDIS_URL")
-    redis_key: str = "xJrhp*4mnHxbBWN2grqq"
+    redis_key: str = ""
 
     # YAML配置缓存
     _yaml_config: Optional[dict[str, Any]] = None
@@ -176,6 +173,7 @@ class AppSettings(BaseSettings):
     _agent_config: Optional[AgentConfig] = None
     _document_generation_config: Optional[DocumentGenerationConfig] = None
     _logging_config: Optional[LoggingSettings] = None
+    _redis_config: Optional[dict[str, Any]] = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -387,6 +385,36 @@ class AppSettings(BaseSettings):
             'max_retries':
             level_config.get('max_retries', 5)
         }
+
+    @property
+    def redis_config(self) -> dict[str, Any]:
+        """获取Redis配置"""
+        if self._redis_config is None:
+            if self._yaml_config and 'redis' in self._yaml_config:
+                self._redis_config = self._yaml_config['redis']
+            else:
+                # 默认配置
+                self._redis_config = {
+                    'host': '127.0.0.1',
+                    'port': 6379,
+                    'db': 0,
+                    'password': ''
+                }
+        return self._redis_config
+
+    @property
+    def redis_url(self) -> str:
+        """获取Redis URL"""
+        redis_config = self.redis_config
+        host = redis_config.get('host', '127.0.0.1')
+        port = redis_config.get('port', 6379)
+        db = redis_config.get('db', 0)
+        password = redis_config.get('password', '')
+
+        if password:
+            return f"redis://:{password}@{host}:{port}/{db}"
+        else:
+            return f"redis://{host}:{port}/{db}"
 
 
 # 创建全局settings实例

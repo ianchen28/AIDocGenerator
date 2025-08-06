@@ -78,34 +78,20 @@ def planner_node(state: ResearchState,
     complexity_config = settings.get_complexity_config()
     logger.info(f"🔧 使用复杂度级别: {complexity_config['level']}")
 
+    # 根据复杂度选择prompt
+    if complexity_config['use_simplified_prompts']:
+        # 使用快速提示词 - 现在从prompts模块获取
+        from doc_agent.prompts.planner import V3_FAST
+        prompt_template = V3_FAST
+    else:
+        # 使用标准提示词
+        from doc_agent.prompts.planner import V1_DEFAULT
+        prompt_template = V1_DEFAULT
+
     # 获取任务规划器配置
     task_planner_config = settings.get_agent_component_config("task_planner")
     if not task_planner_config:
         raise ValueError("Task planner configuration not found")
-
-    # 使用 PromptSelector 获取 prompt 模板
-    try:
-        # 根据复杂度决定是否使用简化提示词
-        if complexity_config['use_simplified_prompts']:
-            # 使用快速提示词
-            from doc_agent.fast_prompts import FAST_PLANNER_PROMPT
-            prompt_template = FAST_PLANNER_PROMPT
-            logger.debug("✅ 使用简化的 planner prompt 模板")
-        else:
-            prompt_template = prompt_selector.get_prompt(
-                "chapter_workflow", "planner", genre)
-            logger.debug(f"✅ 成功获取 planner prompt 模板，genre: {genre}")
-    except Exception as e:
-        logger.error(f"❌ 获取 planner prompt 模板失败: {e}")
-        # 使用 prompts/planner.py 中的备用模板
-        try:
-            from doc_agent.prompts.planner import PROMPTS
-            prompt_template = PROMPTS.get("v1_fallback", PROMPTS["v1_default"])
-            logger.debug("✅ 成功获取 planner 备用模板")
-        except Exception as e2:
-            logger.error(f"❌ 获取 planner 备用模板也失败: {e2}")
-            # 最后的备用方案
-            prompt_template = _get_fallback_prompt_template()
 
     # 创建研究计划生成的 prompt，要求 JSON 格式响应
     prompt = prompt_template.format(topic=topic,

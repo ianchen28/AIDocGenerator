@@ -121,12 +121,26 @@ def writer_node(state: ResearchState,
                                      max_tokens=max_tokens,
                                      **extra_params)
 
+        # 获取章节编号信息
+        current_chapter_index = state.get("current_chapter_index", 0)
+        chapters_to_process = state.get("chapters_to_process", [])
+        chapter_number = current_chapter_index + 1
+
         # 确保响应格式正确
         if not response.strip():
-            response = f"## {chapter_title}\n\n无法生成章节内容。"
+            response = f"## {chapter_number}. {chapter_title}\n\n无法生成章节内容。"
         elif not response.startswith("##"):
             # 如果没有二级标题，添加章节标题
-            response = f"## {chapter_title}\n\n{response}"
+            response = f"## {chapter_number}. {chapter_title}\n\n{response}"
+        else:
+            # 如果已经有二级标题，确保格式正确
+            lines = response.split('\n')
+            if lines and lines[0].startswith(
+                    '## ') and not lines[0].startswith('### '):
+                # 这是章节标题，确保包含编号
+                if not lines[0].strip().startswith(f"## {chapter_number}."):
+                    lines[0] = f"## {chapter_number}. {chapter_title}"
+                    response = '\n'.join(lines)
 
         # 处理引用标记
         _update_cited_sources_inplace(response, gathered_sources)
@@ -147,7 +161,10 @@ def writer_node(state: ResearchState,
     except Exception as e:
         # 如果LLM调用失败，返回错误信息
         logger.error(f"Writer node error: {str(e)}")
-        error_content = f"""## {chapter_title}
+        current_chapter_index = state.get("current_chapter_index", 0)
+        chapter_number = current_chapter_index + 1
+
+        error_content = f"""## {chapter_number}. {chapter_title}
 
 ### 章节生成错误
 
@@ -236,9 +253,9 @@ def _get_prompt_template(prompt_selector, prompt_version, genre,
     try:
         # 根据复杂度决定是否使用简化提示词
         if complexity_config['use_simplified_prompts']:
-            # 使用快速提示词
-            from doc_agent.fast_prompts import FAST_WRITER_PROMPT
-            return FAST_WRITER_PROMPT
+            # 使用快速提示词 - 现在从prompts模块获取
+            from doc_agent.prompts.writer import V4_FAST
+            return V4_FAST
 
         # 根据指定的 prompt_version 获取模板
         from doc_agent.prompts.writer import PROMPTS

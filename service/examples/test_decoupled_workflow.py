@@ -197,8 +197,6 @@ async def main():
         state_file_path = output_dir / f"workflow_state_{run_timestamp}.json"
         try:
             with open(state_file_path, 'w', encoding='utf-8') as f:
-                # Pydantic/TypedDict 不能直接 json.dump，需要先转为普通 dict
-                # 我们简单地拷贝一下
                 serializable_state = dict(final_state)
                 json.dump(serializable_state, f, ensure_ascii=False, indent=4)
             logger.success(
