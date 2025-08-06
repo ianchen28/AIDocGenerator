@@ -7,6 +7,7 @@ from loguru import logger
 # 导入数据模型
 from doc_agent.schemas import (
     DocumentGenerationRequest,
+    DocumentGenerationFromOutlineRequest,
     EditActionRequest,
     OutlineGenerationRequest,
     OutlineGenerationResponse,
@@ -270,3 +271,60 @@ async def generate_document_from_outline(request: DocumentGenerationRequest):
         logger.error(f"文档生成请求处理失败: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"文档生成请求处理失败: {str(e)}") from e
+
+
+@router.post("/jobs/document-from-outline",
+             response_model=TaskCreationResponse,
+             status_code=status.HTTP_202_ACCEPTED)
+async def generate_document_from_outline_json(
+        request: DocumentGenerationFromOutlineRequest):
+    """
+    从outline JSON字符串生成文档接口
+
+    接收outline的JSON序列化字符串，解析后触发异步文档生成任务。
+    立即返回任务ID，实际的文档生成在后台进行。
+    """
+    logger.info(f"收到从outline JSON生成文档请求，job_id: {request.job_id}")
+
+    try:
+        # 解析outline JSON字符串
+        import json
+        outline_data = json.loads(request.outline_json)
+
+        logger.info("outline JSON解析成功:")
+        logger.info(f"  job_id: {request.job_id}")
+        logger.info(f"  session_id: {request.session_id}")
+        logger.info(f"  outline_title: {outline_data.get('title', '未知标题')}")
+        logger.info(
+            f"  outline_nodes: {len(outline_data.get('nodes', []))} 个节点")
+
+        # 验证解析后的数据
+        if not outline_data.get('title', '').strip():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="大纲标题不能为空")
+
+        if not outline_data.get('nodes'):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="大纲节点不能为空")
+
+        # 触发 Celery 任务
+        from workers.tasks import generate_document_from_outline_task
+        generate_document_from_outline_task.delay(
+            job_id=request.job_id,
+            outline=outline_data,
+            session_id=request.session_id)
+
+        logger.info(f"从outline JSON生成文档任务已接收，job_id: {request.job_id}")
+
+        return TaskCreationResponse(job_id=request.job_id)
+
+    except json.JSONDecodeError as e:
+        logger.error(f"outline JSON解析失败: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"outline JSON格式无效: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"从outline JSON生成文档请求处理失败: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"从outline JSON生成文档请求处理失败: {str(e)}") from e

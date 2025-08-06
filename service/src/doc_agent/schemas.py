@@ -121,6 +121,40 @@ class DocumentGenerationRequest(BaseModel):
     outline: Outline = Field(..., description="结构化的大纲对象")
 
 
+class DocumentGenerationFromOutlineRequest(BaseModel):
+    """从outline JSON字符串生成文档的请求模型"""
+    job_id: str = Field(..., description="由后端生成的唯一任务ID")
+    outline_json: str = Field(..., description="outline的JSON序列化字符串")
+    session_id: Optional[str] = Field(None, description="会话ID，用于追踪")
+
+    @model_validator(mode='after')
+    def validate_outline_json(self):
+        """验证outline JSON字符串的有效性"""
+        try:
+            import json
+            outline_data = json.loads(self.outline_json)
+
+            # 验证基本结构
+            if not isinstance(outline_data, dict):
+                raise ValueError("outline JSON必须是对象格式")
+
+            if 'title' not in outline_data:
+                raise ValueError("outline JSON必须包含title字段")
+
+            if 'nodes' not in outline_data:
+                raise ValueError("outline JSON必须包含nodes字段")
+
+            if not isinstance(outline_data['nodes'], list):
+                raise ValueError("outline JSON的nodes字段必须是数组")
+
+        except json.JSONDecodeError as e:
+            raise ValueError(f"outline JSON格式无效: {e}")
+        except Exception as e:
+            raise ValueError(f"outline JSON验证失败: {e}")
+
+        return self
+
+
 class OutlineResponse(BaseModel):
     """大纲响应模型"""
     job_id: str

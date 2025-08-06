@@ -194,9 +194,7 @@ async def _generate_outline_from_query_task_async(
                     )
                     break
                 else:
-                    logger.warning(
-                        f"⚠️  [API Task] Step {node_name} 没有返回 document_outline"
-                    )
+                    logger.info(f"📋 [API Task] Step {node_name} 完成，等待下一个步骤...")
 
         except Exception as e:
             logger.error(f"❌ [API Task] Error during outline generation: {e}")
@@ -262,30 +260,35 @@ async def _generate_outline_from_query_task_async(
 
 @celery_app.task
 def generate_document_from_outline_task(job_id: Union[str, int],
-                                        outline: dict) -> str:
+                                        outline: dict,
+                                        session_id: str = None) -> str:
     """
     从大纲生成文档的异步任务
 
     Args:
         job_id: 作业ID
         outline: 结构化的大纲对象
+        session_id: 会话ID，用于追踪
 
     Returns:
         任务状态
     """
-    logger.info(f"文档生成任务开始 - Job ID: {job_id}")
+    logger.info(f"文档生成任务开始 - Job ID: {job_id}, Session ID: {session_id}")
 
     try:
         # 使用同步方式运行异步函数
         return asyncio.run(
-            _generate_document_from_outline_task_async(job_id, outline))
+            _generate_document_from_outline_task_async(job_id, outline,
+                                                       session_id))
     except Exception as e:
         logger.error(f"文档生成任务失败: {e}")
         return "FAILED"
 
 
 async def _generate_document_from_outline_task_async(job_id: Union[str, int],
-                                                     outline: dict) -> str:
+                                                     outline: dict,
+                                                     session_id: str = None
+                                                     ) -> str:
     """异步文档生成任务的内部实现"""
     try:
         # 获取Redis客户端和发布器
@@ -302,15 +305,43 @@ async def _generate_document_from_outline_task_async(job_id: Union[str, int],
         logger.info(
             f"Job {job_id}: 开始生成文档，大纲标题: '{outline.get('title', '未知标题')}'")
 
-        # TODO: 调用新的"从大纲到文档"的 LangGraph 图
-        # 这里将替换为实际的图执行逻辑
-        # document_graph = get_document_generation_graph()
-        # result = await document_graph.ainvoke({
-        #     "outline": outline
-        # })
+        # 初始化状态，将outline集成到二阶段工作流程
+        from doc_agent.graph.state import ResearchState
 
-        # 模拟文档生成过程
-        await asyncio.sleep(3)  # 模拟处理时间
+        # 构建初始状态
+        initial_state = ResearchState(run_id=str(job_id),
+                                      topic=outline.get("title", "技术文档"),
+                                      style_guide_content=None,
+                                      requirements_content=None,
+                                      initial_sources=[],
+                                      document_outline=outline,
+                                      chapters_to_process=[],
+                                      current_chapter_index=0,
+                                      completed_chapters=[],
+                                      final_document="",
+                                      research_plan="",
+                                      search_queries=[],
+                                      gathered_sources=[],
+                                      sources=[],
+                                      all_sources=[],
+                                      current_citation_index=1,
+                                      cited_sources=[],
+                                      cited_sources_in_chapter=[],
+                                      messages=[])
+
+        # 从outline中提取章节信息
+        chapters = []
+        for i, node in enumerate(outline.get("nodes", [])):
+            chapter_info = {
+                "chapter_title": node.get("title", f"章节 {i+1}"),
+                "description": node.get("content_summary", ""),
+                "node_id": node.get("id", f"node_{i+1}"),
+                "children": node.get("children", [])
+            }
+            chapters.append(chapter_info)
+
+        initial_state["chapters_to_process"] = chapters
+        logger.info(f"Job {job_id}: 提取到 {len(chapters)} 个章节")
 
         # 发布进度事件
         await publisher.publish_task_progress(job_id=job_id,
@@ -318,35 +349,93 @@ async def _generate_document_from_outline_task_async(job_id: Union[str, int],
                                               progress="正在分析大纲结构",
                                               step="analysis")
 
-        await asyncio.sleep(2)
+        # 获取容器和章节工作流图
+        container = get_container()
+        chapter_workflow = container.chapter_graph
 
-        await publisher.publish_task_progress(job_id=job_id,
-                                              task_type="document_generation",
-                                              progress="正在生成章节内容",
-                                              step="content_generation")
+        if not chapter_workflow:
+            logger.error(f"Job {job_id}: 章节工作流图未找到")
+            raise Exception("章节工作流图未初始化")
 
-        await asyncio.sleep(2)
+        # 开始处理每个章节
+        completed_chapters = []
+        all_sources = []
+        cited_sources = []
 
-        await publisher.publish_task_progress(job_id=job_id,
-                                              task_type="document_generation",
-                                              progress="正在添加引用和链接",
-                                              step="citations")
+        for chapter_index, chapter in enumerate(chapters):
+            logger.info(
+                f"Job {job_id}: 开始处理章节 {chapter_index + 1}/{len(chapters)}: {chapter['chapter_title']}"
+            )
 
-        await asyncio.sleep(2)
+            # 更新当前章节索引
+            current_state = initial_state.copy()
+            current_state["current_chapter_index"] = chapter_index
+            current_state["chapters_to_process"] = chapters
+            current_state["completed_chapters"] = completed_chapters
+            current_state["all_sources"] = all_sources
+            current_state["cited_sources"] = cited_sources
 
-        await publisher.publish_task_progress(job_id=job_id,
-                                              task_type="document_generation",
-                                              progress="正在格式化和优化",
-                                              step="formatting")
+            # 发布章节处理进度
+            await publisher.publish_task_progress(
+                job_id=job_id,
+                task_type="document_generation",
+                progress=f"正在处理章节: {chapter['chapter_title']}",
+                step=f"chapter_{chapter_index + 1}")
 
-        # 生成示例文档
+            try:
+                # 执行章节工作流
+                result = await chapter_workflow.ainvoke(current_state)
+
+                # 提取章节结果
+                if "final_document" in result:
+                    chapter_content = result["final_document"]
+                else:
+                    chapter_content = f"章节 {chapter['chapter_title']} 的内容..."
+
+                # 收集引用源
+                chapter_sources = result.get("cited_sources_in_chapter", [])
+                all_sources.extend(chapter_sources)
+                cited_sources.extend(chapter_sources)
+
+                # 保存章节结果
+                completed_chapter = {
+                    "title": chapter["chapter_title"],
+                    "content": chapter_content,
+                    "sources": chapter_sources,
+                    "chapter_index": chapter_index
+                }
+                completed_chapters.append(completed_chapter)
+
+                logger.info(
+                    f"Job {job_id}: 章节 {chapter['chapter_title']} 处理完成")
+
+            except Exception as chapter_error:
+                logger.error(
+                    f"Job {job_id}: 章节 {chapter['chapter_title']} 处理失败: {chapter_error}"
+                )
+                # 继续处理下一个章节
+                continue
+
+        # 合并所有章节内容
+        final_document_parts = []
+        final_document_parts.append(f"# {outline.get('title', '技术文档')}\n\n")
+
+        for chapter in completed_chapters:
+            final_document_parts.append(f"## {chapter['title']}\n\n")
+            final_document_parts.append(f"{chapter['content']}\n\n")
+
+        final_document = "".join(final_document_parts)
+
+        # 生成最终文档结果
         document_result = {
             "title": outline.get("title", "技术文档"),
-            "content": f"这是基于大纲 '{outline.get('title')}' 生成的完整文档内容...",
-            "word_count": 2500,
-            "char_count": 15000,
-            "sections": len(outline.get("nodes", [])),
-            "generated_at": str(asyncio.get_event_loop().time())
+            "content": final_document,
+            "word_count": len(final_document.split()),
+            "char_count": len(final_document),
+            "sections": len(completed_chapters),
+            "generated_at": str(asyncio.get_event_loop().time()),
+            "chapters": completed_chapters,
+            "sources": all_sources
         }
 
         # 发布文档生成完成事件
@@ -362,9 +451,9 @@ async def _generate_document_from_outline_task_async(job_id: Union[str, int],
             job_id=job_id,
             task_type="document_generation",
             result={"document": document_result},
-            duration="9s")
+            duration="completed")
 
-        logger.info(f"Job {job_id}: 文档生成完成")
+        logger.info(f"Job {job_id}: 文档生成完成，共处理 {len(completed_chapters)} 个章节")
 
         return "COMPLETED"
 
