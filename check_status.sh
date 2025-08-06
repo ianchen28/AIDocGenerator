@@ -96,7 +96,7 @@ if [ -n "$API_PIDS" ]; then
         if [ -n "$PORT" ]; then
             echo "   - 📍 端口: $PORT"
             # 测试 API 健康检查
-            if curl -s http://127.0.0.1:$PORT/api/v1/health > /dev/null; then
+            if curl -s http://127.0.0.1:8080/api/v1/health > /dev/null; then
                 echo "   - ✅ API 健康检查通过"
             else
                 echo "   - ⚠️  API 健康检查失败"
@@ -183,4 +183,4 @@ echo "📝 常用命令:"
 echo "   - 启动服务: ./quick_start.sh"
 echo "   - 停止服务: ./stop_dev_server.sh"
 echo "   - 查看日志: tail -f output.log"
-echo "   - 健康检查: curl http://127.0.0.1:8000/api/v1/health" 
+echo "   - 健康检查: curl http://127.0.0.1:8080/api/v1/health" 

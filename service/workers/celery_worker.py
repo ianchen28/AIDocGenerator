@@ -6,6 +6,9 @@ Celery Worker 启动脚本
 # 导入 Celery 应用
 from workers.celery_app import celery_app
 
+# 显式导入 tasks 模块以确保任务被注册
+import workers.tasks
+
 if __name__ == '__main__':
     # 启动 Celery worker
     import sys
