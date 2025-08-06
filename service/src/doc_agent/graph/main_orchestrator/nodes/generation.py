@@ -294,25 +294,131 @@ def _get_outline_prompt_template(complexity_config, prompt_selector, genre):
 
         # 标准模式使用完整提示词
         if prompt_selector:
-            return prompt_selector.get_prompt("main_orchestrator", "outline",
-                                              genre)
+            # 优先使用三级大纲结构版本
+            try:
+                return prompt_selector.get_prompt("main_orchestrator",
+                                                  "outline",
+                                                  "v3_with_subsections")
+            except:
+                # 如果三级版本不可用，使用默认版本
+                return prompt_selector.get_prompt("main_orchestrator",
+                                                  "outline", genre)
 
     except Exception as e:
         logger.error(f"获取提示词模板失败: {e}")
 
-    # 备用模板
+    # 备用模板 - 使用三级大纲结构
     return """
-基于以下研究数据，为主题"{topic}"生成详细的文档大纲。
+你是一位专业的文档结构设计专家。基于提供的初始研究数据，为主题生成一个详细的文档大纲。
 
-研究数据：
+**文档主题:** {topic}
+
+**研究数据摘要:**
 {initial_gathered_data}
 
-请生成JSON格式的大纲，包含：
-- title: 文档标题
-- summary: 文档摘要
-- chapters: 章节列表，每个章节包含 chapter_number, chapter_title, description, key_points
+**任务要求:**
+1. 分析研究数据，识别主要主题
+2. 创建一个完整的文档结构
+3. 每个章节应该有明确的焦点
+4. 确保覆盖主题的核心要点
+5. **必须生成三级大纲结构**：章节 -> 子节 -> 要点
 
-输出JSON格式的大纲。
+**输出格式要求:**
+请严格按照以下JSON格式输出，不要包含任何其他内容：
+
+{{
+    "title": "文档标题",
+    "summary": "文档的简短摘要（50-100字）",
+    "chapters": [
+        {{
+            "chapter_number": 1,
+            "chapter_title": "第一章标题",
+            "description": "本章的简要描述",
+            "sub_sections": [
+                {{
+                    "section_number": 1.1,
+                    "section_title": "第一节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }},
+                {{
+                    "section_number": 1.2,
+                    "section_title": "第二节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }},
+                {{
+                    "section_number": 1.3,
+                    "section_title": "第三节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }}
+            ]
+        }},
+        {{
+            "chapter_number": 2,
+            "chapter_title": "第二章标题",
+            "description": "本章的简要描述",
+            "sub_sections": [
+                {{
+                    "section_number": 2.1,
+                    "section_title": "第一节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }},
+                {{
+                    "section_number": 2.2,
+                    "section_title": "第二节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }},
+                {{
+                    "section_number": 2.3,
+                    "section_title": "第三节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }}
+            ]
+        }},
+        {{
+            "chapter_number": 3,
+            "chapter_title": "第三章标题",
+            "description": "本章的简要描述",
+            "sub_sections": [
+                {{
+                    "section_number": 3.1,
+                    "section_title": "第一节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }},
+                {{
+                    "section_number": 3.2,
+                    "section_title": "第二节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }},
+                {{
+                    "section_number": 3.3,
+                    "section_title": "第三节标题",
+                    "section_description": "本节的简要描述",
+                    "key_points": ["要点1", "要点2", "要点3"]
+                }}
+            ]
+        }}
+    ],
+    "total_chapters": 3,
+    "estimated_total_words": 5000
+}}
+
+**重要提示:**
+- **必须生成恰好3个章节**
+- **每个章节必须包含3个子节**
+- **每个子节必须包含3个要点**
+- 要生成完整的三级大纲结构
+- 章节标题应该简洁明了
+- 描述应该简短但清晰
+- 必须输出有效的JSON格式
+- 目标总字数控制在5000字左右
 """
 
 
