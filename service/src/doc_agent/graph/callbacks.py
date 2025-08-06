@@ -86,16 +86,16 @@ class RedisCallbackHandler(BaseCallbackHandler):
 
         if "research" in chain_name.lower():
             phase = "RETRIEVAL"
-            message = "开始从知识库和网络检索信息..."
+            message = "正在从知识库和网络检索相关信息，收集主题相关的资料和最新信息..."
         elif "outline" in chain_name.lower():
             phase = "OUTLINE_GENERATION"
-            message = "开始生成文档大纲..."
+            message = "正在基于收集到的信息生成详细的文档大纲，包括章节结构和内容安排..."
         elif "planner" in chain_name.lower():
             phase = "PLANNING"
-            message = "制定研究计划..."
+            message = "正在制定详细的研究计划，确定文档的重点内容和研究方向..."
         elif "writer" in chain_name.lower():
             phase = "WRITING"
-            message = "开始撰写文档内容..."
+            message = "正在根据大纲撰写详细的文档内容，确保内容的准确性和完整性..."
 
         # 同步发布事件（避免异步问题）
         try:
@@ -250,7 +250,7 @@ class RedisCallbackHandler(BaseCallbackHandler):
         asyncio.create_task(
             self._publish_event(
                 "thought", {
-                    "text": f"正在调用{model_name}进行推理和分析...",
+                    "text": f"正在调用{model_name}进行深度分析和内容生成，请稍候...",
                     "model_name": model_name,
                     "run_id": str(run_id),
                     "message_count": sum(

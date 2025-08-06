@@ -9,6 +9,32 @@ from loguru import logger
 from .celery_app import celery_app
 
 
+def _get_detailed_progress_message(node_name: str) -> str:
+    """
+    根据节点名称生成详细的进度消息
+    
+    Args:
+        node_name: 节点名称
+        
+    Returns:
+        str: 详细的进度消息
+    """
+    progress_messages = {
+        "initial_research": "已完成初始研究阶段，正在整理收集到的信息源，为大纲生成做准备...",
+        "outline_generation": "已完成大纲生成阶段，正在优化文档结构和章节安排...",
+        "planner": "已完成计划制定阶段，正在确定研究方向和重点内容...",
+        "researcher": "已完成深入研究阶段，正在分析收集到的详细信息...",
+        "writer": "已完成内容撰写阶段，正在完善文档内容...",
+        "reflection": "已完成反思优化阶段，正在检查和完善文档质量...",
+        "supervisor": "已完成监督决策阶段，正在评估当前进度并确定下一步行动...",
+        "editor": "已完成编辑优化阶段，正在完善文档格式和内容...",
+        "generation": "已完成内容生成阶段，正在创建最终的文档内容...",
+        "research": "已完成研究阶段，正在整理和分析相关信息..."
+    }
+
+    return progress_messages.get(node_name, f"已完成步骤: {node_name}")
+
+
 # 延迟导入container以避免循环导入
 def get_container():
     """延迟导入container以避免循环导入"""
@@ -130,10 +156,11 @@ async def _generate_outline_from_query_task_async(
         )
 
         # 发布进度事件
-        await publisher.publish_task_progress(job_id=job_id,
-                                              task_type="outline_generation",
-                                              progress="正在分析用户需求",
-                                              step="analysis")
+        await publisher.publish_task_progress(
+            job_id=job_id,
+            task_type="outline_generation",
+            progress="正在分析您的需求，准备开始大纲生成流程...",
+            step="analysis")
 
         # 执行真正的工作流
         outline_result = None
@@ -149,10 +176,11 @@ async def _generate_outline_from_query_task_async(
                 step_result = list(step_output.values())[0]
 
                 # 发布进度事件
+                progress_message = _get_detailed_progress_message(node_name)
                 await publisher.publish_task_progress(
                     job_id=job_id,
                     task_type="outline_generation",
-                    progress=f"已完成步骤: {node_name}",
+                    progress=progress_message,
                     step=node_name)
 
                 logger.info(
