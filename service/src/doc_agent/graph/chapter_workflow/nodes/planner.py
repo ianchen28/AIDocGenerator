@@ -50,8 +50,29 @@ def planner_node(state: ResearchState,
     chapter_description = current_chapter.get("description",
                                               "") if current_chapter else ""
 
+    # 获取子节信息
+    sub_sections = current_chapter.get("sub_sections",
+                                       []) if current_chapter else []
+
     logger.info(f"📋 规划章节研究: {chapter_title}")
     logger.info(f"📝 章节描述: {chapter_description}")
+    logger.info(f"📊 子节数量: {len(sub_sections)}")
+
+    # 格式化子节信息
+    sub_sections_text = ""
+    if sub_sections:
+        sub_sections_text = "\n\n当前章节的子节结构：\n"
+        for sub_section in sub_sections:
+            section_number = sub_section.get("section_number", "?")
+            section_title = sub_section.get("section_title", "未命名子节")
+            section_description = sub_section.get("section_description", "")
+            key_points = sub_section.get("key_points", [])
+
+            sub_sections_text += f"\n{section_number} {section_title}\n"
+            if section_description:
+                sub_sections_text += f"描述: {section_description}\n"
+            if key_points:
+                sub_sections_text += f"要点: {', '.join(key_points)}\n"
 
     # 获取复杂度配置
     complexity_config = settings.get_complexity_config()
@@ -89,7 +110,8 @@ def planner_node(state: ResearchState,
     # 创建研究计划生成的 prompt，要求 JSON 格式响应
     prompt = prompt_template.format(topic=topic,
                                     chapter_title=chapter_title,
-                                    chapter_description=chapter_description)
+                                    chapter_description=chapter_description,
+                                    sub_sections_text=sub_sections_text)
 
     logger.debug(f"Invoking LLM with prompt:\n{pprint(prompt)}")
 

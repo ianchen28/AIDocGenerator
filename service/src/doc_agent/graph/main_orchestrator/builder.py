@@ -64,20 +64,34 @@ def create_chapter_processing_node(chapter_workflow_graph):
         current_citation_index = state.get('current_citation_index', 0)
 
         chapter_workflow_input = {
-            "topic": topic,
-            "current_chapter_index": current_chapter_index,
-            "chapters_to_process": chapters_to_process,
+            "topic":
+            topic,
+            "current_chapter_index":
+            current_chapter_index,
+            "chapters_to_process":
+            chapters_to_process,
             "completed_chapters_content":
             completed_chapters_content,  # 关键：传递上下文
             "search_queries": [],  # 初始化搜索查询，planner节点会生成
-            "research_plan": "",  # 初始化研究计划，planner节点会生成
+            "research_plan":
+            "",  # 初始化研究计划，planner节点会生成
             "gathered_sources": [],  # 初始化收集的源数据，researcher节点会填充
-            "gathered_data": "",  # 保持向后兼容
+            "gathered_data":
+            "",  # 保持向后兼容
             "messages": [],  # 新的消息历史
             # 传递风格指南和需求文档到章节工作流
-            "current_citation_index": current_citation_index,
-            "style_guide_content": state.get("style_guide_content"),
-            "requirements_content": state.get("requirements_content")
+            "current_citation_index":
+            current_citation_index,
+            "style_guide_content":
+            state.get("style_guide_content"),
+            "requirements_content":
+            state.get("requirements_content"),
+            # 传递完整的大纲信息，包括子节结构
+            "document_outline":
+            state.get("document_outline", {}),
+            # 传递当前章节的子节信息
+            "current_chapter_sub_sections":
+            current_chapter.get("sub_sections", []) if current_chapter else []
         }
 
         logger.debug(
@@ -184,7 +198,7 @@ def create_chapter_processing_node(chapter_workflow_graph):
             updated_writer_steps = current_writer_steps + 1
 
             logger.info(
-                f"📊 进度: {state['current_citation_index']}/{len(chapters_to_process)} 章节已完成"
+                f"📊 进度: {state['current_chapter_index']}/{len(chapters_to_process)} 章节已完成"
             )
             logger.info(f"📚 全局引用源总数: {len(state['all_sources'])}")
             logger.info(f"✍️  Writer步骤计数: {updated_writer_steps}")
@@ -192,7 +206,8 @@ def create_chapter_processing_node(chapter_workflow_graph):
             return {
                 "completed_chapters": updated_completed_chapters,
                 "current_citation_index": state['current_citation_index'],
-                "current_chapter_index": state['current_chapter_index'],
+                "current_chapter_index":
+                state['current_chapter_index'] + 1,  # 🔧 修复：递增章节索引
                 "cited_sources": state["all_sources"],
                 "writer_steps": updated_writer_steps
             }
@@ -219,7 +234,8 @@ def create_chapter_processing_node(chapter_workflow_graph):
             return {
                 "completed_chapters": updated_completed_chapters,
                 "current_citation_index": state['current_citation_index'],
-                "current_chapter_index": state['current_chapter_index'],
+                "current_chapter_index":
+                state['current_chapter_index'] + 1,  # 🔧 修复：失败时也要递增索引
                 "cited_sources": state["all_sources"],
                 "writer_steps": updated_writer_steps
             }

@@ -60,7 +60,7 @@ class ESService:
                 "hosts": self.hosts,
                 "verify_certs": False,
                 "ssl_show_warn": False,
-                "timeout": self.timeout,
+                "request_timeout": self.timeout,
                 "max_retries": 3,
                 "retry_on_timeout": True
             }

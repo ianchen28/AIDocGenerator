@@ -117,9 +117,13 @@ async def main():
             document_outline={},
             chapters_to_process=[],
             current_chapter_index=0,
-            current_citation_index=0,  # 添加引用索引初始化
+            current_citation_index=1,  # 添加引用索引初始化
             completed_chapters=[],
             final_document="",
+            sources=[],  # 🔧 修复：添加缺失的字段
+            all_sources=[],  # 🔧 修复：添加缺失的字段
+            cited_sources=[],  # 🔧 修复：添加缺失的字段
+            cited_sources_in_chapter=[],  # 🔧 修复：添加缺失的字段
             messages=[],
             run_id=run_id,  # 【新增】添加 run_id 到状态
         )
@@ -135,6 +139,29 @@ async def main():
         pprint.pprint(generated_outline)
         print("-" * 80)
 
+        # --- 3.5. 【新增】验证大纲结构 ---
+        logger.info("🔍 Validating generated outline structure...")
+        if generated_outline and isinstance(generated_outline, dict):
+            chapters = generated_outline.get('chapters', [])
+            logger.info(f"📊 Outline contains {len(chapters)} chapters")
+
+            for i, chapter in enumerate(chapters):
+                chapter_title = chapter.get('chapter_title', f'Chapter {i+1}')
+                sub_sections = chapter.get('sub_sections', [])
+                logger.info(
+                    f"  📖 Chapter {i+1}: {chapter_title} ({len(sub_sections)} sub-sections)"
+                )
+
+                for j, sub_section in enumerate(sub_sections):
+                    sub_title = sub_section.get('section_title',
+                                                f'Sub-section {j+1}')
+                    key_points = sub_section.get('key_points', [])
+                    logger.info(
+                        f"    📝 {i+1}.{j+1}: {sub_title} ({len(key_points)} key points)"
+                    )
+        else:
+            logger.warning("⚠️  Generated outline is invalid or empty")
+
         # --- 4. 准备第二阶段的输入 (保持不变) ---
         stage_two_input_state = ResearchState(
             topic=topic,
@@ -144,11 +171,13 @@ async def main():
             requirements_content="",
             chapters_to_process=[],
             current_chapter_index=0,
-            current_citation_index=0,  # 添加引用索引初始化
+            current_citation_index=1,  # 修复：引用索引应该从1开始
             completed_chapters=[],
             final_document="",
             sources=[],
             all_sources=[],
+            cited_sources=[],  # 🔧 修复：添加缺失的字段
+            cited_sources_in_chapter=[],  # 🔧 修复：添加缺失的字段
             messages=[],
             run_id=run_id,  # 【新增】添加 run_id 到状态
         )
@@ -177,6 +206,16 @@ async def main():
         except Exception as e:
             logger.error(f"   - Failed to save state file: {e}")
 
+        # 保存大纲文件
+        outline_file_path = output_dir / f"generated_outline_{run_timestamp}.json"
+        try:
+            with open(outline_file_path, 'w', encoding='utf-8') as f:
+                json.dump(generated_outline, f, ensure_ascii=False, indent=4)
+            logger.success(
+                f"   - Generated outline saved to: {outline_file_path}")
+        except Exception as e:
+            logger.error(f"   - Failed to save outline file: {e}")
+
         # 保存最终文档
         document_file_path = output_dir / f"final_document_{run_timestamp}.md"
         final_document_content = final_state.get("final_document", "")
@@ -195,6 +234,7 @@ async def main():
         print("📁 Output files:")
         print(f"  - 📝 Log: {log_file_path}")
         print(f"  - 📊 State: {state_file_path}")
+        print(f"  - 📋 Outline: {outline_file_path}")
         print(f"  - 📄 Document: {document_file_path}")
         print("=" * 80)
 

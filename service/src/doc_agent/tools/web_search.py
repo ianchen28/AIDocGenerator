@@ -114,17 +114,20 @@ class WebScraper:
             return ""
 
 
+import os
+
+
 class WebSearchConfig:
     """网络搜索配置"""
 
     def __init__(self, config: dict[str, Any] = None):
-        # 默认配置
+        # 硬编码配置
         default_config = {
             "url": "http://10.215.149.74:9930/api/v1/llm-qa/api/chat/net",
             "token":
             "eyJhbGciOiJIUzI1NiJ9.eyJqd3RfbmFtZSI6Iueul-azleiBlOe9keaOpeWPo-a1i-ivlSIsImp3dF91c2VyX2lkIjoyMiwiand0X3VzZXJfbmFtZSI6ImFkbWluIiwiZXhwIjoyMDA1OTc2MjY2LCJpYXQiOjE3NDY3NzYyNjZ9.YLkrXAdx-wyVUwWveVCF2ddjqZrOrwOKxaF8fLOuc6E",
             "count": 5,
-            "timeout": 15,  # 从30秒减少到15秒
+            "timeout": 15,
             "retries": 3,
             "delay": 1,
             "fetch_full_content": True

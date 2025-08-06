@@ -56,6 +56,7 @@ def writer_node(state: ResearchState,
     current_chapter = chapters_to_process[current_chapter_index]
     chapter_title = current_chapter.get("chapter_title", "")
     chapter_description = current_chapter.get("description", "")
+    sub_sections = current_chapter.get("sub_sections", [])  # 获取子节信息
 
     if not chapter_title:
         raise ValueError("章节标题不能为空")
@@ -63,6 +64,7 @@ def writer_node(state: ResearchState,
     # 获取复杂度配置
     complexity_config = settings.get_complexity_config()
     logger.info(f"🔧 使用复杂度级别: {complexity_config['level']}")
+    logger.info(f"📊 当前章节子节数量: {len(sub_sections)}")
 
     # 从状态中获取研究数据
     gathered_sources = state.get("gathered_sources", [])
@@ -73,7 +75,7 @@ def writer_node(state: ResearchState,
         completed_chapters_content)
 
     available_sources_text = _format_sources_to_text(
-        gathered_sources, state.get("current_citation_index", 0))
+        gathered_sources, state.get("current_citation_index", 1))  # 修复：从1开始
 
     # 获取文档生成器配置
     document_writer_config = settings.get_agent_component_config(
@@ -100,7 +102,7 @@ def writer_node(state: ResearchState,
                            chapter_description, current_chapter_index,
                            chapters_to_process, previous_chapters_context,
                            available_sources_text, context_for_writing,
-                           style_guide_content)
+                           style_guide_content, sub_sections)  # 添加子节信息
 
     # 限制 prompt 长度
     prompt = _truncate_prompt_if_needed(prompt, previous_chapters_context,
@@ -296,8 +298,25 @@ def _get_fallback_prompt_template() -> str:
 def _build_prompt(prompt_template, topic, chapter_title, chapter_description,
                   current_chapter_index, chapters_to_process,
                   previous_chapters_context, available_sources_text,
-                  context_for_writing, style_guide_content):
+                  context_for_writing, style_guide_content, sub_sections):
     """构建完整的提示词"""
+
+    # 格式化子节信息
+    sub_sections_text = ""
+    if sub_sections:
+        sub_sections_text = "\n\n当前章节的子节结构：\n"
+        for sub_section in sub_sections:
+            section_number = sub_section.get("section_number", "?")
+            section_title = sub_section.get("section_title", "未命名子节")
+            section_description = sub_section.get("section_description", "")
+            key_points = sub_section.get("key_points", [])
+
+            sub_sections_text += f"\n{section_number} {section_title}\n"
+            if section_description:
+                sub_sections_text += f"描述: {section_description}\n"
+            if key_points:
+                sub_sections_text += f"要点: {', '.join(key_points)}\n"
+
     if style_guide_content and style_guide_content.strip():
         # 格式化样式指南内容
         formatted_style_guide = f"\n{style_guide_content}\n"
@@ -313,7 +332,8 @@ def _build_prompt(prompt_template, topic, chapter_title, chapter_description,
             or "这是第一章，没有前置内容。",
             available_sources_text=available_sources_text,
             context_for_writing=context_for_writing,
-            style_guide_content=formatted_style_guide)
+            style_guide_content=formatted_style_guide,
+            sub_sections_info=sub_sections_text)  # 添加子节信息
     else:
         logger.info("📝 标准写作，未包含样式指南")
         return prompt_template.format(
@@ -325,7 +345,8 @@ def _build_prompt(prompt_template, topic, chapter_title, chapter_description,
             previous_chapters_context=previous_chapters_context
             or "这是第一章，没有前置内容。",
             available_sources_text=available_sources_text,
-            context_for_writing=context_for_writing)
+            context_for_writing=context_for_writing,
+            sub_sections_info=sub_sections_text)  # 添加子节信息
 
 
 def _truncate_prompt_if_needed(prompt, previous_chapters_context,
@@ -376,26 +397,92 @@ def _truncate_prompt_if_needed(prompt, previous_chapters_context,
 
 def _update_cited_sources_inplace(raw_text: str,
                                   available_sources: list[Source]) -> None:
-    """ 根据 raw_text 中的内容，识别 <[n]> 标记，并更新 available_sources 中 id 为 n 的 cited 字段
+    """ 根据 raw_text 中的内容，识别多种引用标记格式，并更新 available_sources 中 id 为 n 的 cited 字段
 
     Args:
         raw_text: LLM的原始输出文本
         available_sources: 可用的信息源列表
     """
-    # 识别 <[n]> 标记，并更新 available_sources 中 id 为 n 的 cited 字段
-    cited_sources = re.findall(r'<\[(\d+)\]>', raw_text)
-    for source_id in cited_sources:
-        source = next((s for s in available_sources if s.id == int(source_id)),
-                      None)
-        if source:
-            source.cited = True
+    # 创建源ID映射
+    source_map = {source.id: source for source in available_sources}
+
+    # 识别多种引用格式
+    cited_source_ids = set()
+
+    # 1. 识别 <[n]> 格式
+    pattern1 = r'<\[(\d+)\]>'
+    matches1 = re.findall(pattern1, raw_text)
+    for source_id in matches1:
+        cited_source_ids.add(int(source_id))
+
+    # 2. 识别 **<信息源 n>** 格式
+    pattern2 = r'\*\*<信息源\s*(\d+)>\*\*'
+    matches2 = re.findall(pattern2, raw_text)
+    for source_id in matches2:
+        cited_source_ids.add(int(source_id))
+
+    # 3. 识别 <[n], [m]> 格式
+    pattern3 = r'<\[(\d+)\],\s*\[(\d+)\]>'
+    matches3 = re.findall(pattern3, raw_text)
+    for match in matches3:
+        for source_id in match:
+            cited_source_ids.add(int(source_id))
+
+    # 4. 识别 [n] 格式（标准引用格式）
+    pattern4 = r'\[(\d+)\]'
+    matches4 = re.findall(pattern4, raw_text)
+    for source_id in matches4:
+        cited_source_ids.add(int(source_id))
+
+    # 5. 识别 <信息源 n> 格式
+    pattern5 = r'<信息源\s*(\d+)>'
+    matches5 = re.findall(pattern5, raw_text)
+    for source_id in matches5:
+        cited_source_ids.add(int(source_id))
+
+    # 更新引用状态
+    for source_id in cited_source_ids:
+        if source_id in source_map:
+            source_map[source_id].cited = True
+            logger.debug(f"✅ 标记源 [{source_id}] 为已引用")
+        else:
+            logger.warning(f"⚠️  未找到源ID: {source_id}")
+
+    logger.info(f"📚 识别到 {len(cited_source_ids)} 个引用源")
 
 
 def _response_postprocess(response: str) -> str:
     """ 对 LLM 的原始输出进行后处理，包括：
     1. 删除前后的 ``` 标记
-    2. 其他后处理
+    2. 标准化引用格式
+    3. 其他后处理
     """
     # 删除前后的 ``` 标记
     response = re.sub(r'```.*?```', '', response, flags=re.DOTALL)
+
+    # 标准化引用格式
+    response = _standardize_citation_formats(response)
+
     return response
+
+
+def _standardize_citation_formats(text: str) -> str:
+    """标准化引用格式，将各种引用格式统一转换为标准格式"""
+
+    # 1. 将 **<信息源 n>** 转换为 [n]
+    text = re.sub(r'\*\*<信息源\s*(\d+)>\*\*', r'[\1]', text)
+
+    # 2. 将 <信息源 n> 转换为 [n]
+    text = re.sub(r'<信息源\s*(\d+)>', r'[\1]', text)
+
+    # 3. 将 <[n], [m]> 转换为 [n][m]
+    text = re.sub(r'<\[(\d+)\],\s*\[(\d+)\]>', r'[\1][\2]', text)
+
+    # 4. 将 <[n]> 转换为 [n]
+    text = re.sub(r'<\[(\d+)\]>', r'[\1]', text)
+
+    # 5. 处理连续的引用，如 [1][2][3] 保持原样
+    # 这个正则表达式已经能正确处理
+
+    logger.debug(f"📝 引用格式标准化完成")
+    return text
