@@ -60,3 +60,5 @@ transfer/
 
 # Reference code (removed from git)
 reference_code/
+
+*.pid
