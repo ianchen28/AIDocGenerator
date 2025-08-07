@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-测试模拟文档生成服务
+测试新的模拟端点 /jobs/document-from-outline/mock
 """
 
 import asyncio
@@ -36,23 +36,23 @@ TEST_OUTLINE = {
 }
 
 
-async def test_mock_service():
-    """测试模拟服务"""
+async def test_mock_endpoint():
+    """测试模拟端点"""
 
     # 1. 测试 API 调用
     import requests
 
-    url = "http://localhost:8001/jobs/document-from-outline"
+    url = "http://localhost:8000/api/v1/jobs/document-from-outline/mock"
     # 使用固定的sessionId（纯数字）
-    unique_job_id = "123456789"  # 固定的sessionId
+    unique_job_id = "999888777"  # 新的sessionId
 
     payload = {
-        "task_prompt": "请生成一个关于人工智能技术发展报告",
-        "outlineJson": json.dumps(TEST_OUTLINE),
-        "sessionId": unique_job_id
+        "job_id": unique_job_id,
+        "outline_json": json.dumps(TEST_OUTLINE),
+        "session_id": unique_job_id
     }
 
-    print("发送请求到模拟服务...")
+    print("发送请求到模拟端点...")
     response = requests.post(url, json=payload)
 
     if response.status_code == 202:
@@ -81,7 +81,7 @@ async def test_mock_service():
     last_id = "$"  # 使用 $ 表示只监听新消息，不读取历史数据
     event_count = 0
 
-    while event_count < 1000:  # 最多监听20个事件
+    while event_count < 1000:  # 最多监听1000个事件
         try:
             # 读取新事件
             events = await redis_client.xread({stream_name: last_id},
@@ -120,7 +120,7 @@ async def test_mock_service():
 
 
 if __name__ == "__main__":
-    print("🧪 开始测试模拟文档生成服务")
+    print("🧪 开始测试模拟端点")
     print("=" * 50)
 
-    asyncio.run(test_mock_service())
+    asyncio.run(test_mock_endpoint())

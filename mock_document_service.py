@@ -21,8 +21,18 @@ logger.add("logs/mock_service.log", rotation="1 day", retention="7 days")
 
 app = FastAPI(title="Mock Document Generation Service", version="1.0.0")
 
-# Redis 配置
-REDIS_URL = "redis://localhost:6379"
+# Redis 配置 - 使用配置文件
+import sys
+import os
+
+# 添加项目路径到 sys.path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'service', 'src'))
+
+# 导入配置
+from doc_agent.core.config import settings
+
+# 使用配置文件中的 Redis URL
+REDIS_URL = settings.redis_url
 
 
 class DocumentGenerationFromOutlineRequest(BaseModel):
