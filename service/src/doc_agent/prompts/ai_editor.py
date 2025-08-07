@@ -123,12 +123,105 @@ POLISH_FAST_PROMPT = """
 请直接输出润色后的文本，无需添加任何解释或标记。
 """
 
+# 扩写文本的 prompt
+EXPAND_PROMPT = """
+**角色:** 你是一位专业的编辑专家，负责对文本进行扩写和丰富。
+
+**任务:** 对给定的文本进行扩写，增加更多细节、深度和内容，使文本更加充实和完整。
+
+**扩写要求:**
+1. **保持原意:** 确保扩写后的文本与原文的核心含义完全一致
+2. **增加细节:** 添加更多具体的细节和例子
+3. **深化内容:** 对关键概念进行更深入的阐述
+4. **保持逻辑:** 确保扩写内容与原文逻辑一致
+5. **自然过渡:** 确保新增内容与原文自然衔接
+
+**输入文本:**
+{text}
+
+**输出要求:**
+请直接输出扩写后的文本，无需添加任何解释或标记。
+"""
+
+# 总结文本的 prompt
+SUMMARIZE_PROMPT = """
+**角色:** 你是一位专业的编辑专家，负责对文本进行总结和提炼。
+
+**任务:** 对给定的文本进行总结，提取关键要点，生成简洁明了的摘要。
+
+**总结要求:**
+1. **保持核心:** 确保总结包含原文的核心观点和关键信息
+2. **简洁明了:** 使用简洁、直接的语言表达
+3. **逻辑清晰:** 保持信息的逻辑顺序和结构
+4. **突出重点:** 突出最重要的信息和观点
+5. **避免冗余:** 去除不必要的细节和重复内容
+
+**输入文本:**
+{text}
+
+**输出要求:**
+请直接输出总结后的文本，无需添加任何解释或标记。
+"""
+
+# 续写文本的 prompt
+CONTINUE_WRITING_PROMPT = """
+**角色:** 你是一位专业的编辑专家，负责对文本进行续写。
+
+**任务:** 基于给定的文本和上下文，继续创作相关内容。
+
+**续写要求:**
+1. **保持风格:** 确保续写内容与原文风格一致
+2. **逻辑连贯:** 确保续写内容与原文逻辑自然衔接
+3. **内容相关:** 续写内容应该与原文主题相关
+4. **适当扩展:** 在原文基础上进行合理的扩展
+5. **保持质量:** 确保续写内容的质量与原文相当
+
+**输入文本:**
+{text}
+
+**上下文信息:**
+{context}
+
+**输出要求:**
+请直接输出续写后的文本，无需添加任何解释或标记。
+"""
+
+# 自定义编辑的 prompt
+CUSTOM_PROMPT = """
+**角色:** 你是一位专业的编辑专家，负责根据用户指令对文本进行自定义编辑。
+
+**任务:** 根据用户提供的具体指令，对文本进行相应的编辑和修改。
+
+**编辑要求:**
+1. **遵循指令:** 严格按照用户提供的指令进行编辑
+2. **保持质量:** 确保编辑后的文本质量良好
+3. **合理修改:** 根据指令进行合理、适当的修改
+4. **保持连贯:** 确保修改后的内容逻辑连贯
+
+**输入文本:**
+{text}
+
+**编辑指令:**
+{command}
+
+**输出要求:**
+请直接输出编辑后的文本，无需添加任何解释或标记。
+"""
+
 # 支持版本选择的PROMPTS字典
 PROMPTS = {
-    "polish_professional": POLISH_PROFESSIONAL_PROMPT,
-    "polish_conversational": POLISH_CONVERSATIONAL_PROMPT,
-    "polish_readable": POLISH_READABLE_PROMPT,
-    "polish_subtle": POLISH_SUBTLE_PROMPT,
-    "polish_academic": POLISH_ACADEMIC_PROMPT,
-    "polish_fast": POLISH_FAST_PROMPT
+    # 润色相关的 prompts
+    "polish": {
+        "professional": POLISH_PROFESSIONAL_PROMPT,
+        "conversational": POLISH_CONVERSATIONAL_PROMPT,
+        "readable": POLISH_READABLE_PROMPT,
+        "subtle": POLISH_SUBTLE_PROMPT,
+        "academic": POLISH_ACADEMIC_PROMPT,
+        "literary": POLISH_FAST_PROMPT  # 暂时使用 fast 版本作为 literary
+    },
+    # 其他编辑操作的 prompts
+    "expand": EXPAND_PROMPT,
+    "summarize": SUMMARIZE_PROMPT,
+    "continue_writing": CONTINUE_WRITING_PROMPT,
+    "custom": CUSTOM_PROMPT
 }

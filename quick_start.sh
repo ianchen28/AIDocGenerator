@@ -1,108 +1,80 @@
 #!/bin/bash
 
 # =================================================================
-# AIDocGenerator - 快速启动脚本
+# AIDocGenerator - 快速启动脚本 (终极优化版)
+# 功能：清理环境 -> 检查依赖 -> 启动 Celery -> 启动 Uvicorn -> 统一管理
 # =================================================================
 
-# 默认端口
-DEFAULT_PORT=8000
+# --- 日志颜色 ---
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-# 解析命令行参数
+# --- 步骤 0: 强制清理 ---
+# 每次启动前都调用停止脚本，确保端口和进程都是干净的
+echo -e "${YELLOW}🔵 步骤 0: 正在强制清理可能残留的旧服务...${NC}"
+# 获取脚本所在目录
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# 执行同目录下的 stop_dev_server.sh
+"$DIR/stop_dev_server.sh"
+echo ""
+
+# --- 后续步骤 ---
+DEFAULT_PORT=8000
 PORT=${1:-$DEFAULT_PORT}
 
-echo "🚀 启动 AI 文档生成器服务..."
+echo -e "${GREEN}🚀 准备启动 AI 文档生成器服务...${NC}"
+echo "=========================================="
 echo "端口: $PORT"
 echo ""
 
-# --- 步骤 1: 检查系统依赖 ---
-echo "🔵 Step 1: 检查系统依赖..."
-
-# 检查conda是否安装
-if ! command -v conda &> /dev/null; then
-    echo "   - ❌ conda 未安装，请先安装 conda"
+# --- 步骤 1: 检查依赖 ---
+echo -e "${YELLOW}🔵 步骤 1: 检查系统依赖...${NC}"
+if ! redis-cli ping > /dev/null 2>&1; then
+    echo -e "   - ${RED}错误: Redis 服务未运行或无法访问。请先启动 Redis。${NC}"
     exit 1
 fi
-
-# 检查Redis配置
-echo "   - 📋 检查Redis配置..."
-REDIS_CONFIG=$(cd service && python -c "
-import sys
-sys.path.append('src')
-from doc_agent.core.config import settings
-config = settings.redis_config
-print(f'{config[\"host\"]}:{config[\"port\"]}')
-" 2>/dev/null)
-
-if [ $? -eq 0 ]; then
-    IFS=':' read -r REDIS_HOST REDIS_PORT <<< "$REDIS_CONFIG"
-    echo "   - 📍 当前Redis配置: $REDIS_HOST:$REDIS_PORT"
-    
-    if [[ "$REDIS_HOST" == "127.0.0.1" || "$REDIS_HOST" == "localhost" ]]; then
-        echo "   - ℹ️  使用本地Redis (如需远程Redis，请运行: ./config_redis.sh)"
-    else
-        echo "   - ℹ️  使用远程Redis (如需本地Redis，请运行: ./config_redis.sh)"
-    fi
-else
-    echo "   - ⚠️  无法读取Redis配置，使用默认配置"
-fi
-
-# 检查Redis是否运行（只检查本地Redis，远程Redis在服务启动时检查）
-if ! redis-cli ping > /dev/null 2>&1; then
-    echo "   - ⚠️  本地Redis未运行（不影响远程Redis使用）"
-else
-    echo "   - ✅ 本地Redis服务正常运行"
-fi
+echo "   - ✅ Redis 服务正常运行"
 
 # --- 步骤 2: 激活 conda 环境 ---
-echo "🔵 Step 2: 激活 conda 环境..."
-if ! conda activate ai-doc 2>/dev/null; then
-    echo "   - ⚠️  尝试手动激活环境..."
-    source ~/miniforge3/etc/profile.d/conda.sh
-    if ! conda activate ai-doc; then
-        echo "   - ❌ 无法激活 ai-doc 环境"
-        echo "   - 请确保已创建 ai-doc 环境: conda create -n ai-doc python=3.12"
-        exit 1
-    fi
-fi
-echo "   - ✅ ai-doc 环境已激活"
-
-# --- 步骤 3: 安装依赖 ---
-echo "🔵 Step 3: 安装项目依赖..."
-cd service
-if ! pip install -e . -i https://mirrors.aliyun.com/pypi/simple/ > /dev/null 2>&1; then
-    echo "   - ❌ 依赖安装失败"
+echo -e "\n${YELLOW}🔵 步骤 2: 激活 conda 环境...${NC}"
+if [[ "$CONDA_DEFAULT_ENV" != "ai-doc" ]]; then
+    echo "   - ⚠️  当前环境不是 'ai-doc'，请先运行 'conda activate ai-doc'"
     exit 1
 fi
-cd ..
-echo "   - ✅ 依赖安装完成"
+echo "   - ✅ 当前环境是 'ai-doc'"
 
-# --- 步骤 4: 启动服务 ---
-echo "🔵 Step 4: 启动开发服务器..."
-echo "   - 使用端口: $PORT"
+# --- 步骤 3: 启动 Celery Worker (后台) ---
+echo -e "\n${YELLOW}🔵 步骤 3: 在后台启动 Celery Worker...${NC}"
+(cd service && python -m workers.celery_worker worker --loglevel=INFO) > celery_worker.log 2>&1 &
+CELERY_PID=$!
+sleep 2 # 等待一下，让进程PID稳定
+if ! ps -p $CELERY_PID > /dev/null; then
+   echo "   - ${RED}Celery Worker 启动失败，请检查 celery_worker.log 文件。${NC}"
+   exit 1
+fi
+echo "   - ✅ Celery Worker 已在后台启动，PID: $CELERY_PID"
+echo "   - 日志正在写入 celery_worker.log"
+
+
+# --- 步骤 4: 启动 FastAPI (前台) ---
+echo -e "\n${YELLOW}🔵 步骤 4: 在前台启动 FastAPI 服务...${NC}"
 echo "   - 服务地址: http://127.0.0.1:$PORT"
 echo "   - API文档: http://127.0.0.1:$PORT/docs"
+echo -e "   - ${YELLOW}按 Ctrl+C 可停止所有服务。${NC}"
 
-# 启动服务并传递端口参数
-nohup ./start_dev_server.sh $PORT > output.log 2>&1 &
-SERVER_PID=$!
-echo "   - ✅ 服务已启动，PID: $SERVER_PID"
-echo "   - 查看日志: tail -f output.log"
+# 定义一个函数用于捕获 Ctrl+C 并优雅地关闭后台进程
+cleanup() {
+    echo -e "\n${YELLOW}🔴 收到关闭信号，正在停止所有服务...${NC}"
+    # 再次调用我们的终极停止脚本
+    "$DIR/stop_dev_server.sh"
+    exit 0
+}
 
-# 等待服务启动
-echo "   - ⏳ 等待服务启动..."
-sleep 3
+# 设置 trap，当脚本接收到退出信号时（比如按下了 Ctrl+C），调用 cleanup 函数
+trap cleanup SIGINT SIGTERM
 
-# 检查服务是否成功启动
-if curl -s http://127.0.0.1:$PORT/ > /dev/null; then
-    echo "   - ✅ 服务启动成功"
-else
-    echo "   - ⚠️  服务可能还在启动中，请稍等片刻"
-fi
-
-echo ""
-echo "🎉 启动完成！"
-echo "📝 使用说明:"
-echo "   - 测试API: curl http://127.0.0.1:$PORT/api/v1/health"
-echo "   - 查看文档: http://127.0.0.1:$PORT/docs"
-echo "   - 停止服务: kill $SERVER_PID"
-echo "   - 查看日志: tail -f output.log"
+# 在 service 目录中启动 uvicorn
+# 使用 exec 可以让 uvicorn 进程替换掉当前的 shell 进程，信号处理更直接
+(cd service && exec uvicorn api.main:app --host 0.0.0.0 --port "$PORT" --reload)

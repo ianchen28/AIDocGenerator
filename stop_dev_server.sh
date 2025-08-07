@@ -1,70 +1,52 @@
 #!/bin/bash
 
 # =================================================================
-# AIDocGenerator - 停止开发环境脚本
+# AIDocGenerator - 停止开发环境脚本 (终极优化版)
+# 功能：查找并强制杀死所有 uvicorn, celery 和 mock 服务进程。
 # =================================================================
 
-echo "🛑 停止 AIDocGenerator 开发环境..."
-echo "=================================="
+# --- 日志颜色 ---
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
-# 查找并停止相关进程
-echo "🔍 查找相关进程..."
+echo -e "${YELLOW}🛑 正在强制停止所有 AIDocGenerator 相关服务...${NC}"
+echo "=================================================="
 
-# 停止 Celery Worker 进程
-CELERY_PIDS=$(ps aux | grep "celery_worker" | grep -v grep | awk '{print $2}')
-if [ -n "$CELERY_PIDS" ]; then
-    echo "   - 找到 Celery Worker 进程: $CELERY_PIDS"
-    echo "$CELERY_PIDS" | xargs kill -TERM
-    sleep 2
-    # 强制终止仍在运行的进程
-    echo "$CELERY_PIDS" | xargs kill -KILL 2>/dev/null
-    echo "   - ✅ Celery Worker 已停止"
+# --- 查找并杀死 Uvicorn (FastAPI) 服务 ---
+# 使用 pgrep -f 可以通过完整的进程命令来查找，更精确
+echo "🔍 正在查找 Uvicorn (FastAPI) 服务..."
+PIDS_UVICORN=$(pgrep -f "uvicorn.*api.main:app")
+if [ -z "$PIDS_UVICORN" ]; then
+    echo -e "   - ${GREEN}没有找到正在运行的 Uvicorn 服务。${NC}"
 else
-    echo "   - ℹ️  未找到 Celery Worker 进程"
+    # -9 信号是强制杀死 (SIGKILL)
+    kill -9 $PIDS_UVICORN
+    echo -e "   - ✅ Uvicorn 服务进程 (PID: ${PIDS_UVICORN}) 已被强制终止。${NC}"
 fi
+echo "--------------------------------------------------"
 
-# 停止 uvicorn 进程
-UVICORN_PIDS=$(ps aux | grep "uvicorn" | grep -v grep | awk '{print $2}')
-if [ -n "$UVICORN_PIDS" ]; then
-    echo "   - 找到 uvicorn 进程: $UVICORN_PIDS"
-    echo "$UVICORN_PIDS" | xargs kill -TERM
-    sleep 2
-    # 强制终止仍在运行的进程
-    echo "$UVICORN_PIDS" | xargs kill -KILL 2>/dev/null
-    echo "   - ✅ uvicorn 服务已停止"
+# --- 查找并杀死 Celery Worker ---
+# 匹配 'workers.celery_worker'，这比 'python -m' 更特定
+echo "🔍 正在查找 Celery Worker..."
+PIDS_CELERY=$(pgrep -f "workers.celery_worker worker")
+if [ -z "$PIDS_CELERY" ]; then
+    echo -e "   - ${GREEN}没有找到正在运行的 Celery Worker。${NC}"
 else
-    echo "   - ℹ️  未找到 uvicorn 进程"
+    kill -9 $PIDS_CELERY
+    echo -e "   - ✅ Celery Worker 进程 (PIDs: ${PIDS_CELERY}) 已被强制终止。${NC}"
 fi
+echo "--------------------------------------------------"
 
-# 停止 Python 进程（可能的后台进程）
-PYTHON_PIDS=$(ps aux | grep "python.*api.main" | grep -v grep | awk '{print $2}')
-if [ -n "$PYTHON_PIDS" ]; then
-    echo "   - 找到 Python API 进程: $PYTHON_PIDS"
-    echo "$PYTHON_PIDS" | xargs kill -TERM
-    sleep 2
-    echo "$PYTHON_PIDS" | xargs kill -KILL 2>/dev/null
-    echo "   - ✅ Python API 进程已停止"
+# --- 查找并杀死 Mock 服务 (如果存在) ---
+echo "🔍 正在查找 Mock 服务..."
+PIDS_MOCK=$(pgrep -f "mock_service/")
+if [ -z "$PIDS_MOCK" ]; then
+    echo -e "   - ${GREEN}没有找到正在运行的 Mock 服务。${NC}"
 else
-    echo "   - ℹ️  未找到 Python API 进程"
+    kill -9 $PIDS_MOCK
+    echo -e "   - ✅ Mock 服务进程 (PIDs: ${PIDS_MOCK}) 已被强制终止。${NC}"
 fi
+echo "--------------------------------------------------"
 
-# 清理日志文件（可选）
-echo ""
-echo "🧹 清理选项:"
-echo "   - 保留日志文件 (默认)"
-echo "   - 清理日志文件 (输入 'clean')"
-read -p "   选择操作 [默认保留]: " choice
-
-if [[ "$choice" == "clean" ]]; then
-    echo "   - 清理日志文件..."
-    rm -f output.log celery_worker.log
-    echo "   - ✅ 日志文件已清理"
-else
-    echo "   - 保留日志文件"
-fi
-
-echo ""
-echo "✅ 所有服务已停止"
-echo "📝 日志文件位置:"
-echo "   - 主日志: output.log"
-echo "   - Celery日志: celery_worker.log" 
+echo -e "${GREEN}✅ 所有服务关闭流程执行完毕。${NC}"
