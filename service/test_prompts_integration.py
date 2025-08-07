@@ -10,7 +10,7 @@ from pathlib import Path
 # 添加项目路径
 sys.path.append(str(Path(__file__).parent / "src"))
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 def test_prompts_import():

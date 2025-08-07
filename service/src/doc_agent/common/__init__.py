@@ -11,7 +11,7 @@ def parse_planner_response(response: str):
     import json
     import re
 
-    from loguru import logger
+    from doc_agent.core.logger import logger
 
     logger.info("开始解析规划器响应")
     logger.debug(f"响应内容长度: {len(response)} 字符")

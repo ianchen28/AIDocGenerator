@@ -4,10 +4,11 @@
 负责初始研究，收集主题相关的信息源
 """
 
+import asyncio
 import json
+from typing import Any, Dict, List, Optional
 
-from loguru import logger
-
+from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
 from doc_agent.graph.common import (
     parse_es_search_results,
@@ -161,8 +162,6 @@ async def initial_research_node(state: ResearchState,
 
         if es_raw_results and len(es_raw_results) > 0:
             try:
-                # 将ESSearchResult列表转换为字符串格式
-                es_results_str = _convert_es_results_to_string(es_raw_results)
                 es_sources = parse_es_search_results(es_raw_results, query,
                                                      source_id_counter)
                 all_sources.extend(es_sources)
@@ -184,33 +183,3 @@ async def initial_research_node(state: ResearchState,
     logger.info(f"✅ 初始研究完成，收集到 {len(all_sources)} 个信息源")
 
     return {"initial_sources": all_sources}
-
-
-def _convert_es_results_to_string(es_results: list) -> str:
-    """
-    将ESSearchResult列表转换为字符串格式
-    
-    Args:
-        es_results: ESSearchResult列表
-        
-    Returns:
-        str: 格式化的字符串
-    """
-    if not es_results:
-        return ""
-
-    result_lines = []
-    for i, result in enumerate(es_results, 1):
-        result_lines.append(f"--- 文档 {i} ---")
-        # 使用 original_content 作为标题，div_content 作为内容
-        title = result.original_content[:100] + "..." if len(
-            result.original_content) > 100 else result.original_content
-        content = result.div_content or result.original_content
-        result_lines.append(f"文档标题: {title}")
-        result_lines.append(f"文档内容: {content}")
-        if result.source:
-            result_lines.append(f"文档来源: {result.source}")
-        result_lines.append(f"相似度分数: {result.score}")
-        result_lines.append("")
-
-    return "\n".join(result_lines)

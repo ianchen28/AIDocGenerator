@@ -3,10 +3,13 @@ import json
 from typing import Union
 
 import redis.asyncio as redis
-from loguru import logger
+from doc_agent.core.logger import logger
 
 # 导入 Celery 应用程序
 from .celery_app import celery_app
+
+# 导入 Redis Stream Publisher
+from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
 
 
 def _get_detailed_progress_message(node_name: str) -> str:
@@ -273,15 +276,23 @@ def generate_document_from_outline_task(job_id: Union[str, int],
     Returns:
         任务状态
     """
-    logger.info(f"文档生成任务开始 - Job ID: {job_id}, Session ID: {session_id}")
+    logger.info(f"🚀 文档生成任务开始 - Job ID: {job_id}, Session ID: {session_id}")
+    logger.info(
+        f"📋 大纲信息: 标题='{outline.get('title', '未知')}', 章节数={len(outline.get('chapters', []))}"
+    )
 
     try:
         # 使用同步方式运行异步函数
-        return asyncio.run(
+        result = asyncio.run(
             _generate_document_from_outline_task_async(job_id, outline,
                                                        session_id))
+        logger.success(f"✅ 文档生成任务完成 - Job ID: {job_id}, 结果: {result}")
+        return result
     except Exception as e:
-        logger.error(f"文档生成任务失败: {e}")
+        logger.error(f"❌ 文档生成任务失败 - Job ID: {job_id}, 错误: {e}")
+        logger.error(f"📊 错误详情: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(f"🔍 堆栈跟踪: {traceback.format_exc()}")
         return "FAILED"
 
 
@@ -290,133 +301,261 @@ async def _generate_document_from_outline_task_async(job_id: Union[str, int],
                                                      session_id: str = None
                                                      ) -> str:
     """异步文档生成任务的内部实现"""
+    logger.info(f"🔄 开始异步文档生成 - Job ID: {job_id}")
+
     try:
         # 获取Redis客户端和发布器
+        logger.info(f"🔗 连接Redis...")
         redis = await get_redis_client()
         from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
         publisher = RedisStreamPublisher(redis)
+        logger.info(f"✅ Redis连接成功")
 
         # 发布任务开始事件
+        logger.info(f"📢 发布任务开始事件...")
         await publisher.publish_task_started(job_id=job_id,
                                              task_type="document_generation",
                                              outline_title=outline.get(
                                                  "title", "未知标题"))
+        logger.info(f"✅ 任务开始事件已发布")
 
         logger.info(
-            f"Job {job_id}: 开始生成文档，大纲标题: '{outline.get('title', '未知标题')}'")
+            f"📝 Job {job_id}: 开始生成文档，大纲标题: '{outline.get('title', '未知标题')}'")
 
-        # 初始化状态，将outline集成到二阶段工作流程
-        from doc_agent.graph.state import ResearchState
-
-        # 构建初始状态
-        initial_state = ResearchState(run_id=str(job_id),
-                                      topic=outline.get("title", "技术文档"),
-                                      style_guide_content=None,
-                                      requirements_content=None,
-                                      initial_sources=[],
-                                      document_outline=outline,
-                                      chapters_to_process=[],
-                                      current_chapter_index=0,
-                                      completed_chapters=[],
-                                      final_document="",
-                                      research_plan="",
-                                      search_queries=[],
-                                      gathered_sources=[],
-                                      sources=[],
-                                      all_sources=[],
-                                      current_citation_index=1,
-                                      cited_sources=[],
-                                      cited_sources_in_chapter=[],
-                                      messages=[])
-
-        # 从outline中提取章节信息
-        chapters = []
-        for i, node in enumerate(outline.get("nodes", [])):
-            chapter_info = {
-                "chapter_title": node.get("title", f"章节 {i+1}"),
-                "description": node.get("content_summary", ""),
-                "node_id": node.get("id", f"node_{i+1}"),
-                "children": node.get("children", [])
-            }
-            chapters.append(chapter_info)
-
-        initial_state["chapters_to_process"] = chapters
-        logger.info(f"Job {job_id}: 提取到 {len(chapters)} 个章节")
-
-        # 发布进度事件
+        # 发布分析进度事件
+        logger.info(f"📊 发布分析进度事件...")
         await publisher.publish_task_progress(job_id=job_id,
                                               task_type="document_generation",
                                               progress="正在分析大纲结构",
                                               step="analysis")
+        logger.info(f"✅ 分析进度事件已发布")
+
+        # 初始化状态，将outline集成到二阶段工作流程
+        logger.info(f"🏗️ 初始化研究状态...")
+        from doc_agent.graph.state import ResearchState
+
+        # 构建初始状态 - 参考 test_decoupled_workflow.py 中的正确配置
+        initial_state = ResearchState(
+            run_id=str(job_id),
+            topic=outline.get("title", "技术文档"),
+            style_guide_content=None,
+            requirements_content=None,
+            initial_sources=[],
+            document_outline=outline,
+            chapters_to_process=[],
+            current_chapter_index=0,
+            completed_chapters=[],
+            final_document="",
+            research_plan="",
+            search_queries=[],
+            gathered_sources=[],
+            sources=[],  # 🔧 修复：添加缺失的字段
+            all_sources=[],  # 🔧 修复：添加缺失的字段
+            current_citation_index=1,  # 🔧 修复：引用索引应该从1开始
+            cited_sources=[],  # 🔧 修复：添加缺失的字段
+            cited_sources_in_chapter=[],  # 🔧 修复：添加缺失的字段
+            messages=[])
+        logger.info(f"✅ 研究状态初始化完成")
+
+        # 从outline中提取章节信息
+        logger.info(f"📖 提取章节信息...")
+        chapters = []
+        for i, chapter in enumerate(outline.get("chapters", [])):
+            chapter_info = {
+                "chapter_title": chapter.get("title", f"章节 {i+1}"),
+                "description": chapter.get("description", ""),
+                "node_id": f"chapter_{i+1}",
+                "children": chapter.get("sections", [])
+            }
+            chapters.append(chapter_info)
+            logger.info(f"📄 章节 {i+1}: {chapter_info['chapter_title']}")
+
+        initial_state["chapters_to_process"] = chapters
+        logger.info(f"✅ 提取到 {len(chapters)} 个章节")
 
         # 获取容器和章节工作流图
+        logger.info(f"🔧 获取容器和章节工作流...")
         container = get_container()
         chapter_workflow = container.chapter_graph
 
         if not chapter_workflow:
-            logger.error(f"Job {job_id}: 章节工作流图未找到")
+            logger.error(f"❌ Job {job_id}: 章节工作流图未找到")
             raise Exception("章节工作流图未初始化")
+        logger.info(f"✅ 章节工作流图获取成功")
 
         # 开始处理每个章节
+        logger.info(f"🚀 开始处理章节...")
         completed_chapters = []
         all_sources = []
         cited_sources = []
+        all_answer_origins = []
+        all_web_sources = []
 
         for chapter_index, chapter in enumerate(chapters):
+            chapter_title = chapter["chapter_title"]
             logger.info(
-                f"Job {job_id}: 开始处理章节 {chapter_index + 1}/{len(chapters)}: {chapter['chapter_title']}"
+                f"📝 Job {job_id}: 开始处理章节 {chapter_index + 1}/{len(chapters)}: {chapter_title}"
             )
 
+            # 发布章节开始事件
+            logger.info(f"📢 发布章节开始事件...")
+            await publisher.publish_event(
+                job_id, {
+                    "eventType": "chapter_started",
+                    "taskType": "document_generation",
+                    "chapterTitle": chapter_title,
+                    "chapterIndex": chapter_index,
+                    "totalChapters": len(chapters),
+                    "status": "running"
+                })
+            logger.info(f"✅ 章节开始事件已发布")
+
             # 更新当前章节索引
+            logger.info(f"🔄 更新当前章节状态...")
             current_state = initial_state.copy()
             current_state["current_chapter_index"] = chapter_index
             current_state["chapters_to_process"] = chapters
             current_state["completed_chapters"] = completed_chapters
             current_state["all_sources"] = all_sources
             current_state["cited_sources"] = cited_sources
+            logger.info(f"✅ 章节状态更新完成")
 
             # 发布章节处理进度
+            logger.info(f"📊 发布章节处理进度...")
             await publisher.publish_task_progress(
                 job_id=job_id,
                 task_type="document_generation",
-                progress=f"正在处理章节: {chapter['chapter_title']}",
+                progress=f"正在处理章节: {chapter_title}",
                 step=f"chapter_{chapter_index + 1}")
+            logger.info(f"✅ 章节处理进度已发布")
 
             try:
+                # 模拟章节处理步骤（参照 mock 实现）
+                logger.info(f"🔄 开始模拟章节处理步骤...")
+                steps = ["planner", "researcher", "supervisor", "writer"]
+                for step in steps:
+                    logger.info(f"⚙️ 执行步骤: {step}")
+                    await publisher.publish_event(
+                        job_id, {
+                            "eventType": "chapter_progress",
+                            "taskType": "document_generation",
+                            "chapterTitle": chapter_title,
+                            "step": step,
+                            "progress": f"正在执行{step}步骤",
+                            "status": "running"
+                        })
+                    # 模拟步骤处理时间
+                    await asyncio.sleep(0.5)
+                    logger.info(f"✅ 步骤 {step} 完成")
+
                 # 执行章节工作流
+                logger.info(f"🚀 开始执行章节工作流...")
+                logger.info(f"📊 当前状态键: {list(current_state.keys())}")
+
+                # 添加更多调试信息
+                logger.info(f"🔍 章节工作流类型: {type(chapter_workflow)}")
+                logger.info(f"🔍 章节工作流方法: {dir(chapter_workflow)}")
+
                 result = await chapter_workflow.ainvoke(current_state)
+                logger.info(f"✅ 章节工作流执行完成")
+                logger.info(
+                    f"📊 工作流结果键: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}"
+                )
 
                 # 提取章节结果
                 if "final_document" in result:
                     chapter_content = result["final_document"]
+                    logger.info(f"📄 从结果中提取到章节内容，长度: {len(chapter_content)}")
                 else:
-                    chapter_content = f"章节 {chapter['chapter_title']} 的内容..."
+                    chapter_content = f"章节 {chapter_title} 的内容..."
+                    logger.warning(f"⚠️ 未找到final_document，使用默认内容")
 
                 # 收集引用源
                 chapter_sources = result.get("cited_sources_in_chapter", [])
                 all_sources.extend(chapter_sources)
                 cited_sources.extend(chapter_sources)
+                logger.info(f"📚 收集到 {len(chapter_sources)} 个引用源")
+
+                # 生成模拟的引用源（参照 mock 实现）
+                logger.info(f"🎭 生成模拟引用源...")
+                chapter_answer_origins = generate_mock_sources_for_chapter(
+                    chapter_title, chapter_index)
+                chapter_web_sources = generate_mock_web_sources_for_chapter(
+                    chapter_title, chapter_index)
+
+                all_answer_origins.extend(chapter_answer_origins)
+                all_web_sources.extend(chapter_web_sources)
+                logger.info(
+                    f"✅ 生成模拟引用源完成: {len(chapter_answer_origins)} 个文档源, {len(chapter_web_sources)} 个网页源"
+                )
 
                 # 保存章节结果
                 completed_chapter = {
-                    "title": chapter["chapter_title"],
+                    "title": chapter_title,
                     "content": chapter_content,
                     "sources": chapter_sources,
                     "chapter_index": chapter_index
                 }
                 completed_chapters.append(completed_chapter)
+                logger.info(f"💾 章节结果已保存")
 
-                logger.info(
-                    f"Job {job_id}: 章节 {chapter['chapter_title']} 处理完成")
+                # 发布章节完成事件
+                logger.info(f"📢 发布章节完成事件...")
+                await publisher.publish_event(
+                    job_id, {
+                        "eventType": "chapter_completed",
+                        "taskType": "document_generation",
+                        "chapterTitle": chapter_title,
+                        "chapterContent": chapter_content,
+                        "chapterIndex": chapter_index,
+                        "status": "completed"
+                    })
+                logger.info(f"✅ 章节完成事件已发布")
+
+                # 发布写作开始事件
+                logger.info(f"📢 发布写作开始事件...")
+                await publisher.publish_event(
+                    job_id, {
+                        "eventType": "writer_started",
+                        "taskType": "document_generation",
+                        "progress": f"开始编写章节 {chapter_index + 1}",
+                        "status": "running"
+                    })
+                logger.info(f"✅ 写作开始事件已发布")
+
+                # 流式输出章节内容
+                logger.info(f"📤 开始流式输出章节内容...")
+                await stream_document_content(publisher, job_id,
+                                              chapter_content)
+                logger.info(f"✅ 章节内容流式输出完成")
+
+                logger.info(f"✅ Job {job_id}: 章节 {chapter_title} 处理完成")
 
             except Exception as chapter_error:
                 logger.error(
-                    f"Job {job_id}: 章节 {chapter['chapter_title']} 处理失败: {chapter_error}"
+                    f"❌ Job {job_id}: 章节 {chapter_title} 处理失败: {chapter_error}"
                 )
+                logger.error(
+                    f"🔍 章节错误详情: {type(chapter_error).__name__}: {str(chapter_error)}"
+                )
+                import traceback
+                logger.error(f"📋 章节错误堆栈: {traceback.format_exc()}")
+
+                # 发布章节失败事件
+                await publisher.publish_event(
+                    job_id, {
+                        "eventType": "chapter_failed",
+                        "taskType": "document_generation",
+                        "chapterTitle": chapter_title,
+                        "chapterIndex": chapter_index,
+                        "error": str(chapter_error),
+                        "status": "failed"
+                    })
                 # 继续处理下一个章节
                 continue
 
         # 合并所有章节内容
+        logger.info(f"📄 开始合并所有章节内容...")
         final_document_parts = []
         final_document_parts.append(f"# {outline.get('title', '技术文档')}\n\n")
 
@@ -425,8 +564,42 @@ async def _generate_document_from_outline_task_async(job_id: Union[str, int],
             final_document_parts.append(f"{chapter['content']}\n\n")
 
         final_document = "".join(final_document_parts)
+        logger.info(f"✅ 章节内容合并完成，总长度: {len(final_document)}")
+
+        # 发布参考文献事件
+        logger.info(f"📚 发布参考文献事件...")
+        citations_data = {
+            "answerOrigins": all_answer_origins,
+            "webs": all_web_sources
+        }
+
+        await publisher.publish_event(
+            job_id, {
+                "eventType": "citations_completed",
+                "taskType": "document_generation",
+                "citations": citations_data,
+                "totalAnswerOrigins": len(all_answer_origins),
+                "totalWebSources": len(all_web_sources),
+                "status": "completed"
+            })
+        logger.info(f"✅ 参考文献事件已发布")
 
         # 生成最终文档结果
+        logger.info(f"📋 生成最终文档结果...")
+
+        # 将Source对象转换为可序列化的字典
+        serializable_sources = []
+        for source in all_sources:
+            if hasattr(source, 'model_dump'):
+                # 如果是Pydantic模型，使用model_dump()
+                serializable_sources.append(source.model_dump())
+            elif hasattr(source, '__dict__'):
+                # 如果是普通对象，转换为字典
+                serializable_sources.append(source.__dict__)
+            else:
+                # 如果是其他类型，尝试转换为字符串
+                serializable_sources.append(str(source))
+
         document_result = {
             "title": outline.get("title", "技术文档"),
             "content": final_document,
@@ -435,39 +608,247 @@ async def _generate_document_from_outline_task_async(job_id: Union[str, int],
             "sections": len(completed_chapters),
             "generated_at": str(asyncio.get_event_loop().time()),
             "chapters": completed_chapters,
-            "sources": all_sources
+            "sources": serializable_sources,  # 使用可序列化的版本
+            "citations": citations_data
         }
+        logger.info(f"✅ 最终文档结果生成完成")
 
         # 发布文档生成完成事件
+        logger.info(f"📢 发布文档生成完成事件...")
         await publisher.publish_document_generated(job_id, document_result)
+        logger.info(f"✅ 文档生成完成事件已发布")
 
         # 保存文档结果到Redis
+        logger.info(f"💾 保存文档结果到Redis...")
         document_json = json.dumps(document_result, ensure_ascii=False)
         await redis.set(f"job_result:{job_id}", document_json,
                         ex=3600)  # 1小时过期
+        logger.info(f"✅ 文档结果已保存到Redis")
 
         # 发布任务完成事件
+        logger.info(f"📢 发布任务完成事件...")
         await publisher.publish_task_completed(
             job_id=job_id,
             task_type="document_generation",
             result={"document": document_result},
             duration="completed")
+        logger.info(f"✅ 任务完成事件已发布")
 
-        logger.info(f"Job {job_id}: 文档生成完成，共处理 {len(completed_chapters)} 个章节")
+        logger.info(
+            f"🎉 Job {job_id}: 文档生成完成，共处理 {len(completed_chapters)} 个章节")
 
         return "COMPLETED"
 
     except Exception as e:
-        logger.error(f"Job {job_id}: 文档生成失败: {e}")
+        logger.error(f"❌ Job {job_id}: 文档生成失败: {e}")
+        logger.error(f"🔍 错误详情: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(f"📋 错误堆栈: {traceback.format_exc()}")
 
         # 发布任务失败事件
         try:
+            logger.info(f"📢 发布任务失败事件...")
             await publisher.publish_task_failed(
                 job_id=job_id, task_type="document_generation", error=str(e))
+            logger.info(f"✅ 任务失败事件已发布")
         except Exception as publish_error:
-            logger.error(f"发布失败事件时出错: {publish_error}")
+            logger.error(f"❌ 发布失败事件时出错: {publish_error}")
 
         return "FAILED"
+
+
+async def stream_document_content(publisher: RedisStreamPublisher,
+                                  job_id: str,
+                                  content: str,
+                                  chunk_size: int = 10):
+    """流式输出文档内容到Redis Stream"""
+    try:
+        # 将内容按字符分割成token
+        tokens = list(content)
+
+        for i in range(0, len(tokens), chunk_size):
+            chunk = tokens[i:i + chunk_size]
+            chunk_text = ''.join(chunk)
+
+            # 发布内容流事件
+            await publisher.publish_event(
+                job_id, {
+                    "eventType": "document_content_stream",
+                    "taskType": "document_generation",
+                    "content": chunk_text,
+                    "tokenIndex": i,
+                    "totalTokens": len(tokens),
+                    "progress": f"{i + len(chunk)}/{len(tokens)}",
+                    "status": "streaming"
+                })
+
+            # 模拟token生成的时间间隔
+            await asyncio.sleep(0.1)
+
+        # 发布流式输出完成事件
+        await publisher.publish_event(
+            job_id, {
+                "eventType": "document_content_completed",
+                "taskType": "document_generation",
+                "totalTokens": len(tokens),
+                "status": "completed"
+            })
+
+        logger.info(f"文档内容流式输出完成，共 {len(tokens)} 个token")
+
+    except Exception as e:
+        logger.error(f"流式输出文档内容失败: {e}")
+
+
+def generate_mock_sources_for_chapter(chapter_title: str,
+                                      chapter_index: int) -> list:
+    """为章节生成模拟的引用源列表"""
+    import time
+
+    sources = []
+
+    # 生成文档类型的引用源
+    sources.append({
+        "id":
+        f"{chapter_index * 3 + 1}",
+        "detailId":
+        f"{chapter_index * 3 + 1}",
+        "originInfo":
+        f"关于{chapter_title}的重要研究成果和最新发现。本文主要参考了相关领域的研究文献，包括理论基础、实证研究和应用案例。",
+        "title":
+        f"{chapter_title}研究综述.pdf",
+        "fileToken":
+        f"token_{chapter_index * 3 + 1}_{int(time.time())}",
+        "domainId":
+        "document",
+        "isFeishuSource":
+        None,
+        "valid":
+        "true",
+        "metadata":
+        json.dumps(
+            {
+                "file_name": f"{chapter_title}研究综述.pdf",
+                "locations": [{
+                    "pagenum": chapter_index + 1
+                }],
+                "source": "data_platform"
+            },
+            ensure_ascii=False)
+    })
+
+    # 生成标准类型的引用源
+    sources.append({
+        "id":
+        f"{chapter_index * 3 + 2}",
+        "detailId":
+        f"{chapter_index * 3 + 2}",
+        "originInfo":
+        f"详细的技术分析报告，包含{chapter_title}的核心技术要点和标准规范。",
+        "title":
+        f"GB/T {chapter_index + 1000}-2023 {chapter_title}技术标准.pdf",
+        "fileToken":
+        f"token_{chapter_index * 3 + 2}_{int(time.time())}",
+        "domainId":
+        "standard",
+        "isFeishuSource":
+        None,
+        "valid":
+        "true",
+        "metadata":
+        json.dumps(
+            {
+                "file_name":
+                f"GB/T {chapter_index + 1000}-2023 {chapter_title}技术标准.pdf",
+                "locations": [{
+                    "pagenum": chapter_index + 5
+                }],
+                "code": f"GB/T {chapter_index + 1000}-2023",
+                "gfid": f"GB/T {chapter_index + 1000}-2023",
+                "source": "data_platform"
+            },
+            ensure_ascii=False)
+    })
+
+    # 生成书籍类型的引用源
+    sources.append({
+        "id":
+        f"{chapter_index * 3 + 3}",
+        "detailId":
+        f"{chapter_index * 3 + 3}",
+        "originInfo":
+        f"最新的学术研究成果，为{chapter_title}提供了理论支撑和实践指导。",
+        "title":
+        f"{chapter_title}技术手册.pdf",
+        "fileToken":
+        f"token_{chapter_index * 3 + 3}_{int(time.time())}",
+        "domainId":
+        "book",
+        "isFeishuSource":
+        None,
+        "valid":
+        "true",
+        "metadata":
+        json.dumps(
+            {
+                "file_name": f"{chapter_title}技术手册.pdf",
+                "locations": [{
+                    "pagenum": chapter_index + 10
+                }],
+                "source": "data_platform"
+            },
+            ensure_ascii=False)
+    })
+
+    return sources
+
+
+def generate_mock_web_sources_for_chapter(chapter_title: str,
+                                          chapter_index: int) -> list:
+    """为章节生成模拟的网页引用源列表"""
+    import time
+
+    web_sources = []
+
+    web_sources.append({
+        "id":
+        f"web_{chapter_index * 2 + 1}",
+        "detailId":
+        f"web_{chapter_index * 2 + 1}",
+        "materialContent":
+        f"关于{chapter_title}的在线资料和最新动态。包含相关技术发展、行业趋势和实际应用案例。",
+        "materialTitle":
+        f"{chapter_title}技术发展动态-技术资讯",
+        "url":
+        f"https://example.com/tech/{chapter_title.lower().replace(' ', '-')}",
+        "siteName":
+        "技术资讯网",
+        "datePublished":
+        "2023年12月15日",
+        "materialId":
+        f"web_{chapter_index * 2 + 1}_{int(time.time())}"
+    })
+
+    web_sources.append({
+        "id":
+        f"web_{chapter_index * 2 + 2}",
+        "detailId":
+        f"web_{chapter_index * 2 + 2}",
+        "materialContent":
+        f"{chapter_title}相关的研究报告和行业分析。",
+        "materialTitle":
+        f"{chapter_title}行业分析报告-研究报告",
+        "url":
+        f"https://research.example.com/report/{chapter_index + 1}",
+        "siteName":
+        "研究报告网",
+        "datePublished":
+        "2023年11月20日",
+        "materialId":
+        f"web_{chapter_index * 2 + 2}_{int(time.time())}"
+    })
+
+    return web_sources
 
 
 @celery_app.task

@@ -7,7 +7,9 @@
 from pprint import pformat as pprint
 from typing import Any
 
-from loguru import logger
+from doc_agent.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.config import settings

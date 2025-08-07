@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from api.endpoints import router
 

@@ -6,8 +6,7 @@ import json
 import re
 from typing import Any
 
-from loguru import logger
-
+from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
 
 

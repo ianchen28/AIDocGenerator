@@ -7,7 +7,9 @@
 import json
 from typing import Any
 
-from loguru import logger
+from doc_agent.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 from doc_agent.core.config import settings
 from doc_agent.graph.common import merge_sources_with_deduplication
@@ -288,4 +290,12 @@ async def async_researcher_node(
         logger.debug(
             f"  {i}. [{source.id}] {source.title} ({source.source_type})")
 
-    return {"gathered_sources": all_sources}
+    # 🔧 新增：更新重试计数器
+    current_retry_count = state.get("researcher_retry_count", 0)
+    new_retry_count = current_retry_count + 1
+    logger.info(f"📊 更新重试计数器: {current_retry_count} -> {new_retry_count}")
+
+    return {
+        "gathered_sources": all_sources,
+        "researcher_retry_count": new_retry_count
+    }

@@ -7,8 +7,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from loguru import logger
-
+from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
 
 # --- 导入核心组件 ---

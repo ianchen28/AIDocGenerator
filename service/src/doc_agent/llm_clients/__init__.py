@@ -1,7 +1,7 @@
-# service/src/doc_agent/llm_clients/__init__.py
-import pprint
+"""LLM客户端模块"""
 
-from loguru import logger
+from pprint import pformat
+from doc_agent.core.logger import logger
 
 from doc_agent.core.config import settings
 
@@ -32,8 +32,7 @@ def get_llm_client(model_key: str = "qwen_2_5_235b_a22b") -> LLMClient:
         logger.error(f"❌ 模型配置未找到: {model_key}")
         raise ValueError(f"Model {model_key} not found in configuration")
 
-    logger.debug(
-        f"Model configuration:\n{pprint.pformat(model_config.__dict__)}")
+    logger.debug(f"Model configuration:\n{pformat(model_config.__dict__)}")
 
     # 根据模型类型创建相应的客户端
     if model_config.type == "enterprise_generate":

@@ -5,7 +5,7 @@ ES可用性检测模块
 
 from typing import Any, Optional
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from .es_service import ESService
 

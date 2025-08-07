@@ -4,7 +4,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from loguru import logger
+from doc_agent.core.logger import logger
 
 # 导入我们新的、统一的数据模型
 from doc_agent.schemas import (
@@ -63,22 +63,55 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
     status_code=status.HTTP_202_ACCEPTED)
 async def generate_document_from_outline_json(
     request: DocumentGenerationFromOutlineRequest, ):
-    logger.info(f"收到从outline JSON生成文档请求，jobId: {request.job_id}")
+    logger.info(f"📥 收到从outline JSON生成文档请求，jobId: {request.job_id}")
+    logger.info(
+        f"📋 请求详情: sessionId={request.session_id}, outline长度={len(request.outline_json)}"
+    )
+
     task_id = generate_task_id()
+    logger.info(f"🆔 生成任务ID: {task_id}")
+
     try:
+        logger.info(f"🔍 解析outline JSON...")
         outline_data = json.loads(request.outline_json)
-        tasks.generate_document_from_outline_task.delay(
-            job_id=task_id,
-            outline=outline_data,
-            session_id=request.session_id,
+        logger.info(
+            f"✅ outline解析成功: 标题='{outline_data.get('title', '未知')}', 章节数={len(outline_data.get('chapters', []))}"
         )
-        logger.success(f"文档生成任务已提交，Task ID: {task_id}")
-        return TaskCreationResponse(
+
+        logger.info(f"🚀 提交Celery任务...")
+        try:
+            result = tasks.generate_document_from_outline_task.delay(
+                job_id=task_id,
+                outline=outline_data,
+                session_id=request.session_id,
+            )
+            logger.info(f"🔍 Celery任务发送结果: {result}")
+            logger.success(f"✅ 文档生成任务已提交，Task ID: {task_id}")
+        except Exception as e:
+            logger.error(f"❌ Celery任务发送失败: {e}")
+            logger.error(f"🔍 错误详情: {type(e).__name__}: {str(e)}")
+            import traceback
+            logger.error(f"📋 错误堆栈: {traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail="Celery任务发送失败")
+
+        response = TaskCreationResponse(
             redis_stream_key=task_id,
             session_id=request.session_id,
         )
+        logger.info(f"📤 返回响应: {response}")
+        return response
+
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ outline JSON解析失败: {e}")
+        logger.error(f"📄 原始JSON: {request.outline_json[:200]}...")
+        raise HTTPException(status_code=400,
+                            detail=f"outline JSON格式错误: {str(e)}")
+
     except Exception as e:
-        logger.error(f"提交文档生成任务失败: {e}")
+        logger.error(f"❌ 提交文档生成任务失败: {e}")
+        logger.error(f"🔍 错误详情: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(f"📋 错误堆栈: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="任务提交失败")
 
 
@@ -204,17 +237,6 @@ async def simulate_mock_generation_process(task_id: str, session_id: str):
             all_answer_origins.extend(chapter_sources)
             all_web_sources.extend(chapter_web_sources)
 
-            # 发布章节完成事件
-            await publish_mock_event(
-                redis_client, task_id, {
-                    "eventType": "chapter_completed",
-                    "taskType": "document_generation",
-                    "chapterTitle": chapter_title,
-                    "chapterContent": chapter_content,
-                    "chapterIndex": chapter_index,
-                    "status": "completed"
-                })
-
             # 流式输出章节内容
             await publish_mock_event(
                 redis_client, task_id, {
@@ -292,10 +314,8 @@ async def publish_mock_event(redis_client, task_id: str, event_data: dict):
         event_data["timestamp"] = datetime.now().isoformat()
 
         await redis_client.xadd(
-            stream_name,
-            {"data": json.dumps(event_data, ensure_ascii=False)},
-            id=session_id_idx
-        )
+            stream_name, {"data": json.dumps(event_data, ensure_ascii=False)},
+            id=session_id_idx)
         logger.info(f"模拟事件发布成功: {event_data.get('eventType', 'unknown')}")
     except Exception as e:
         logger.error(f"模拟事件发布失败: {e}")

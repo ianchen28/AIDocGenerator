@@ -7,7 +7,7 @@ Redis Streams 事件发布器
 import json
 from typing import Optional, Union
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 class RedisStreamPublisher:
@@ -51,14 +51,17 @@ class RedisStreamPublisher:
             # 发布事件到 Redis Stream
             counter_key = f"stream_counter:{stream_name}"
             i = await self.redis_client.incr(counter_key)
-            id_str = f"{job_id}-{i}"
+            # 使用时间戳格式的ID，符合Redis Stream要求
+            import time
+            timestamp = int(time.time() * 1000)  # 毫秒级时间戳
+            id_str = f"{timestamp}-{i}"
             # 准备事件数据
             event_data["redisId"] = id_str
 
             event_id = await self.redis_client.xadd(
                 stream_name,
                 {"data": json.dumps(event_data, ensure_ascii=False)},
-                id=id_str)
+                id="*")  # 让Redis自动生成ID
 
             logger.info(
                 f"事件发布成功: job_id={job_id}, event_id={event_id}, event_type={event_data.get('event_type', 'unknown')}, i={i}"
@@ -136,13 +139,17 @@ class RedisStreamPublisher:
         Returns:
             str: 事件ID
         """
+        # 处理不可序列化的对象
+        serializable_result = self._make_serializable(result) if result else {}
+        serializable_kwargs = self._make_serializable(kwargs)
+
         event_data = {
             "eventType": "task_completed",
             "taskType": task_type,
             "status": "completed",
-            "result": result or {},
+            "result": serializable_result,
             "timestamp": self._get_current_timestamp(),
-            **kwargs
+            **serializable_kwargs
         }
 
         return await self.publish_event(job_id, event_data)
@@ -207,15 +214,51 @@ class RedisStreamPublisher:
         Returns:
             str: 事件ID
         """
+        # 处理不可序列化的对象
+        serializable_document = self._make_serializable(document)
+
         event_data = {
             "eventType": "document_generated",
             "taskType": "document_generation",
             "status": "completed",
-            "document": document,
+            "document": serializable_document,
             "timestamp": self._get_current_timestamp()
         }
 
         return await self.publish_event(job_id, event_data)
+
+    def _make_serializable(self, obj):
+        """
+        将对象转换为可序列化的格式
+        
+        Args:
+            obj: 要转换的对象
+            
+        Returns:
+            可序列化的对象
+        """
+        if isinstance(obj, dict):
+            return {
+                key: self._make_serializable(value)
+                for key, value in obj.items()
+            }
+        elif isinstance(obj, list):
+            return [self._make_serializable(item) for item in obj]
+        elif hasattr(obj, 'model_dump'):
+            # 如果是Pydantic模型，使用model_dump()
+            return obj.model_dump()
+        elif hasattr(obj, '__dict__'):
+            # 如果是普通对象，转换为字典
+            return obj.__dict__
+        elif hasattr(obj, 'isoformat'):
+            # 如果是datetime对象
+            return obj.isoformat()
+        else:
+            # 如果是其他类型，尝试转换为字符串
+            try:
+                return str(obj)
+            except:
+                return f"<{type(obj).__name__} object>"
 
     def _get_current_timestamp(self) -> str:
         """

@@ -3,10 +3,11 @@ RerankerTool 重排序工具
 接收 ESSearchResult 列表，调用 RerankerClient 进行重排序
 """
 
+import json
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from ..llm_clients.providers import RerankerClient
 from .es_service import ESSearchResult

@@ -2,7 +2,9 @@
 import pprint
 from typing import Literal
 
-from loguru import logger
+from doc_agent.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.graph.state import ResearchState
@@ -33,10 +35,21 @@ def supervisor_router(
     gathered_sources = state.get("gathered_sources", [])
     gathered_data = state.get("gathered_data", "")  # 保持向后兼容
 
+    # 🔧 新增：检查重试次数，避免无限循环
+    retry_count = state.get("researcher_retry_count", 0)
+    max_retries = 3  # 最大重试次数
+
+    logger.info(f"📊 当前重试次数: {retry_count}/{max_retries}")
+
     if not topic:
         # 如果没有主题，默认需要重新研究
         logger.warning("❌ 没有主题，返回 rerun_researcher")
         return "rerun_researcher"
+
+    # 🔧 新增：如果超过最大重试次数，强制继续到writer
+    if retry_count >= max_retries:
+        logger.warning(f"⚠️ 已达到最大重试次数 {max_retries}，强制继续到writer")
+        return "continue_to_writer"
 
     # 检查是否有研究数据（优先检查 gathered_sources）
     if not gathered_sources and not gathered_data:
@@ -60,104 +73,17 @@ def supervisor_router(
     logger.info(f"📊 Gathered data 长度: {total_length} 字符")
     logger.info(f"🔍 来源数量: {num_sources}")
 
-    # 使用 PromptSelector 获取 prompt 模板
-    try:
-        prompt_template = prompt_selector.get_prompt("prompts", "supervisor",
-                                                     genre)
-        logger.debug(f"✅ 成功获取 supervisor prompt 模板，genre: {genre}")
-    except Exception as e:
-        logger.error(f"❌ 获取 supervisor prompt 模板失败: {e}")
-        # 使用默认的 prompt 模板作为备用
-        prompt_template = """**角色：** 你是一个高效的决策机器人。
-**任务：** 根据下方的数据摘要，判断是否可以开始为「{topic}」撰写一个章节。
+    # 🔧 新增：简化决策逻辑，避免LLM调用失败
+    # 如果数据量足够，直接继续到writer
+    if num_sources >= 2 or total_length >= 500:
+        logger.info("✅ 数据量充足，直接继续到writer")
+        return "continue_to_writer"
 
-**决策标准：**
-- 如果来源数量 >= 3 且总字符数 >= 200，返回 "FINISH"
-- 如果来源数量 >= 2 且总字符数 >= 500，返回 "FINISH"
-- 其他情况返回 "CONTINUE"
-
-**数据摘要：**
-- 来源数量: {num_sources}
-- 总字符数: {total_length}
-
-**你的决策：**
-你的回答只能是一个单词："FINISH" 或 "CONTINUE"。
-"""
-
-    # 3. 构建简化的评估提示词
-    prompt = prompt_template.format(topic=topic,
-                                    num_sources=num_sources,
-                                    total_length=total_length)
-
-    logger.debug(
-        f"Invoking LLM with supervisor prompt:\n{pprint.pformat(prompt)}")
-
-    try:
-        # 4. 调用 LLM 客户端
-        # 使用小的 max_tokens，因为期望的输出很短
-        max_tokens = 10
-
-        logger.info("🤖 调用 LLM 进行决策判断...")
-        logger.debug(f"📝 Prompt 长度: {len(prompt)} 字符")
-        logger.debug(f"🔧 参数: max_tokens={max_tokens}, temperature=0")
-
-        # 添加重试机制
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = llm_client.invoke(prompt,
-                                             temperature=0,
-                                             max_tokens=max_tokens)
-                break  # 成功则跳出重试循环
-            except Exception as e:
-                if "400" in str(e) and attempt < max_retries - 1:
-                    logger.warning(
-                        f"⚠️  第 {attempt + 1} 次尝试失败 (400错误)，正在重试...")
-                    import time
-                    time.sleep(2)  # 等待2秒后重试
-                    continue
-                else:
-                    raise e  # 最后一次尝试失败或其他错误，抛出异常
-
-                # 4. 解析响应 - 简化处理逻辑
-        # 直接检查响应中是否包含 "FINISH" 或 "CONTINUE"
-        decision = response.strip().upper()
-        clean_response = response  # 初始化 clean_response
-
-        # 如果响应被截断或包含推理过程，尝试提取决策关键词
-        if "FINISH" not in decision and "CONTINUE" not in decision:
-            # 尝试从响应中提取任何可能的决策词
-            import re
-            # 移除可能的推理标签
-            clean_response = re.sub(r'<think>.*',
-                                    '',
-                                    response,
-                                    flags=re.IGNORECASE)
-            clean_response = re.sub(r'<THINK>.*',
-                                    '',
-                                    clean_response,
-                                    flags=re.IGNORECASE)
-            decision = clean_response.strip().upper()
-
-        # 添加详细的调试信息
-        logger.debug(f"🔍 LLM原始响应: '{response}'")
-        logger.debug(f"🔍 响应长度: {len(response)} 字符")
-        logger.debug(f"🔍 清理后响应: '{clean_response}'")
-        logger.debug(f"🔍 处理后决策: '{decision}'")
-        logger.debug(f"🔍 是否包含FINISH: {'FINISH' in decision}")
-        logger.debug(f"🔍 是否包含CONTINUE: {'CONTINUE' in decision}")
-
-        # 5. 根据响应决定路由
-        if "FINISH" in decision:
-            logger.info("✅ 决策: FINISH -> continue_to_writer")
-            return "continue_to_writer"
-        else:
-            # 如果包含 "CONTINUE" 或其他任何内容，都需要重新研究
-            logger.info("✅ 决策: CONTINUE/其他 -> rerun_researcher")
-            return "rerun_researcher"
-
-    except Exception as e:
-        # 如果 LLM 调用失败，默认继续研究以确保安全
-        logger.error(f"❌ Supervisor router error: {str(e)}")
-        logger.error(f"❌ 错误类型: {type(e).__name__}")
+    # 如果数据量不足但还有重试机会，继续研究
+    if retry_count < max_retries:
+        logger.info("📝 数据量不足，继续研究")
         return "rerun_researcher"
+
+    # 如果数据量不足且已达到最大重试次数，强制继续
+    logger.warning("⚠️ 数据量不足但已达到最大重试次数，强制继续到writer")
+    return "continue_to_writer"

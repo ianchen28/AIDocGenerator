@@ -9,7 +9,7 @@
 import re
 from typing import Optional
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from doc_agent.schemas import Source
 

@@ -12,7 +12,7 @@ from uuid import UUID
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
-from loguru import logger
+from doc_agent.core.logger import logger
 
 # 导入Redis Streams发布器
 from doc_agent.core.redis_stream_publisher import RedisStreamPublisher

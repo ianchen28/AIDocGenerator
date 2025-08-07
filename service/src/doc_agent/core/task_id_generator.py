@@ -8,7 +8,7 @@ import time
 import uuid
 from typing import Union
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 class TaskIdGenerator:

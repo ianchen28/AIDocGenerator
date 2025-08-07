@@ -9,7 +9,7 @@ import json
 from typing import Any, Callable, Union
 
 import redis.asyncio as redis
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 class RedisStreamConsumer:

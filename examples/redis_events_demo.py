@@ -9,7 +9,7 @@ import asyncio
 import aioredis
 import json
 import aiohttp
-from loguru import logger
+from doc_agent.core.logger import logger
 from datetime import datetime
 
 

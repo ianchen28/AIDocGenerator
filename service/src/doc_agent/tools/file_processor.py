@@ -5,7 +5,7 @@
 """
 
 from typing import List, Dict, Optional, Tuple
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 class FileProcessor:

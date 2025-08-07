@@ -1,6 +1,6 @@
 # service/src/doc_agent/graph/builder.py
 from langgraph.graph import END, StateGraph
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from ..state import ResearchState
 

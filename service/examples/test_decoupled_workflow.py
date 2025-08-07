@@ -3,12 +3,12 @@
 import asyncio
 import json
 import pprint
+import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
 
-from loguru import logger
-
+from doc_agent.core.logger import logger
 # --- 导入核心组件 ---
 from doc_agent.core.config import settings
 from doc_agent.core.logging_config import setup_logging
@@ -16,7 +16,7 @@ from doc_agent.core.logging_config import setup_logging
 # --- 立即设置日志配置，避免后续初始化时的格式错误 ---
 setup_logging(settings)
 
-from doc_agent.core.container import container
+from doc_agent.core.container import get_container
 from doc_agent.graph.state import ResearchState
 
 # --- 模拟的上传文件内容 (保持不变) ---
@@ -32,9 +32,10 @@ REQUIREMENTS_CONTENT = """
 
 async def run_stage_one_outline_generation(
         initial_state: ResearchState) -> dict:
-    # ... (此函数内容保持不变) ...
+    """执行第一阶段：大纲生成工作流"""
     logger.info("🚀🚀🚀 STAGE 1: Starting Outline Generation Workflow 🚀🚀🚀")
     outline_result = None
+    container = get_container()
     try:
         async for step_output in container.outline_graph.astream(
                 initial_state):
@@ -45,8 +46,24 @@ async def run_stage_one_outline_generation(
         logger.error(f"❌ [Stage 1] Error during outline generation: {e}",
                      exception=e)
         return None
+
     logger.success("✅✅✅ STAGE 1: Outline Generation Complete! ✅✅✅\n")
-    return outline_result.get("document_outline")
+
+    # 检查结果是否有效
+    if outline_result is None:
+        logger.error("❌ [Stage 1] outline_result is None")
+        return None
+
+    document_outline = outline_result.get("document_outline")
+    if document_outline is None:
+        logger.error("❌ [Stage 1] document_outline is None in outline_result")
+        logger.debug(
+            f"📄 outline_result keys: {list(outline_result.keys()) if outline_result else 'None'}"
+        )
+        return None
+
+    logger.info(f"✅ [Stage 1] Successfully extracted document_outline")
+    return document_outline
 
 
 async def run_stage_two_document_generation(
@@ -92,9 +109,26 @@ async def main():
 
     log_file_path = output_dir / f"workflow_test_{run_timestamp}.log"
 
-    # 添加额外的日志文件输出
-    logger.add(log_file_path, level="DEBUG",
-               serialize=True)  # 使用 serialize=True 可以让日志文件是 JSON 格式，便于机器分析
+    # 配置日志同时输出到文件和控制台
+    # 移除默认处理器
+    logger.remove()
+
+    # 添加控制台输出
+    logger.add(
+        sys.stdout,
+        format=
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <level>{message}</level>",
+        level="INFO",
+        colorize=True)
+
+    # 添加文件输出
+    logger.add(
+        log_file_path,
+        format=
+        "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
+        level="DEBUG",
+        rotation="10 MB",
+        retention="7 days")
 
     # --- 1.5. 【新增】生成 run_id 并绑定到日志上下文 ---
     run_id = f"run-{uuid.uuid4().hex[:8]}"
@@ -107,32 +141,58 @@ async def main():
     with logger.contextualize(run_id=run_id):
         logger.info("🚀 Starting decoupled workflow test with context tracking")
 
-        # --- 2. 准备第一阶段的输入 (保持不变) ---
+        # --- 2. 准备第一阶段的输入 (修正：添加所有必需字段) ---
         topic = "调研一下水电站建造过程中可能出现的问题和解决方案"
         stage_one_input_state = ResearchState(
+            # 日志追踪 ID
+            run_id=run_id,
+
+            # 研究主题
             topic=topic,
+
+            # 文档样式和需求指南
             style_guide_content=STYLE_GUIDE_CONTENT,
             requirements_content=REQUIREMENTS_CONTENT,
+
+            # 第一层: 上层研究的初始研究结果
             initial_sources=[],
+
+            # 文档结构
             document_outline={},
+
+            # 章节处理
             chapters_to_process=[],
             current_chapter_index=0,
-            current_citation_index=1,  # 添加引用索引初始化
+
+            # 上下文积累 - 保持连贯性
             completed_chapters=[],
+
+            # 最终输出
             final_document="",
-            sources=[],  # 🔧 修复：添加缺失的字段
-            all_sources=[],  # 🔧 修复：添加缺失的字段
-            cited_sources=[],  # 🔧 修复：添加缺失的字段
-            cited_sources_in_chapter=[],  # 🔧 修复：添加缺失的字段
+
+            # 章节级研究状态
+            research_plan="",
+            search_queries=[],
+            gathered_sources=[],
+
+            # 源追踪
+            sources=[],
+            all_sources=[],
+            current_citation_index=1,
+
+            # 全局引用源追踪 - 用于最终参考文献
+            cited_sources=[],
+            cited_sources_in_chapter=[],
+
+            # 对话历史
             messages=[],
-            run_id=run_id,  # 【新增】添加 run_id 到状态
         )
 
         # --- 3. 执行第一阶段 (保持不变) ---
         generated_outline = await run_stage_one_outline_generation(
             stage_one_input_state)
         if not generated_outline:
-            logger.error("Aborting test due to failure in Stage 1.")
+            logger.error("❌ Aborting test due to failure in Stage 1.")
             return
 
         logger.info("📋 Generated Outline for Stage 2:")
@@ -162,24 +222,50 @@ async def main():
         else:
             logger.warning("⚠️  Generated outline is invalid or empty")
 
-        # --- 4. 准备第二阶段的输入 (保持不变) ---
+        # --- 4. 准备第二阶段的输入 (修正：添加所有必需字段) ---
         stage_two_input_state = ResearchState(
+            # 日志追踪 ID
+            run_id=run_id,
+
+            # 研究主题
             topic=topic,
-            document_outline=generated_outline,
+
+            # 文档样式和需求指南
             style_guide_content=STYLE_GUIDE_CONTENT,
-            initial_sources=[],
             requirements_content="",
+
+            # 第一层: 上层研究的初始研究结果
+            initial_sources=[],
+
+            # 文档结构
+            document_outline=generated_outline,
+
+            # 章节处理
             chapters_to_process=[],
             current_chapter_index=0,
-            current_citation_index=1,  # 修复：引用索引应该从1开始
+
+            # 上下文积累 - 保持连贯性
             completed_chapters=[],
+
+            # 最终输出
             final_document="",
+
+            # 章节级研究状态
+            research_plan="",
+            search_queries=[],
+            gathered_sources=[],
+
+            # 源追踪
             sources=[],
             all_sources=[],
-            cited_sources=[],  # 🔧 修复：添加缺失的字段
-            cited_sources_in_chapter=[],  # 🔧 修复：添加缺失的字段
+            current_citation_index=1,
+
+            # 全局引用源追踪 - 用于最终参考文献
+            cited_sources=[],
+            cited_sources_in_chapter=[],
+
+            # 对话历史
             messages=[],
-            run_id=run_id,  # 【新增】添加 run_id 到状态
         )
 
         # --- 5. 执行第二阶段 ---

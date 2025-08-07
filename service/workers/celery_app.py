@@ -1,12 +1,53 @@
 #!/usr/bin/env python3
 """
 Celery 应用程序配置
+统一日志版本
 """
 
-from celery import Celery
-from urllib.parse import urlparse
+import os
+import sys
+from pathlib import Path
 
-from doc_agent.core.config import settings
+# 添加项目路径
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from celery import Celery
+
+# 导入统一日志配置
+from doc_agent.core.logger import logger
+
+# 强制设置loguru为默认日志系统
+import logging
+import loguru
+
+
+# 拦截所有logging调用，转发到loguru
+class InterceptHandler(logging.Handler):
+
+    def emit(self, record):
+        # 获取对应的loguru级别
+        try:
+            level = loguru.logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # 找到调用者
+        frame, depth = logging.currentframe(), 2
+        while frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        loguru.logger.opt(depth=depth, exception=record.exc_info).log(
+            level, record.getMessage())
+
+
+# 配置logging使用loguru
+logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+
+# 移除所有现有的handlers
+for name in logging.root.manager.loggerDict.keys():
+    logging.getLogger(name).handlers = []
+    logging.getLogger(name).propagate = True
 
 
 def build_redis_url():
@@ -75,6 +116,11 @@ celery_app.conf.task_routes = {
         'queue': 'default'
     },
 }
+
+# 🔧 新增：记录 Celery 启动信息
+logger.info("Celery 应用程序已配置")
+logger.info(f"Redis URL: {build_redis_url()}")
+logger.info("所有 Celery 任务日志将统一输出到 logs/app.log")
 
 if __name__ == '__main__':
     celery_app.start()

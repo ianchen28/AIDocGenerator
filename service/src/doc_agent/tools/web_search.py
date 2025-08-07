@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 import aiohttp
 from bs4 import BeautifulSoup
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 def timer(func=None, *, log_level="info"):
@@ -407,8 +407,7 @@ if __name__ == "__main__":
     """
     import asyncio
 
-    from loguru import logger
-
+    from doc_agent.core.logger import logger
     # 配置日志
     logger.add("logs/web_search_test.log",
                rotation="1 day",

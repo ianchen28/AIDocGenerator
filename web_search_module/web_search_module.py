@@ -16,7 +16,7 @@ import json
 import os
 import sys
 from typing import List, Dict, Any, Optional
-from loguru import logger
+from doc_agent.core.logger import logger
 import time
 import functools
 from bs4 import BeautifulSoup

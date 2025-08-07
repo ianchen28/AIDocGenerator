@@ -8,8 +8,7 @@ Redis Stream 消费者组启动脚本
 import asyncio
 import signal
 
-from loguru import logger
-
+from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
 
 # 导入我们的消费者组实现

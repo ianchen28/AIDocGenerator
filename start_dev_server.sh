@@ -89,13 +89,13 @@ else
     REDIS_URL="redis://$REDIS_HOST:$REDIS_PORT/$REDIS_DB"
 fi
 
-# 启动Celery Worker
-(cd service && REDIS_URL="$REDIS_URL" python -m workers.celery_worker worker --loglevel=info) > celery_worker.log 2>&1 &
+# 启动Celery Worker (统一日志)
+(cd service && REDIS_URL="$REDIS_URL" python -m workers.celery_worker worker --loglevel=info --concurrency=1) >> ../logs/app.log 2>&1 &
 
 # 获取刚刚启动的后台进程的 PID (Process ID)
 CELERY_PID=$!
 echo "   - ✅ Celery Worker started in background with PID: $CELERY_PID"
-echo "   - Logs are being written to celery_worker.log"
+echo "   - 统一日志文件: ../logs/app.log"
 
 # 等待几秒钟，确保 Celery Worker 完成初始化
 sleep 5
@@ -105,7 +105,7 @@ if ps -p $CELERY_PID > /dev/null; then
     echo "   - ✅ Celery Worker is running"
 else
     echo "   - ❌ Celery Worker failed to start"
-    echo "   - Check celery_worker.log for details"
+    echo "   - Check ../logs/app.log for details"
     exit 1
 fi
 

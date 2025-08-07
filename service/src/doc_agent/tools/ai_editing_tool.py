@@ -6,7 +6,7 @@ AI 编辑工具
 
 from collections.abc import AsyncGenerator
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from ..common.prompt_selector import PromptSelector
 from ..llm_clients.base import LLMClient

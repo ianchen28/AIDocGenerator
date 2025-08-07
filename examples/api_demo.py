@@ -8,7 +8,7 @@ API 演示脚本
 import asyncio
 import aiohttp
 import json
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 class APIDemo:

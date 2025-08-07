@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import yaml
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 class PromptSelector:

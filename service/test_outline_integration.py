@@ -7,7 +7,7 @@ Outline JSON集成测试脚本
 import json
 import time
 import requests
-from loguru import logger
+from doc_agent.core.logger import logger
 
 # API基础URL
 BASE_URL = "http://localhost:8000/api/v1"

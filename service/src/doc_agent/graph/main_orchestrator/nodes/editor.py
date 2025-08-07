@@ -3,10 +3,10 @@
 
 负责融合编辑器功能，对生成的文档进行润色和优化
 """
-from typing import Any
+import json
+from typing import Any, Dict, Optional
 
-from loguru import logger
-
+from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient

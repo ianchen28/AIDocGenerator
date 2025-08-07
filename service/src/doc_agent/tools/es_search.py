@@ -3,9 +3,10 @@ Elasticsearch搜索工具
 基于底层ES服务模块，提供简洁有效的搜索接口，支持KNN向量搜索
 """
 
-from typing import Any, Optional
+import json
+from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from .es_discovery import ESDiscovery
 from .es_service import ESSearchResult, ESService

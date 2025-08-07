@@ -7,7 +7,7 @@ import asyncio
 import sys
 from typing import Any
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 # 添加项目路径
 sys.path.append("src")

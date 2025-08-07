@@ -3,7 +3,7 @@ from functools import partial
 from pathlib import Path
 
 import yaml
-from loguru import logger
+from doc_agent.core.logger import logger
 
 # 确保环境变量已加载
 from doc_agent.core.config import settings
@@ -102,7 +102,7 @@ class Container:
         }
 
     def __init__(self):
-        print("🚀 Initializing Container...")
+        logger.info("🚀 Initializing Container...")
 
         # 加载 genre 策略
         self.genre_strategies = self._load_genre_strategies()
@@ -127,9 +127,9 @@ class Container:
         self.ai_editing_tool = AIEditingTool(
             llm_client=self.llm_client, prompt_selector=self.prompt_selector)
 
-        print("   - LLM Client, Tools and PromptSelector are ready.")
+        logger.info("   - LLM Client, Tools and PromptSelector are ready.")
 
-        print("   - Binding dependencies for Chapter Workflow...")
+        logger.info("   - Binding dependencies for Chapter Workflow...")
         chapter_planner_node = partial(chapter_nodes.planner_node,
                                        llm_client=self.llm_client,
                                        prompt_selector=self.prompt_selector,
@@ -157,10 +157,11 @@ class Container:
             writer_node=chapter_writer_node,
             supervisor_router_func=chapter_supervisor_router,
             reflection_node=None)  # 在初始化时不使用 reflection_node
-        print("   - Chapter Workflow Graph compiled successfully.")
+        logger.info("   - Chapter Workflow Graph compiled successfully.")
 
         # 构建拆分后的图架构
-        print("   - Binding dependencies for Split Graph Architecture...")
+        logger.info(
+            "   - Binding dependencies for Split Graph Architecture...")
 
         # 为主工作流的节点绑定依赖
         main_initial_research_node = partial(
@@ -185,14 +186,14 @@ class Container:
         self.outline_graph = build_outline_graph(
             initial_research_node=main_initial_research_node,
             outline_generation_node=main_outline_generation_node)
-        print("   - Outline Graph compiled successfully.")
+        logger.info("   - Outline Graph compiled successfully.")
 
         # 编译文档生成图
         self.document_graph = build_document_graph(
             chapter_workflow_graph=self.chapter_graph,
             split_chapters_node=main_split_chapters_node,
             fusion_editor_node=main_fusion_editor_node)
-        print("   - Document Graph compiled successfully.")
+        logger.info("   - Document Graph compiled successfully.")
 
         # 保留原有的主工作流图（向后兼容）
         self.main_graph = build_main_orchestrator_graph(
@@ -202,9 +203,9 @@ class Container:
             chapter_workflow_graph=self.chapter_graph,
             fusion_editor_node=main_fusion_editor_node)
 
-        print("   - Main Orchestrator Graph compiled successfully.")
-        print("   - 快速模式已统一到配置控制中")
-        print("✅ Container initialization complete.")
+        logger.info("   - Main Orchestrator Graph compiled successfully.")
+        logger.info("   - 快速模式已统一到配置控制中")
+        logger.info("✅ Container initialization complete.")
 
     def get_graph_runnable_for_job(self, job_id: str, genre: str = "default"):
         """
@@ -516,6 +517,19 @@ class Container:
         print("🧹 Resources cleaned up.")
 
 
-# --- 6. 最终实例化 (保持不变) ---
-# 创建一个全局容器实例供应用使用
-container = Container()
+# --- 6. 延迟实例化 ---
+# 创建一个全局容器实例供应用使用，但延迟到实际使用时
+_container_instance = None
+
+
+def get_container():
+    """获取容器实例，延迟初始化"""
+    global _container_instance
+    if _container_instance is None:
+        _container_instance = Container()
+    return _container_instance
+
+
+# 为了向后兼容，保留 container 变量，但延迟初始化
+def container():
+    return get_container()

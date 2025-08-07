@@ -7,6 +7,7 @@
 import os
 import sys
 from typing import Any
+from pathlib import Path
 
 from loguru import logger
 
@@ -23,63 +24,77 @@ def safe_format(record):
 
 def setup_logging(config: AppSettings) -> None:
     """
-    设置集中式日志配置
+    设置统一的日志配置
+    
     Args:
-        config: 应用配置对象，包含日志配置信息
+        config: 应用配置对象
     """
-    # 1. 移除所有默认处理器，确保清洁的设置
+    from loguru import logger
+
+    # 移除所有现有的处理器
     logger.remove()
 
-    # 2. 配置控制台处理器
-    console_format = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-        "<level>{level: <8}</level> | "
-        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-        "<magenta>{extra[run_id]}</magenta> | "
-        "<level>{message}</level>")
+    # 确保日志目录存在 - 使用根目录的相对路径
+    # 从当前文件位置找到项目根目录
+    current_file = Path(__file__)
+    project_root = current_file.parent.parent.parent.parent
+    log_dir = project_root / "logs"
+    log_dir.mkdir(exist_ok=True)
 
-    logger.add(sink=sys.stderr,
-               level=config.logging.level,
-               format=console_format,
-               colorize=True,
-               backtrace=True,
-               diagnose=True,
-               catch=True,  # 添加 catch=True 来捕获格式化错误
-               filter=safe_format)  # 添加安全格式化过滤器
+    # 统一日志文件路径：使用根目录的logs/app.log
+    log_file_path = log_dir / "app.log"
 
-    # 3. 配置文件处理器
-    # 确保日志目录存在
-    log_dir = os.path.dirname(config.logging.file_path)
-    if log_dir and not os.path.exists(log_dir):
-        os.makedirs(log_dir, exist_ok=True)
-
-    # 文件格式（非彩色，结构化）
-    file_format = ("{time:YYYY-MM-DD HH:mm:ss.SSS} | "
-                   "{level: <8} | "
-                   "{name}:{function}:{line} | "
-                   "{extra[run_id]} | "
-                   "{message}")
-
+    # 添加文件处理器
     logger.add(
-        sink=config.logging.file_path,
-        level="DEBUG",  # 文件记录所有级别的日志
-        format=file_format,  # 使用文件格式
+        log_file_path,
+        level=config.logging.level,
+        format=
+        "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
         rotation=config.logging.rotation,  # 日志轮转
         retention=config.logging.retention,  # 日志保留
         compression="zip",  # 压缩旧日志文件
-        enqueue=True,  # 非阻塞日志
+        enqueue=False,  # 改为同步写入，确保实时输出
         serialize=False,  # 不使用序列化，保持可读格式
         backtrace=True,
         diagnose=True,
-        catch=True,  # 添加 catch=True 来捕获格式化错误
-        filter=safe_format)  # 添加安全格式化过滤器
+    )
 
-    # 4. 记录日志配置成功信息
+    # 拦截标准库的logging
+    import logging
+    import sys
+
+    class InterceptHandler(logging.Handler):
+
+        def emit(self, record):
+            # 获取对应的loguru级别
+            try:
+                level = logger.level(record.levelname).name
+            except ValueError:
+                level = record.levelno
+
+            # 找到调用者
+            frame, depth = logging.currentframe(), 2
+            while frame.f_code.co_filename == logging.__file__:
+                frame = frame.f_back
+                depth += 1
+
+            logger.opt(depth=depth,
+                       exception=record.exc_info).log(level,
+                                                      record.getMessage())
+
+    # 配置logging使用loguru
+    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+
+    # 移除所有现有的handlers
+    for name in logging.root.manager.loggerDict.keys():
+        logging.getLogger(name).handlers = []
+        logging.getLogger(name).propagate = True
+
     logger.info("日志系统已成功配置")
-    logger.info(f"控制台日志级别: {config.logging.level}")
-    logger.info(f"文件日志路径: {config.logging.file_path}")
+    logger.info(f"统一日志文件路径: {log_file_path}")
     logger.info(f"日志轮转: {config.logging.rotation}")
     logger.info(f"日志保留: {config.logging.retention}")
+    logger.info("所有日志将统一输出到上述文件")
 
 
 def get_logger(name: str = None) -> Any:

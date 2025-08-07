@@ -4,8 +4,12 @@
 确保所有运行文件都能自动加载 .env 文件
 """
 
+import os
+from pathlib import Path
+from typing import Any, Dict, Optional
 from dotenv import find_dotenv, load_dotenv
-from loguru import logger
+
+from doc_agent.core.logger import logger
 
 
 def setup_environment():

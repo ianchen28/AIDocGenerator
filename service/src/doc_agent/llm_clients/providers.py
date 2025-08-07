@@ -1,13 +1,13 @@
 # service/src/doc_agent/llm_clients/providers.py
+import asyncio
 import json
-import pprint
-import re
-from collections.abc import AsyncGenerator
+import time
+from typing import Any, Dict, List, Optional, Union, AsyncGenerator
 
 import httpx
-from loguru import logger
 
 from doc_agent.llm_clients.base import BaseOutputParser, LLMClient
+from doc_agent.core.logger import logger
 
 
 class ReasoningParser(BaseOutputParser):

@@ -5,8 +5,9 @@
 """
 
 import json
-from loguru import logger
+from typing import Any, Dict, Optional
 
+from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
@@ -566,46 +567,45 @@ def _generate_default_outline(topic: str, complexity_config) -> dict:
     if max_chapters <= 0:
         max_chapters = 3
 
-        # 根据主题生成更合
-        # 通用大纲
-        chapters = []
-        for i in range(min(max_chapters, 3)):
-            chapters.append({
+    # 根据主题生成通用大纲
+    chapters = []
+    for i in range(min(max_chapters, 3)):
+        chapters.append({
+            "number":
+            i + 1,
+            "title":
+            f"{topic} - 第{i + 1}部分",
+            "description":
+            f"关于{topic}的第{i + 1}部分内容",
+            "sections": [{
                 "number":
-                i + 1,
+                float(f"{i+1}.1"),
                 "title":
-                f"{topic} - 第{i + 1}部分",
+                f"第{i+1}部分概述",
                 "description":
-                f"关于{topic}的第{i + 1}部分内容",
-                "sections": [{
-                    "number":
-                    float(f"{i+1}.1"),
-                    "title":
-                    f"第{i+1}部分概述",
-                    "description":
-                    f"第{i+1}部分的基本概述",
-                    "key_points":
-                    [f"{topic}概述要点1", f"{topic}概述要点2", f"{topic}概述要点3"]
-                }, {
-                    "number":
-                    float(f"{i+1}.2"),
-                    "title":
-                    f"第{i+1}部分分析",
-                    "description":
-                    f"第{i+1}部分的深入分析",
-                    "key_points":
-                    [f"{topic}分析要点1", f"{topic}分析要点2", f"{topic}分析要点3"]
-                }, {
-                    "number":
-                    float(f"{i+1}.3"),
-                    "title":
-                    f"第{i+1}部分总结",
-                    "description":
-                    f"第{i+1}部分的总结和展望",
-                    "key_points":
-                    [f"{topic}总结要点1", f"{topic}总结要点2", f"{topic}总结要点3"]
-                }]
-            })
+                f"第{i+1}部分的基本概述",
+                "key_points":
+                [f"{topic}概述要点1", f"{topic}概述要点2", f"{topic}概述要点3"]
+            }, {
+                "number":
+                float(f"{i+1}.2"),
+                "title":
+                f"第{i+1}部分分析",
+                "description":
+                f"第{i+1}部分的深入分析",
+                "key_points":
+                [f"{topic}分析要点1", f"{topic}分析要点2", f"{topic}分析要点3"]
+            }, {
+                "number":
+                float(f"{i+1}.3"),
+                "title":
+                f"第{i+1}部分总结",
+                "description":
+                f"第{i+1}部分的总结和展望",
+                "key_points":
+                [f"{topic}总结要点1", f"{topic}总结要点2", f"{topic}总结要点3"]
+            }]
+        })
 
     return {
         "title": f"{topic} 研究报告",

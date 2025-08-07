@@ -9,7 +9,7 @@ from pathlib import Path
 
 # 项目路径已通过 pip install -e . 处理
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 def test_latest_prompts():

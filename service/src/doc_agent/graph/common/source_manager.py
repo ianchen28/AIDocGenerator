@@ -7,7 +7,7 @@
 - 源列表的合并与去重
 """
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from doc_agent.schemas import Source
 

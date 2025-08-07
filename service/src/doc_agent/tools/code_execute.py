@@ -1,7 +1,7 @@
 import subprocess
 import tempfile
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 
 class CodeExecuteTool:

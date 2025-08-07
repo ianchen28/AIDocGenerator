@@ -7,7 +7,7 @@
 import json
 import re
 
-from loguru import logger
+from doc_agent.core.logger import logger
 
 from doc_agent.schemas import Source
 from doc_agent.tools.reranker import RerankedSearchResult
@@ -213,7 +213,7 @@ def parse_web_search_results(web_raw_results: list[dict], query: str,
     解析网络搜索结果，创建 Source 对象列表
 
     Args:
-        web_results: 网络搜索的原始结果字符串
+        web_raw_results: 网络搜索结果
         query: 搜索查询
         start_id: 起始ID
 
@@ -221,33 +221,73 @@ def parse_web_search_results(web_raw_results: list[dict], query: str,
         list[Source]: Source 对象列表
     """
 
-    # web_raw_result:
+    # web_raw_result 结构示例:
     # {
-    #     "url": web_page.get("url", ""),
-    #     "doc_id": web_page.get("file_name", ""),
-    #     "doc_type": "text",
-    #     "domain_ids": ["web"],
-    #     "meta_data": web_page,
-    #     "text": content,
-    #     "_id": web_page.get("materialId", ""),
-    #     "rank": str(index + 1),
-    #     "full_content_fetched": web_page.get('full_content_fetched',
-    #                                             False)
+    #     'url': 'https://example.com',
+    #     'doc_id': '文档标题',
+    #     'doc_type': 'text',
+    #     'domain_ids': ['web'],
+    #     'meta_data': {
+    #         'docName': '文档名称',
+    #         'materialTitle': '材料标题',
+    #         'materialContent': '材料内容',
+    #         'materialText': '材料文本',
+    #         'materialType': 'html',
+    #         'datePublished': '发布日期',
+    #         'siteName': '网站名称',
+    #         'url': 'URL',
+    #         'source': 'web',
+    #         'sourceSite': '来源网站',
+    #         'score': None,
+    #         'sourceDiff': 'exterior',
+    #         'webIcon': None,
+    #         'collected': None,
+    #         'knowledgeType': None,
+    #         'sourceType': None,
+    #         'full_content_fetched': False,
+    #         'file_name': '文件名'
+    #     },
+    #     'text': '实际文本内容',
+    #     '_id': '唯一ID',
+    #     'rank': '排名',
+    #     'full_content_fetched': False
     # }
 
     sources = []
 
     for index, web_raw_result in enumerate(web_raw_results):
-        source = Source(
-            id=start_id + index,
-            source_type="webpage",
-            title=web_raw_result['meta_data'].get('docName', ''),
-            url=web_raw_result['url'],
-            content=web_raw_result['text'][:500] + "..."
-            if len(web_raw_result['text']) > 500 else web_raw_result['text'])
+        try:
+            # 🔧 修复：确保所有必需字段都存在
+            source_id = start_id + index
+            source_type = "webpage"
 
-        sources.append(source)
+            # 从 meta_data 中获取标题，如果没有则使用默认值
+            meta_data = web_raw_result.get('meta_data', {})
+            title = meta_data.get('docName', f'网页 {source_id}')
 
+            url = web_raw_result.get('url', '')
+            content = web_raw_result.get('text', '')
+
+            # 截断内容到500字符
+            if len(content) > 500:
+                content = content[:500] + "..."
+
+            source = Source(
+                id=source_id,
+                sourceType=source_type,  # 🔧 修复：使用别名 sourceType
+                title=title,
+                url=url,
+                content=content)
+
+            sources.append(source)
+            logger.debug(f"✅ 成功创建网页源: {source_id} - {title}")
+
+        except Exception as e:
+            logger.error(f"❌ 创建网页源失败: {e}")
+            logger.error(f"📄 原始数据: {web_raw_result}")
+            continue
+
+    logger.info(f"📊 成功解析 {len(sources)} 个网页源")
     return sources
 
 
@@ -278,13 +318,35 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
     sources = []
 
     for index, es_raw_result in enumerate(es_raw_results):
-        source = Source(id=start_id + index,
-                        source_type="es_result",
-                        title=es_raw_result.metadata.get('file_name', ''),
-                        url=es_raw_result.metadata.get('url', ''),
-                        content=es_raw_result.original_content[:500] +
-                        "..." if len(es_raw_result.original_content) > 500 else
-                        es_raw_result.original_content)
-        sources.append(source)
+        try:
+            # 🔧 修复：确保所有必需字段都存在
+            source_id = start_id + index
+            source_type = "es_result"
+            title = es_raw_result.metadata.get(
+                'file_name', f'文档 {source_id}'
+            ) if es_raw_result.metadata else f'文档 {source_id}'
+            url = es_raw_result.metadata.get(
+                'url', '') if es_raw_result.metadata else ''
+            content = es_raw_result.original_content or ''
 
+            # 截断内容到500字符
+            if len(content) > 500:
+                content = content[:500] + "..."
+
+            source = Source(
+                id=source_id,
+                sourceType=source_type,  # 🔧 修复：使用别名 sourceType
+                title=title,
+                url=url,
+                content=content)
+
+            sources.append(source)
+            logger.debug(f"✅ 成功创建ES源: {source_id} - {title}")
+
+        except Exception as e:
+            logger.error(f"❌ 创建ES源失败: {e}")
+            logger.error(f"📄 原始数据: {es_raw_result}")
+            continue
+
+    logger.info(f"📊 成功解析 {len(sources)} 个ES源")
     return sources

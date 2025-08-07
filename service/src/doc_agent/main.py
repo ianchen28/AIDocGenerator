@@ -3,8 +3,7 @@
 AI文档生成器 - 主入口点
 """
 
-from loguru import logger
-
+from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
 from doc_agent.graph.main_orchestrator.builder import MainOrchestratorBuilder
 
