@@ -33,7 +33,7 @@ class CreateContextRequest(BaseModel):
 
 class ContextStatusResponse(BaseModel):
     """上下文状态响应"""
-    context_id: str
+    contextId: str
     status: Literal["PENDING", "INDEXING", "READY", "FAILED"]
 
 
@@ -47,9 +47,9 @@ class CreateJobRequest(BaseModel):
 
 class JobResponse(BaseModel):
     """作业响应"""
-    job_id: str
+    jobId: str
     status: str
-    created_at: str
+    createdAt: str
 
 
 # --- Outline Generation Models ---
@@ -157,8 +157,8 @@ class DocumentGenerationFromOutlineRequest(BaseModel):
 
 class OutlineResponse(BaseModel):
     """大纲响应模型"""
-    job_id: str
-    outline_status: Literal["GENERATING", "READY", "FAILED"]
+    jobId: str
+    outlineStatus: Literal["GENERATING", "READY", "FAILED"]
     outline: Optional[Outline] = None
 
 
@@ -169,7 +169,7 @@ class UpdateOutlineRequest(BaseModel):
 
 class UpdateOutlineResponse(BaseModel):
     """更新大纲响应模型"""
-    job_id: str
+    jobId: str
     message: str
 
 
@@ -182,17 +182,15 @@ class GenerationRequest(BaseModel):
 
 class TaskCreationResponse(BaseModel):
     """任务创建后的API响应"""
-    job_id: str = Field(..., description="唯一任务ID")
+    taskId: str = Field(..., description="唯一任务ID")
+    jobId: str = Field(..., description="唯一任务ID")
 
 
 class OutlineGenerationResponse(BaseModel):
     """大纲生成响应模型"""
-    session_id: Union[str, int] = Field(...,
-                                        alias="sessionId",
-                                        description="会话ID，支持字符串或长整型")
-    redis_stream_key: str = Field(...,
-                                  alias="redisStreamKey",
-                                  description="Redis流响应的key，用于前端监听")
+    taskId: str = Field(..., description="唯一任务ID")
+    sessionId: Union[str, int] = Field(..., description="会话ID，支持字符串或长整型")
+    redisStreamKey: str = Field(..., description="Redis流响应的key，用于前端监听")
     status: str = Field(..., description="任务状态")
     message: str = Field(..., description="响应消息")
 
@@ -212,16 +210,16 @@ class OutlineGenerationResponse(BaseModel):
 
 class TaskStatusResponse(BaseModel):
     """任务状态查询的API响应"""
-    task_id: str
+    taskId: str
     status: Literal["PENDING", "RUNNING", "COMPLETED", "FAILED"]
     progress: Optional[str] = None  # e.g., "Executing web search"
 
 
 class TaskResultResponse(BaseModel):
     """任务结果查询的API响应"""
-    task_id: str
+    taskId: str
     status: Literal["COMPLETED"]
-    document_url: str  # 指向最终文档的链接或直接包含内容
+    documentUrl: str  # 指向最终文档的链接或直接包含内容
     # document_content: str
 
 
@@ -258,6 +256,6 @@ class EditActionRequest(BaseModel):
 
 class EditActionResponse(BaseModel):
     """AI 编辑响应模型"""
-    original_text: str = Field(..., description="原始文本")
-    edited_text: str = Field(..., description="编辑后的文本")
+    originalText: str = Field(..., description="原始文本")
+    editedText: str = Field(..., description="编辑后的文本")
     action: str = Field(..., description="执行的编辑操作")

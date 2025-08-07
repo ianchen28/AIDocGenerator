@@ -53,7 +53,7 @@ class RedisStreamPublisher:
             i = await self.redis_client.incr(counter_key)
             id_str = f"{job_id}-{i}"
             # 准备事件数据
-            event_data["redis_id"] = id_str
+            event_data["redisId"] = id_str
 
             event_id = await self.redis_client.xadd(
                 stream_name,

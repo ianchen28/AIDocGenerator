@@ -5,6 +5,7 @@
 
 import asyncio
 import json
+import pprint
 import redis.asyncio as redis
 from loguru import logger
 import sys
@@ -66,6 +67,17 @@ async def test_mock_endpoint():
     # 2. 监听 Redis 事件流
     print("\n开始监听 Redis 事件流...")
 
+    # 从API响应中获取taskId
+    response_data = response.json()
+    task_id = response_data.get('taskId')
+    if not task_id:
+        print("❌ API响应中没有taskId字段")
+        print(f"响应数据: {response_data}")
+        return
+
+    print(f"✅ 获取到taskId: {task_id}")
+    print(f"✅ 获取到jobId: {response_data.get('jobId')}")
+
     # 使用配置文件中的 Redis URL
     redis_url = settings.redis_url
     logger.info(f"使用 Redis URL: {redis_url}")
@@ -74,14 +86,14 @@ async def test_mock_endpoint():
                                   encoding="utf-8",
                                   decode_responses=True)
 
-    session_id = unique_job_id
-    stream_name = session_id
+    # 使用taskId作为Redis流的key
+    stream_name = task_id
 
     # 等待并读取事件 - 从当前时刻开始监听新消息
     last_id = "$"  # 使用 $ 表示只监听新消息，不读取历史数据
     event_count = 0
 
-    while event_count < 1000:  # 最多监听1000个事件
+    while event_count < 10:  # 最多监听1000个事件
         try:
             # 读取新事件
             events = await redis_client.xread({stream_name: last_id},
@@ -96,7 +108,7 @@ async def test_mock_endpoint():
 
                         event_count += 1
                         print(f"\n📡 事件 {event_count}:")
-                        print(f"   事件ID: {event_data.get('redis_id', 'N/A')}")
+                        print(f"   事件ID: {event_data.get('redisId', 'N/A')}")
                         print(f"   事件类型: {event_data.get('eventType', 'N/A')}")
                         print(
                             f"   原始数据: {json.dumps(data, ensure_ascii=False, indent=2)}"
@@ -117,6 +129,7 @@ async def test_mock_endpoint():
             break
 
     print("\n🎉 测试完成!")
+    print(pprint.pformat(response_data))
 
 
 if __name__ == "__main__":

@@ -125,7 +125,7 @@ class RedisStreamMonitor:
                               pretty: bool = True):
         """监控单个流"""
         stream_key = job_id  # 直接使用job_id作为流名称
-        last_id = "0"
+        last_id = "$"
 
         # 获取流信息
         stream_info = self.get_stream_info(stream_key)
@@ -202,7 +202,7 @@ class RedisStreamMonitor:
             print()
 
             # 构建流参数
-            streams = {key: "0" for key in all_keys}
+            streams = {key: "$" for key in all_keys}
 
             self.running = True
 

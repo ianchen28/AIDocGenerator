@@ -1,0 +1,213 @@
+# AI文档生成器API - 测试curl命令集合
+# 基础URL: http://localhost:8000/api/v1
+
+# ============================================================================
+# 1. 健康检查端点
+# ============================================================================
+echo "=== 1. 健康检查 ==="
+curl -X GET "http://localhost:8000/api/v1/health" \
+  -H "Content-Type: application/json"
+
+echo -e "\n\n"
+
+# ============================================================================
+# 2. AI文本编辑端点 (流式响应)
+# ============================================================================
+echo "=== 2. AI文本编辑 - 润色文本 ==="
+curl -X POST "http://localhost:8000/api/v1/actions/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "polish",
+    "text": "人工智能是计算机科学的一个分支，它企图了解智能的实质，并生产出一种新的能以人类智能相似的方式做出反应的智能机器。",
+    "polish_style": "professional"
+  }'
+
+echo -e "\n\n"
+
+echo "=== 2.1 AI文本编辑 - 扩写文本 ==="
+curl -X POST "http://localhost:8000/api/v1/actions/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "expand",
+    "text": "人工智能技术正在快速发展。"
+  }'
+
+echo -e "\n\n"
+
+echo "=== 2.2 AI文本编辑 - 总结文本 ==="
+curl -X POST "http://localhost:8000/api/v1/actions/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "summarize",
+    "text": "人工智能（Artificial Intelligence，AI）是计算机科学的一个分支，它企图了解智能的实质，并生产出一种新的能以人类智能相似的方式做出反应的智能机器。该领域的研究包括机器人、语言识别、图像识别、自然语言处理和专家系统等。人工智能从诞生以来，理论和技术日益成熟，应用领域也不断扩大，可以设想，未来人工智能带来的科技产品，将会是人类智慧的'容器'。"
+  }'
+
+echo -e "\n\n"
+
+echo "=== 2.3 AI文本编辑 - 续写文本 ==="
+curl -X POST "http://localhost:8000/api/v1/actions/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "continue_writing",
+    "text": "人工智能技术正在快速发展，",
+    "context": "技术发展趋势"
+  }'
+
+echo -e "\n\n"
+
+echo "=== 2.4 AI文本编辑 - 自定义编辑 ==="
+curl -X POST "http://localhost:8000/api/v1/actions/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "custom",
+    "text": "人工智能技术正在快速发展。",
+    "command": "请将这句话改写为更加学术化的表达方式"
+  }'
+
+echo -e "\n\n"
+
+# ============================================================================
+# 3. 大纲生成端点
+# ============================================================================
+echo "=== 3. 大纲生成 ==="
+curl -X POST "http://localhost:8000/api/v1/jobs/outline" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "123456789",
+    "taskPrompt": "请生成一份关于人工智能技术发展趋势的详细大纲",
+    "isOnline": true,
+    "contextFiles": [],
+    "attachmentType": 0,
+    "attachmentFileToken": null,
+    "isContentRefer": 0,
+    "isStyleImitative": 0,
+    "isWritingRequirement": 0
+  }'
+
+echo -e "\n\n"
+
+# ============================================================================
+# 4. 文档生成端点 (从大纲对象)
+# ============================================================================
+echo "=== 4. 文档生成 - 从大纲对象 ==="
+curl -X POST "http://localhost:8000/api/v1/jobs/document" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobId": "123456789",
+    "outline": {
+      "title": "人工智能技术发展趋势",
+      "nodes": [
+        {
+          "title": "人工智能概述",
+          "contentSummary": "介绍人工智能的基本概念和发展历程",
+          "children": []
+        },
+        {
+          "title": "核心技术发展",
+          "contentSummary": "分析机器学习、深度学习等核心技术的最新进展",
+          "children": [
+            {
+              "title": "机器学习技术",
+              "contentSummary": "传统机器学习算法的发展",
+              "children": []
+            },
+            {
+              "title": "深度学习技术",
+              "contentSummary": "神经网络和深度学习的最新突破",
+              "children": []
+            }
+          ]
+        },
+        {
+          "title": "应用领域拓展",
+          "contentSummary": "探讨AI在各个行业的应用现状和前景",
+          "children": []
+        }
+      ]
+    }
+  }'
+
+echo -e "\n\n"
+
+# ============================================================================
+# 5. 文档生成端点 (从大纲JSON字符串)
+# ============================================================================
+echo "=== 5. 文档生成 - 从大纲JSON字符串 ==="
+curl -X POST "http://localhost:8000/api/v1/jobs/document-from-outline" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobId": "123456789",
+    "outlineJson": "{\"title\":\"人工智能技术发展趋势\",\"nodes\":[{\"title\":\"人工智能概述\",\"contentSummary\":\"介绍人工智能的基本概念和发展历程\",\"children\":[]},{\"title\":\"核心技术发展\",\"contentSummary\":\"分析机器学习、深度学习等核心技术的最新进展\",\"children\":[{\"title\":\"机器学习技术\",\"contentSummary\":\"传统机器学习算法的发展\",\"children\":[]},{\"title\":\"深度学习技术\",\"contentSummary\":\"神经网络和深度学习的最新突破\",\"children\":[]}]},{\"title\":\"应用领域拓展\",\"contentSummary\":\"探讨AI在各个行业的应用现状和前景\",\"children\":[]}]}",
+    "sessionId": "123456789"
+  }'
+
+echo -e "\n\n"
+
+# ============================================================================
+# 6. 模拟文档生成端点 (从大纲JSON字符串)
+# ============================================================================
+echo "=== 6. 模拟文档生成 - 从大纲JSON字符串 ==="
+curl -X POST "http://localhost:8000/api/v1/jobs/document-from-outline/mock" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "job_id": "999888777",
+    "outline_json": "{\"title\":\"人工智能技术发展趋势\",\"nodes\":[{\"title\":\"人工智能概述\",\"contentSummary\":\"介绍人工智能的基本概念和发展历程\",\"children\":[]},{\"title\":\"核心技术发展\",\"contentSummary\":\"分析机器学习、深度学习等核心技术的最新进展\",\"children\":[{\"title\":\"机器学习技术\",\"contentSummary\":\"传统机器学习算法的发展\",\"children\":[]},{\"title\":\"深度学习技术\",\"contentSummary\":\"神经网络和深度学习的最新突破\",\"children\":[]}]},{\"title\":\"应用领域拓展\",\"contentSummary\":\"探讨AI在各个行业的应用现状和前景\",\"children\":[]}]}",
+    "session_id": "999888777"
+  }'
+
+echo -e "\n\n"
+
+# ============================================================================
+# 7. 根端点测试
+# ============================================================================
+echo "=== 7. 根端点测试 ==="
+curl -X GET "http://localhost:8000/" \
+  -H "Content-Type: application/json"
+
+echo -e "\n\n"
+
+# ============================================================================
+# 使用说明
+# ============================================================================
+echo "=== 使用说明 ==="
+echo "1. 确保服务已启动: ./start_dev_server.sh"
+echo "2. 服务默认运行在: http://localhost:8000"
+echo "3. API基础路径: /api/v1"
+echo "4. 所有响应字段都使用驼峰命名法 (camelCase)"
+echo "5. 大纲生成会返回taskId，可用于监听Redis流事件"
+echo "6. 模拟端点会立即开始生成模拟内容并发布到Redis流"
+echo "7. 流式编辑端点返回Server-Sent Events格式"
+echo -e "\n\n"
+
+# ============================================================================
+# 示例响应格式
+# ============================================================================
+echo "=== 示例响应格式 ==="
+echo "大纲生成响应:"
+echo '{
+  "taskId": "1754537230406003516",
+  "sessionId": "123456789", 
+  "redisStreamKey": "1754537230406003516",
+  "status": "accepted",
+  "message": "大纲生成任务已提交"
+}'
+
+echo -e "\n\n"
+
+echo "文档生成响应:"
+echo '{
+  "taskId": "1754537230406003516",
+  "jobId": "123456789"
+}'
+
+echo -e "\n\n"
+
+echo "健康检查响应:"
+echo '{
+  "status": "healthy",
+  "message": "API服务运行正常"
+}'
+
+echo -e "\n\n"
+
+echo "=== 测试完成 ==="

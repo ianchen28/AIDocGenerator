@@ -122,11 +122,16 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="任务提示不能为空")
 
-        # 生成Redis流key - 直接使用session_id作为流名称
-        redis_stream_key = str(request.session_id)
+        # 生成唯一的任务ID
+        from doc_agent.core.task_id_generator import generate_task_id
+        task_id = generate_task_id()
+
+        # 生成Redis流key - 使用task_id作为流名称
+        redis_stream_key = task_id
 
         # 记录请求信息
         logger.info("大纲生成请求详情:")
+        logger.info(f"  task_id: {task_id}")
         logger.info(f"  session_id: {request.session_id}")
         logger.info(f"  task_prompt: {request.task_prompt[:100]}...")
         logger.info(f"  is_online: {request.is_online}")
@@ -194,7 +199,7 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
                 None,
                 lambda: generate_outline_from_query_task.apply_async(
                     kwargs={
-                        'job_id': request.session_id,  # 使用session_id作为job_id
+                        'job_id': task_id,  # 使用task_id作为job_id
                         'task_prompt': request.task_prompt,
                         'is_online': request.is_online,
                         'context_files': request.context_files,
@@ -213,10 +218,12 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
             raise
 
         # 记录任务已接收
-        logger.info(f"大纲生成任务已接收，session_id: {request.session_id}")
+        logger.info(
+            f"大纲生成任务已接收，task_id: {task_id}, session_id: {request.session_id}")
 
-        return OutlineGenerationResponse(session_id=request.session_id,
-                                         redis_stream_key=redis_stream_key,
+        return OutlineGenerationResponse(taskId=task_id,
+                                         sessionId=request.session_id,
+                                         redisStreamKey=redis_stream_key,
                                          status="ACCEPTED",
                                          message="大纲生成任务已提交，请通过Redis流监听进度")
 
@@ -250,8 +257,13 @@ async def generate_document_from_outline(request: DocumentGenerationRequest):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="大纲节点不能为空")
 
+        # 生成唯一的任务ID
+        from doc_agent.core.task_id_generator import generate_task_id
+        task_id = generate_task_id()
+
         # 记录请求信息
         logger.info("文档生成请求详情:")
+        logger.info(f"  task_id: {task_id}")
         logger.info(f"  job_id: {request.job_id}")
         logger.info(f"  outline_title: {request.outline.title}")
         logger.info(f"  outline_nodes: {len(request.outline.nodes)} 个节点")
@@ -259,12 +271,12 @@ async def generate_document_from_outline(request: DocumentGenerationRequest):
         # 触发 Celery 任务
         from workers.tasks import generate_document_from_outline_task
         generate_document_from_outline_task.delay(
-            job_id=request.job_id, outline=request.outline.model_dump())
+            job_id=task_id, outline=request.outline.model_dump())
 
-        # 临时占位：记录任务已接收
-        logger.info(f"文档生成任务已接收，job_id: {request.job_id}")
+        # 记录任务已接收
+        logger.info(f"文档生成任务已接收，task_id: {task_id}, job_id: {request.job_id}")
 
-        return TaskCreationResponse(job_id=request.job_id)
+        return TaskCreationResponse(taskId=task_id, jobId=request.job_id)
 
     except HTTPException:
         raise
@@ -292,7 +304,12 @@ async def generate_document_from_outline_json(
         import json
         outline_data = json.loads(request.outline_json)
 
+        # 生成唯一的任务ID
+        from doc_agent.core.task_id_generator import generate_task_id
+        task_id = generate_task_id()
+
         logger.info("outline JSON解析成功:")
+        logger.info(f"  task_id: {task_id}")
         logger.info(f"  job_id: {request.job_id}")
         logger.info(f"  session_id: {request.session_id}")
         logger.info(f"  outline_title: {outline_data.get('title', '未知标题')}")
@@ -311,13 +328,15 @@ async def generate_document_from_outline_json(
         # 触发 Celery 任务
         from workers.tasks import generate_document_from_outline_task
         generate_document_from_outline_task.delay(
-            job_id=request.job_id,
+            job_id=task_id,
             outline=outline_data,
             session_id=request.session_id)
 
-        logger.info(f"从outline JSON生成文档任务已接收，job_id: {request.job_id}")
+        logger.info(
+            f"从outline JSON生成文档任务已接收，task_id: {task_id}, job_id: {request.job_id}"
+        )
 
-        return TaskCreationResponse(job_id=request.job_id)
+        return TaskCreationResponse(taskId=task_id, jobId=request.job_id)
 
     except json.JSONDecodeError as e:
         logger.error(f"outline JSON解析失败: {e}")
@@ -353,22 +372,22 @@ async def get_mock_redis_client():
         raise
 
 
-async def publish_mock_event(redis_client, session_id: str, event_data: dict):
+async def publish_mock_event(redis_client, task_id: str, event_data: dict):
     """发布模拟事件到Redis Stream"""
     try:
         from datetime import datetime
 
-        # 构造 Stream 名称 - 直接使用session_id作为流名称
-        stream_name = str(session_id)
+        # 构造 Stream 名称 - 使用task_id作为流名称
+        stream_name = str(task_id)
 
         # 发布事件到 Redis Stream - 使用自动生成的ID
         counter_key = f"stream_counter:{stream_name}"
         i = await redis_client.incr(counter_key)
-        # 让 Redis 自动生成 ID，但在事件数据中包含 sessionId-idx 格式
-        session_id_idx = f"{session_id}-{i}"  # 事件数据中的格式: sessionId-idx
+        # 让 Redis 自动生成 ID，但在事件数据中包含 taskId-idx 格式
+        task_id_idx = f"{task_id}-{i}"  # 事件数据中的格式: taskId-idx
 
         # 准备事件数据
-        event_data["redis_id"] = session_id_idx
+        event_data["redisId"] = task_id_idx
         event_data["timestamp"] = datetime.now().isoformat()
 
         await redis_client.xadd(
@@ -382,7 +401,7 @@ async def publish_mock_event(redis_client, session_id: str, event_data: dict):
 
 
 async def stream_mock_document_content(redis_client,
-                                       session_id: str,
+                                       task_id: str,
                                        content: str,
                                        chunk_size: int = 10):
     """流式输出模拟文档内容到Redis Stream"""
@@ -396,7 +415,7 @@ async def stream_mock_document_content(redis_client,
 
             # 发布内容流事件
             await publish_mock_event(
-                redis_client, session_id, {
+                redis_client, task_id, {
                     "eventType": "document_content_stream",
                     "taskType": "document_generation",
                     "content": chunk_text,
@@ -411,7 +430,7 @@ async def stream_mock_document_content(redis_client,
 
         # 发布流式输出完成事件
         await publish_mock_event(
-            redis_client, session_id, {
+            redis_client, task_id, {
                 "eventType": "document_content_completed",
                 "taskType": "document_generation",
                 "totalTokens": len(tokens),
@@ -601,15 +620,14 @@ def generate_mock_web_sources(chapter_title: str, chapter_index: int) -> list:
     return web_sources
 
 
-async def simulate_mock_document_generation(session_id: str,
-                                            outline_data: dict):
+async def simulate_mock_document_generation(task_id: str, outline_data: dict):
     """模拟文档生成过程"""
     try:
         redis_client = await get_mock_redis_client()
 
         # 1. 发布任务开始事件
         await publish_mock_event(
-            redis_client, session_id, {
+            redis_client, task_id, {
                 "eventType": "task_started",
                 "taskType": "document_generation",
                 "status": "started",
@@ -618,7 +636,7 @@ async def simulate_mock_document_generation(session_id: str,
 
         # 2. 发布分析进度
         await publish_mock_event(
-            redis_client, session_id, {
+            redis_client, task_id, {
                 "eventType": "task_progress",
                 "taskType": "document_generation",
                 "progress": "正在分析大纲结构",
@@ -638,7 +656,7 @@ async def simulate_mock_document_generation(session_id: str,
 
             # 发布章节开始事件
             await publish_mock_event(
-                redis_client, session_id, {
+                redis_client, task_id, {
                     "eventType": "chapter_started",
                     "taskType": "document_generation",
                     "chapterTitle": chapter_title,
@@ -651,7 +669,7 @@ async def simulate_mock_document_generation(session_id: str,
             steps = ["planner", "researcher", "supervisor", "writer"]
             for step in steps:
                 await publish_mock_event(
-                    redis_client, session_id, {
+                    redis_client, task_id, {
                         "eventType": "chapter_progress",
                         "taskType": "document_generation",
                         "chapterTitle": chapter_title,
@@ -676,7 +694,7 @@ async def simulate_mock_document_generation(session_id: str,
 
             # 发布章节完成事件
             await publish_mock_event(
-                redis_client, session_id, {
+                redis_client, task_id, {
                     "eventType": "chapter_completed",
                     "taskType": "document_generation",
                     "chapterTitle": chapter_title,
@@ -687,14 +705,14 @@ async def simulate_mock_document_generation(session_id: str,
 
             # 4. 每个章节完成后立即流式输出该章节内容
             await publish_mock_event(
-                redis_client, session_id, {
+                redis_client, task_id, {
                     "eventType": "writer_started",
                     "taskType": "document_generation",
                     "progress": f"开始编写章节 {chapter_index + 1}",
                     "status": "running"
                 })
 
-            await stream_mock_document_content(redis_client, session_id,
+            await stream_mock_document_content(redis_client, task_id,
                                                chapter_content)
 
             await asyncio.sleep(1)  # 章节间隔
@@ -706,7 +724,7 @@ async def simulate_mock_document_generation(session_id: str,
         }
 
         await publish_mock_event(
-            redis_client, session_id, {
+            redis_client, task_id, {
                 "eventType": "citations_completed",
                 "taskType": "document_generation",
                 "citations": citations_data,
@@ -717,7 +735,7 @@ async def simulate_mock_document_generation(session_id: str,
 
         # 6. 发布任务完成事件
         await publish_mock_event(
-            redis_client, session_id, {
+            redis_client, task_id, {
                 "eventType": "task_completed",
                 "taskType": "document_generation",
                 "status": "completed",
@@ -725,13 +743,13 @@ async def simulate_mock_document_generation(session_id: str,
                 "citations": citations_data
             })
 
-        logger.info(f"模拟服务 Session {session_id}: 文档生成完成")
+        logger.info(f"模拟服务 Task {task_id}: 文档生成完成")
 
     except Exception as e:
-        logger.error(f"模拟服务 Session {session_id}: 文档生成失败: {e}")
+        logger.error(f"模拟服务 Task {task_id}: 文档生成失败: {e}")
         try:
             await publish_mock_event(
-                redis_client, session_id, {
+                redis_client, task_id, {
                     "eventType": "task_failed",
                     "taskType": "document_generation",
                     "status": "failed",
@@ -759,6 +777,10 @@ async def generate_document_from_outline_json_mock(
         # 解析outline JSON
         outline_data = json.loads(request.outline_json)
 
+        # 生成唯一的任务ID
+        from doc_agent.core.task_id_generator import generate_task_id
+        task_id = generate_task_id()
+
         # 验证数据
         if not outline_data.get('title', '').strip():
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -771,10 +793,9 @@ async def generate_document_from_outline_json_mock(
         # 启动异步任务
         import asyncio
         asyncio.create_task(
-            simulate_mock_document_generation(request.session_id,
-                                              outline_data))
+            simulate_mock_document_generation(task_id, outline_data))
 
-        return TaskCreationResponse(job_id=request.session_id)
+        return TaskCreationResponse(taskId=task_id, jobId=request.session_id)
 
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
