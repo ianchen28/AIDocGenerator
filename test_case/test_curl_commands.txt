@@ -145,9 +145,23 @@ echo "=== 6. 模拟文档生成 - 从大纲JSON字符串 ==="
 curl -X POST "http://localhost:8000/api/v1/jobs/document-from-outline-mock" \
   -H "Content-Type: application/json" \
   -d '{
-    "jobId": "999888777",
+    "taskPrompt": "",
     "outlineJson": "{\"title\":\"人工智能技术发展趋势\",\"nodes\":[{\"title\":\"人工智能概述\",\"contentSummary\":\"介绍人工智能的基本概念和发展历程\",\"children\":[]},{\"title\":\"核心技术发展\",\"contentSummary\":\"分析机器学习、深度学习等核心技术的最新进展\",\"children\":[{\"title\":\"机器学习技术\",\"contentSummary\":\"传统机器学习算法的发展\",\"children\":[]},{\"title\":\"深度学习技术\",\"contentSummary\":\"神经网络和深度学习的最新突破\",\"children\":[]}]},{\"title\":\"应用领域拓展\",\"contentSummary\":\"探讨AI在各个行业的应用现状和前景\",\"children\":[]}]}",
-    "sessionId": "999888777"
+
+    "sessionId": "999888777",
+    "contextFiles": [
+        {
+        "id": 123,   //long
+        "attachmentType": 0,    //附件类型(0-大纲模板/1-上传参考资料/2-知识选择参考资料)
+        "attachmentName": "s3://...",   //文件名称
+        "attachmentFileType": "content"，    //文件类型  docx、pdf、...
+        "attachmentFileToken":"",   //文件token，返回参考文献列表返回这个
+        "isContentRefer": 0,   //是否内容参考(0-否/1-是)
+        "isStyleImitative": 0,   //是否风格仿写(0-否/1-是)
+        "isWritingRequirement": 0,  //是否编写要求(0-否/1-是)  
+        "attachmentOCRResultToken": 0  // ocr 源文件
+        },
+    ]
   }'
 
 echo -e "\n\n"
