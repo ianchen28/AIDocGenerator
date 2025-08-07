@@ -247,7 +247,7 @@ async def simulate_mock_generation_process(task_id: str, session_id: str):
 
         # 发布任务完成事件
         await publish_mock_event(
-            redis_client, session_id, {
+            redis_client, task_id, {
                 "eventType": "task_completed",
                 "taskType": "document_generation",
                 "status": "completed",
@@ -294,7 +294,7 @@ async def publish_mock_event(redis_client, task_id: str, event_data: dict):
         await redis_client.xadd(
             stream_name,
             {"data": json.dumps(event_data, ensure_ascii=False)},
-            id="*"  # 让 Redis 自动生成 ID
+            id=session_id_idx
         )
         logger.info(f"模拟事件发布成功: {event_data.get('eventType', 'unknown')}")
     except Exception as e:
@@ -331,7 +331,7 @@ async def stream_mock_document_content(redis_client,
 
         # 发布流式输出完成事件
         await publish_mock_event(
-            redis_client, session_id, {
+            redis_client, task_id, {
                 "eventType": "document_content_completed",
                 "taskType": "document_generation",
                 "totalTokens": len(tokens),
