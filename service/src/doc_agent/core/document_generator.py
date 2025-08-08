@@ -29,7 +29,8 @@ async def generate_document_sync(task_id: str,
 
         # 准备图的初始状态
         initial_state = generate_initial_state(task_prompt, outline_json_file,
-                                               context_files, is_online)
+                                               task_id, context_files,
+                                               is_online)
 
         logger.info(f"Job {task_id}: 开始执行文档生成图...")
         # 以流式方式执行图
@@ -52,6 +53,7 @@ async def generate_document_sync(task_id: str,
 
 def generate_initial_state(task_prompt: str,
                            outline_json_file: str,
+                           task_id: str,
                            context_files: Optional[list[dict]] = None,
                            is_online: bool = False) -> ResearchState:
     """
@@ -177,6 +179,7 @@ def generate_initial_state(task_prompt: str,
                 user_requirements_content.append(source)
 
     return ResearchState(
+        job_id=task_id,
         task_prompt=task_prompt,
         topic=task_prompt,  # 使用 task_prompt 作为 topic
         document_outline=document_outline,

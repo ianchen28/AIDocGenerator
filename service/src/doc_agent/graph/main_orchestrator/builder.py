@@ -65,6 +65,8 @@ def create_chapter_processing_node(chapter_workflow_graph):
         current_citation_index = state.get('current_citation_index', 0)
 
         chapter_workflow_input = {
+            "job_id":
+            state.get("job_id", ""),
             "topic":
             topic,
             "current_chapter_index":

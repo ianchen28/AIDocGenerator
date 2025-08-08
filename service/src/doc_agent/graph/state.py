@@ -16,6 +16,7 @@ class ResearchState(TypedDict):
     run_id: Optional[str]  # 用于日志追踪的唯一标识符
 
     task_prompt: str  # 用户的核心指令
+    job_id: str  # 任务ID
 
     # 研究主题
     topic: str
