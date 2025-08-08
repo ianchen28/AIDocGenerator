@@ -9,125 +9,64 @@ import asyncio
 from typing import Optional, Union
 
 from doc_agent.core.logger import logger
+from doc_agent.core.redis_health_check import get_redis_client
 
 
 class RedisStreamPublisher:
     """
-    Redis Streams 事件发布器
-    
-    用于向 Redis Streams 发布任务相关的事件，支持异步操作。
+    使用 aioredis 和 Redis INCR 命令的健壮事件发布器。
     """
 
-    job_idx = {}
-
-    def __init__(self, redis_client):
-        """
-        初始化 Redis Streams 发布器
-        
-        Args:
-            redis_client: Redis 客户端实例
-        """
-        self.redis_client = redis_client
-        self._connection_lock = asyncio.Lock()
-        logger.info("Redis Streams 发布器初始化完成")
-
-    async def _ensure_connection(self):
-        """
-        确保Redis连接可用，如果连接关闭则重新连接
-        """
-        try:
-            # 检查连接状态
-            if hasattr(self.redis_client,
-                       'connection') and self.redis_client.connection:
-                if hasattr(self.redis_client.connection, 'is_connected'):
-                    if not self.redis_client.connection.is_connected:
-                        logger.warning("Redis连接已关闭，尝试重新连接...")
-                        await self._reconnect()
-                        return
-
-            # 测试连接
-            await self.redis_client.ping()
-
-        except Exception as e:
-            logger.warning(f"Redis连接检查失败，尝试重新连接: {e}")
-            await self._reconnect()
-
-    async def _reconnect(self):
-        """
-        重新连接Redis
-        """
-        try:
-            from doc_agent.core.config import settings
-            import redis.asyncio as redis
-
-            # 关闭旧连接
-            if self.redis_client:
-                try:
-                    await self.redis_client.close()
-                except:
-                    pass
-
-            # 创建新连接
-            self.redis_client = redis.from_url(settings.redis_url,
-                                               encoding="utf-8",
-                                               decode_responses=True,
-                                               socket_connect_timeout=10,
-                                               socket_timeout=10,
-                                               retry_on_timeout=True,
-                                               health_check_interval=30)
-
-            # 测试新连接
-            await self.redis_client.ping()
-            logger.info("Redis重新连接成功")
-
-        except Exception as e:
-            logger.error(f"Redis重新连接失败: {e}")
-            raise
+    def __init__(self):
+        logger.info("Redis Streams 发布器 (aioredis 模式) 初始化完成")
 
     async def publish_event(self, job_id: Union[str, int],
                             event_data: dict) -> Optional[str]:
-        """
-        发布事件到 Redis Stream
-        
-        Args:
-            job_id: 任务ID
-            event_data: 事件数据
-            
-        Returns:
-            str: 事件ID，失败时返回 None
-        """
-        async with self._connection_lock:
+
+        job_id_str = str(job_id)
+        custom_id = None
+
+        try:
+            # 1. 获取 aioredis 客户端实例，如果连接池未初始化则先初始化
             try:
-                # 确保连接可用
-                await self._ensure_connection()
+                redis_client = get_redis_client()
+            except RuntimeError:
+                # 如果连接池未初始化，先初始化
+                from doc_agent.core.redis_health_check import init_redis_pool
+                await init_redis_pool()
+                redis_client = get_redis_client()
 
-                stream_name = f"job:{job_id}"
-                i = self.job_idx.get(job_id, 0) + 1
-                self.job_idx[job_id] = i
+            # 2. 使用 Redis INCR 生成原子性的序列号
+            counter_key = f"job_counter:{job_id_str}"
+            i = await redis_client.incr(counter_key)
 
-                event_id = await self.redis_client.xadd(
-                    stream_name,
-                    {"data": json.dumps(event_data, ensure_ascii=False)},
-                    id="*")  # 让Redis自动生成ID
+            # 3. 构建自定义 ID - 使用时间戳格式
+            import time
+            timestamp = int(time.time() * 1000)  # 毫秒时间戳
+            custom_id = f"{timestamp}-{i}"
 
-                # 设置 Stream 的过期时间为 24 小时
-                try:
-                    await self.redis_client.expire(stream_name, 24 * 60 * 60
-                                                   )  # 24小时 = 86400秒
-                    logger.debug(f"已设置 Stream {stream_name} 的过期时间为 24 小时")
-                except Exception as e:
-                    logger.warning(f"设置 Stream 过期时间失败: {e}")
+            stream_name = f"job:{job_id_str}"
+            # aioredis 的 xadd 期望一个字典，其值为 str, bytes, int 或 float
+            # 我们将 event_data 序列化为 JSON 字符串
+            fields = {"data": json.dumps(event_data, ensure_ascii=False)}
 
-                logger.info(
-                    f"事件发布成功: job_id={job_id}, event_id={event_id}, event_type={event_data.get('event_type', 'unknown')}, i={i}"
-                )
+            # 4. 使用 xadd 命令，让Redis自动生成ID
+            event_id = await redis_client.xadd(stream_name, fields)
 
-                return event_id
+            # 5. 设置过期时间
+            await redis_client.expire(stream_name, 24 * 60 * 60)
+            await redis_client.expire(counter_key, 24 * 60 * 60)
 
-            except Exception as e:
-                logger.error(f"事件发布失败: job_id={job_id}, error={e}")
-                # 不抛出异常，只记录错误，避免影响主流程
-                return None
+            logger.info(
+                f"事件发布成功: job_id={job_id_str}, event_id={event_id}, event_type={event_data.get('eventType', 'unknown')}, i={i}"
+            )
+            return event_id
+
+        except Exception as e:
+            logger.error(
+                f"事件发布失败: job_id={job_id_str}, custom_id={custom_id}, error_type={type(e).__name__}, error_msg={e}"
+            )
+            return None
 
     async def publish_task_started(self, job_id: Union[str, int],
                                    task_type: str, **kwargs) -> Optional[str]:

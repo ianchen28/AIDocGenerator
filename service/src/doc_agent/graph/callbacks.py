@@ -5,6 +5,8 @@ Redis回调处理器
 """
 
 import asyncio
+from concurrent.futures import Future
+
 from datetime import datetime
 from typing import Any, Optional, Union
 from uuid import UUID
@@ -12,70 +14,61 @@ from uuid import UUID
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
+
 from doc_agent.core.logger import logger
 
 # 导入Redis Streams发布器
 from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
+from doc_agent.core.redis_health_check import get_main_event_loop
 
 
 class RedisCallbackHandler(BaseCallbackHandler):
     """
-    Redis回调处理器
-
-    将LangGraph执行过程中的各种事件发布到Redis，
-    以支持实时事件流监控和前端状态更新
+    一个线程安全的回调处理器，用于从同步代码中向 Redis 发布异步事件。
     """
 
-    def __init__(self, job_id: str, publisher: RedisStreamPublisher):
-        """
-        初始化Redis回调处理器
-
-        Args:
-            job_id: 作业ID，用于构建事件流名称
-            publisher: Redis Streams发布器实例
-        """
+    def __init__(self, job_id: str):
         super().__init__()
         self.job_id = job_id
-        self.publisher = publisher
+        self.publisher = RedisStreamPublisher()
+        # 尝试获取主事件循环，如果失败则设为None
+        try:
+            self.main_loop = get_main_event_loop()
+            logger.debug(f"成功获取主事件循环 - Job ID: {self.job_id}")
+        except RuntimeError as e:
+            logger.debug(f"无法获取主事件循环，将使用直接运行模式: {e}")
+            self.main_loop = None
+        logger.info(f"Redis回调处理器已初始化 - Job ID: {self.job_id}")
 
-        logger.info(f"Redis回调处理器已初始化 - Job ID: {job_id}")
-
-    async def _publish_event(self, event_type: str, data: dict[str, Any]):
+    def _publish_event(self, event_type: str, data: Optional[dict] = None):
         """
-        发布事件到Redis Stream
-
-        Args:
-            event_type: 事件类型
-            data: 事件数据
+        统一、安全地发布事件。
+        优先使用主事件循环，如果没有则直接运行异步函数。
         """
         try:
-            # 检查 publisher 是否可用
-            if self.publisher is None:
-                logger.warning(f"Redis publisher 不可用，跳过事件发布: {event_type}")
-                return
+            event_data = {"eventType": event_type}
+            if data:
+                event_data.update(data)
 
-            # 构建事件载荷
-            event_payload = {
-                "event_type": event_type,
-                "data": data,
-                "timestamp": datetime.now().isoformat(),
-                "job_id": self.job_id
-            }
+            # 创建需要执行的协程
+            coro = self.publisher.publish_event(self.job_id, event_data)
 
-            # 使用Redis Streams发布器发布事件
-            result = await self.publisher.publish_event(
-                self.job_id, event_payload)
-
-            if result:
-                logger.debug(
-                    f"事件已发布到Stream - 类型: {event_type}, Job ID: {self.job_id}")
+            # 检查是否有可用的主事件循环
+            if self.main_loop and self.main_loop.is_running():
+                # 如果有主事件循环，使用 run_coroutine_threadsafe
+                future: Future = asyncio.run_coroutine_threadsafe(
+                    coro, self.main_loop)
+                # 等待结果，设置超时
+                future.result(timeout=10)
             else:
-                logger.warning(
-                    f"事件发布失败 - 类型: {event_type}, Job ID: {self.job_id}")
+                # 没有主事件循环，直接运行
+                logger.debug("没有可用的主事件循环，直接运行异步函数")
+                asyncio.run(coro)
 
         except Exception as e:
-            logger.error(f"发布事件失败: {e}")
-            # 不抛出异常，避免影响主流程
+            logger.warning(
+                f"事件发布失败或超时 - 类型: {event_type}, Job ID: {self.job_id}, 错误: {e}"
+            )
 
     def on_chain_start(
         self,
@@ -380,20 +373,14 @@ class RedisCallbackHandler(BaseCallbackHandler):
                     }))
 
 
-def create_redis_callback_handler(
-        job_id: str, publisher: RedisStreamPublisher) -> RedisCallbackHandler:
+def create_redis_callback_handler(job_id: str) -> RedisCallbackHandler:
     """
     创建Redis回调处理器的工厂函数
 
     Args:
         job_id: 作业ID
-        publisher: Redis Streams发布器实例（可以为None）
 
     Returns:
         RedisCallbackHandler实例
     """
-    # 如果 publisher 为 None，记录警告但继续创建处理器
-    if publisher is None:
-        logger.warning(f"Redis publisher 为 None，将创建无发布功能的回调处理器: {job_id}")
-
-    return RedisCallbackHandler(job_id, publisher)
+    return RedisCallbackHandler(job_id)

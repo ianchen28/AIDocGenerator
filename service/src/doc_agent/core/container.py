@@ -8,12 +8,8 @@ from doc_agent.core.logger import logger
 # 确保环境变量已加载
 from doc_agent.core.config import settings
 from doc_agent.core.env_loader import setup_environment
-from doc_agent.core.logging_config import setup_logging
 
 setup_environment()
-
-# 初始化日志系统
-setup_logging(settings)
 
 # 导入 doc_agent 模块
 from doc_agent.common.prompt_selector import PromptSelector
@@ -219,8 +215,7 @@ class Container:
             配置了Redis回调处理器的图执行器
         """
         # 创建Redis回调处理器
-        redis_handler = create_redis_callback_handler(
-            job_id, self._get_redis_publisher())
+        redis_handler = create_redis_callback_handler(job_id)
 
         # 根据genre创建相应的节点绑定
         configured_graph = self._get_genre_aware_graph(genre, redis_handler)
@@ -237,30 +232,9 @@ class Container:
         """
         try:
             from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
-            from doc_agent.core.redis_health_check import get_redis_connection_manager
-            import asyncio
 
-            # 使用连接管理器获取Redis客户端
-            async def create_publisher():
-                manager = await get_redis_connection_manager()
-                redis_client = await manager.get_client()
-                return RedisStreamPublisher(redis_client)
-
-            # 在事件循环中创建发布器
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 如果事件循环正在运行，使用线程池
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run,
-                                                 create_publisher())
-                        publisher = future.result(timeout=10)
-                else:
-                    publisher = loop.run_until_complete(create_publisher())
-            except RuntimeError:
-                # 如果没有事件循环，创建新的
-                publisher = asyncio.run(create_publisher())
+            # 直接创建发布器，不需要传递客户端
+            publisher = RedisStreamPublisher()
 
             logger.info("RedisStreamPublisher 创建成功")
             return publisher
@@ -490,8 +464,7 @@ class Container:
             配置了Redis回调处理器的大纲生成图执行器
         """
         # 创建Redis回调处理器
-        redis_handler = create_redis_callback_handler(
-            job_id, self._get_redis_publisher())
+        redis_handler = create_redis_callback_handler(job_id)
 
         # 根据genre创建相应的节点绑定
         configured_graph = self._get_genre_aware_outline_graph(
@@ -514,8 +487,7 @@ class Container:
             配置了Redis回调处理器的文档生成图执行器
         """
         # 创建Redis回调处理器
-        redis_handler = create_redis_callback_handler(
-            job_id, self._get_redis_publisher())
+        redis_handler = create_redis_callback_handler(job_id)
 
         # 根据genre创建相应的节点绑定
         configured_graph = self._get_genre_aware_document_graph(
@@ -531,8 +503,7 @@ class Container:
             job_id: 作业ID，用于创建特定的回调处理器
         """
         # 创建Redis回调处理器
-        redis_handler = create_redis_callback_handler(
-            job_id, self._get_redis_publisher())
+        redis_handler = create_redis_callback_handler(job_id)
 
         # 使用标准图，但通过配置控制快速模式
         configured_graph = self._get_genre_aware_graph("default",

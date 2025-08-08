@@ -31,10 +31,8 @@ def setup_logging(config: AppSettings) -> None:
     """
     from loguru import logger
 
-    # 移除所有现有的处理器，但保留默认的stderr处理器
+    # 移除所有现有的处理器
     logger.remove()
-    # 重新添加默认的stderr处理器
-    logger.add(sys.stderr, level="WARNING")
 
     # 确保日志目录存在 - 使用根目录的相对路径
     # 从当前文件位置找到项目根目录
