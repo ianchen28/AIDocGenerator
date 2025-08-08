@@ -1,6 +1,6 @@
 # service/src/doc_agent/llm_clients/base.py
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 
 
 class LLMClient(ABC):
@@ -18,6 +18,20 @@ class LLMClient(ABC):
             **kwargs: 其他参数，如temperature, max_tokens等
         Returns:
             str: 模型响应的内容
+        Raises:
+            Exception: 当API调用失败时抛出异常
+        """
+        pass
+
+    @abstractmethod
+    def stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
+        """
+        同步流式调用模型
+        Args:
+            prompt: 输入提示
+            **kwargs: 其他参数，如temperature, max_tokens等
+        Yields:
+            str: 模型响应的文本片段
         Raises:
             Exception: 当API调用失败时抛出异常
         """

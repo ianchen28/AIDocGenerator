@@ -4,7 +4,7 @@ import asyncio
 import json
 import time
 import pprint
-from typing import Any, Dict, List, Optional, Union, AsyncGenerator
+from typing import Any, Dict, List, Optional, Union, AsyncGenerator, Generator
 
 import httpx
 
@@ -605,6 +605,69 @@ class InternalLLMClient(LLMClient):
             logger.error(f"Internal API调用失败: {str(e)}")
             raise Exception(f"Internal API调用失败: {str(e)}") from e
 
+    def stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
+        """
+        同步流式调用内部模型API
+        Args:
+            prompt: 输入提示
+            **kwargs: 其他参数，如temperature, max_tokens等
+        Yields:
+            str: 模型响应的文本片段
+        """
+        try:
+            # 获取可选参数
+            temperature = kwargs.get("temperature", 0.7)
+            max_tokens = kwargs.get("max_tokens", 1000)
+
+            # 构建请求数据
+            data = {
+                "model": self.model_name,
+                "messages": [{
+                    "role": "user",
+                    "content": prompt
+                }],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True  # 启用流式输出
+            }
+
+            logger.debug(
+                f"Internal 同步流式API请求:\nURL: {self.base_url}/chat/completions\nData: {pprint.pformat(data)}"
+            )
+
+            # 发送请求
+            url = f"{self.base_url}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}"
+            } if self.api_key != "EMPTY" else {}
+
+            with httpx.Client(timeout=180.0) as client:  # 内部模型可能需要更长时间
+                with client.stream("POST", url, json=data,
+                                   headers=headers) as response:
+                    response.raise_for_status()
+
+                    for line in response.iter_lines():
+                        # line 已经是字符串，不需要解码
+                        line_str = line
+                        if line_str.startswith("data: "):
+                            data_str = line_str[6:]  # 移除 "data: " 前缀
+                            if data_str.strip() == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data_str)
+                                if "choices" in chunk and len(
+                                        chunk["choices"]) > 0:
+                                    delta = chunk["choices"][0].get(
+                                        "delta", {})
+                                    if "content" in delta and delta["content"]:
+                                        yield delta["content"]
+                            except json.JSONDecodeError:
+                                continue
+
+        except Exception as e:
+            logger.error(f"Internal 同步流式API调用失败: {str(e)}")
+            raise Exception(f"Internal 同步流式API调用失败: {str(e)}") from e
+
     async def astream(self, prompt: str,
                       **kwargs) -> AsyncGenerator[str, None]:
         """
@@ -735,6 +798,14 @@ class RerankerClient(LLMClient):
             logger.error(f"Reranker API调用失败: {str(e)}")
             raise Exception(f"Reranker API调用失败: {str(e)}") from e
 
+    def stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
+        """
+        Reranker客户端不支持流式输出，返回空生成器
+        """
+        logger.warning("Reranker客户端不支持流式输出，返回空结果")
+        return
+        yield  # 这行永远不会执行，只是为了满足类型注解
+
     async def astream(self, prompt: str,
                       **kwargs) -> AsyncGenerator[str, None]:
         """
@@ -788,6 +859,14 @@ class EmbeddingClient(LLMClient):
         except Exception as e:
             logger.error(f"Embedding API调用失败: {str(e)}")
             raise Exception(f"Embedding API调用失败: {str(e)}") from e
+
+    def stream(self, prompt: str, **kwargs) -> Generator[str, None, None]:
+        """
+        Embedding客户端不支持流式输出，返回空生成器
+        """
+        logger.warning("Embedding客户端不支持流式输出，返回空结果")
+        return
+        yield  # 这行永远不会执行，只是为了满足类型注解
 
     async def astream(self, prompt: str,
                       **kwargs) -> AsyncGenerator[str, None]:

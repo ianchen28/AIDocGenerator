@@ -21,6 +21,7 @@ from doc_agent.graph.common import (
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
 from doc_agent.schemas import Source
+from doc_agent.graph.callbacks import TokenStreamCallbackHandler
 
 
 def writer_node(state: ResearchState,
@@ -31,7 +32,7 @@ def writer_node(state: ResearchState,
     """
     章节写作节点
     基于当前章节的研究数据和已完成章节的上下文，生成当前章节的内容
-    支持引用工作流，自动处理引用标记和源追踪
+    支持引用工作流，自动处理引用标记和源追踪，支持 token 级别流式输出到 Redis
     
     Args:
         state: 研究状态，包含章节信息、研究数据和已完成章节
@@ -43,6 +44,13 @@ def writer_node(state: ResearchState,
     Returns:
         dict: 包含当前章节内容和引用源的字典
     """
+    logger.info("--- WRITER NODE ---")
+    job_id = state.get("job_id")
+    if not job_id:
+        logger.error("Writer node: job_id not found in state.")
+        # 即使没有 job_id 也可以继续，但无法发布事件
+        job_id = "unknown_job"
+
     # 获取基本信息
     topic = state.get("topic", "")
     current_chapter_index = state.get("current_chapter_index", 0)
@@ -117,11 +125,28 @@ def writer_node(state: ResearchState,
     logger.debug(f"Invoking LLM with writer prompt:\n{pprint(prompt)}")
 
     try:
-        # 调用LLM生成章节内容
-        response = llm_client.invoke(prompt,
-                                     temperature=temperature,
-                                     max_tokens=max_tokens,
-                                     **extra_params)
+        # 创建流式回调处理器
+        streaming_handler = TokenStreamCallbackHandler(
+            job_id=job_id, chapter_title=chapter_title)
+
+        logger.info(f"开始为章节 '{chapter_title}' 流式调用 LLM...")
+
+        # 使用同步流式调用 LLM
+        full_response = ""
+        for chunk in llm_client.stream(prompt,
+                                       temperature=temperature,
+                                       max_tokens=max_tokens,
+                                       **extra_params):
+            # 累加 token 内容
+            full_response += chunk
+
+            # 使用 TokenStreamCallbackHandler 发送每个 token
+            streaming_handler.on_llm_new_token(chunk)
+
+        logger.success(f"章节 '{chapter_title}' 内容流式生成完毕。")
+
+        # 使用流式生成的完整响应
+        response = full_response
 
         # 获取章节编号信息
         current_chapter_index = state.get("current_chapter_index", 0)

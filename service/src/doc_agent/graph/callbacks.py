@@ -352,6 +352,49 @@ class RedisCallbackHandler(BaseCallbackHandler):
                     }))
 
 
+class TokenStreamCallbackHandler(BaseCallbackHandler):
+    """
+    一个专门用于将 LLM 生成的 token 流式传输到 Redis 的回调处理器。
+    """
+
+    def __init__(self, job_id: str, chapter_title: str):
+        """
+        初始化处理器。
+        Args:
+            job_id (str): 当前的作业 ID。
+            chapter_title (str): 正在生成内容的章节标题，用于提供上下文。
+        """
+        from doc_agent.core.container import get_container
+        container = get_container()
+        self.publisher = container.redis_publisher
+        self.job_id = job_id
+        self.chapter_title = chapter_title
+        super().__init__()
+
+    def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
+        """
+        当 LLM 生成一个新 token 时被调用。
+        """
+        if not token:  # 忽略空 token
+            return
+
+        try:
+            # 定义一个清晰的事件结构
+            event_data = {
+                "eventType": "on_llm_token",
+                "data": {
+                    "token": token,
+                    "chapter_title": self.chapter_title,
+                }
+            }
+            # 使用我们已经验证过的同步发布器来发送事件
+            self.publisher.publish_event(self.job_id, event_data)
+        except Exception as e:
+            # 只记录警告，避免因为流式传输失败而中断整个文档生成过程
+            logger.warning(
+                f"Token streaming to Redis failed for job {self.job_id}: {e}")
+
+
 def create_redis_callback_handler(job_id: str) -> RedisCallbackHandler:
     """
     创建Redis回调处理器的工厂函数

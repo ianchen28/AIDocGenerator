@@ -34,17 +34,12 @@ class RedisStreamPublisher:
             # 2. 使用 Redis INCR 生成原子性的序列号
             counter_key = f"job_counter:{job_id_str}"
             i = self.redis_client.incr(counter_key)
-            custom_id = f"{job_id_str}-{i}"
 
             stream_name = f"job:{job_id_str}"
-            # aioredis 的 xadd 期望一个字典，其值为 str, bytes, int 或 float
-            # 我们将 event_data 序列化为 JSON 字符串
             fields = {"data": json.dumps(event_data, ensure_ascii=False)}
 
             # 4. 使用 xadd 命令，让Redis自动生成ID
-            event_id = self.redis_client.xadd(stream_name,
-                                              fields,
-                                              id=custom_id)
+            event_id = self.redis_client.xadd(stream_name, fields)
 
             # 5. 设置过期时间
             self.redis_client.expire(stream_name, 24 * 60 * 60)
@@ -55,7 +50,7 @@ class RedisStreamPublisher:
 
         except Exception as e:
             logger.error(
-                f"事件发布失败: job_id={job_id_str}, custom_id={custom_id}, error_type={type(e).__name__}, error_msg={e}"
+                f"事件发布失败: job_id={job_id_str}, error_type={type(e).__name__}, error_msg={e}"
             )
 
     async def publish_task_started(self, job_id: Union[str, int],
