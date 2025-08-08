@@ -15,6 +15,8 @@ class ResearchState(TypedDict):
     # 日志追踪 ID
     run_id: Optional[str]  # 用于日志追踪的唯一标识符
 
+    task_prompt: str  # 用户的核心指令
+
     # 研究主题
     topic: str
 
@@ -55,5 +57,11 @@ class ResearchState(TypedDict):
     cited_sources: list[Source]  # 🔧 修复：改为列表以保持一致性
     cited_sources_in_chapter: list[Source]  # 当前章节引用源
 
+    # 用户上传文件
+    user_data_reference_files: list[Source]  # 用户上传的数据参考文件
+    user_style_guide_content: list[Source]  # 用户上传的样式指南
+    user_requirements_content: list[Source]  # 用户上传的需求文档
+
     # 对话历史
     messages: Annotated[list, add_messages]
+    is_online: bool  # 是否调用web搜索

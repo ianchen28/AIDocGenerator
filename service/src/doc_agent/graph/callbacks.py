@@ -49,6 +49,11 @@ class RedisCallbackHandler(BaseCallbackHandler):
             data: 事件数据
         """
         try:
+            # 检查 publisher 是否可用
+            if self.publisher is None:
+                logger.warning(f"Redis publisher 不可用，跳过事件发布: {event_type}")
+                return
+
             # 构建事件载荷
             event_payload = {
                 "event_type": event_type,
@@ -58,13 +63,19 @@ class RedisCallbackHandler(BaseCallbackHandler):
             }
 
             # 使用Redis Streams发布器发布事件
-            await self.publisher.publish_event(self.job_id, event_payload)
+            result = await self.publisher.publish_event(
+                self.job_id, event_payload)
 
-            logger.debug(
-                f"事件已发布到Stream - 类型: {event_type}, Job ID: {self.job_id}")
+            if result:
+                logger.debug(
+                    f"事件已发布到Stream - 类型: {event_type}, Job ID: {self.job_id}")
+            else:
+                logger.warning(
+                    f"事件发布失败 - 类型: {event_type}, Job ID: {self.job_id}")
 
         except Exception as e:
             logger.error(f"发布事件失败: {e}")
+            # 不抛出异常，避免影响主流程
 
     def on_chain_start(
         self,
@@ -364,9 +375,13 @@ def create_redis_callback_handler(
 
     Args:
         job_id: 作业ID
-        publisher: Redis Streams发布器实例
+        publisher: Redis Streams发布器实例（可以为None）
 
     Returns:
         RedisCallbackHandler实例
     """
+    # 如果 publisher 为 None，记录警告但继续创建处理器
+    if publisher is None:
+        logger.warning(f"Redis publisher 为 None，将创建无发布功能的回调处理器: {job_id}")
+
     return RedisCallbackHandler(job_id, publisher)

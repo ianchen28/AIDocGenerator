@@ -278,6 +278,34 @@ def bibliography_node(state: ResearchState) -> dict:
 
     logger.info(f"📚 已将参考文献添加到最终文档中，总长度: {len(updated_final_document)} 字符")
 
+    # 保存文档到本地文件
+    try:
+        import os
+        from datetime import datetime
+
+        # 创建输出目录
+        output_dir = "output"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # 生成文件名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        title = state.get("document_outline", {}).get("title", "未命名文档")
+        # 清理文件名中的特殊字符
+        safe_title = "".join(c for c in title
+                             if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        filename = f"{timestamp}_{safe_title}.md"
+        filepath = os.path.join(output_dir, filename)
+
+        # 保存文档
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(updated_final_document)
+
+        logger.info(f"💾 文档已保存到本地: {filepath}")
+
+    except Exception as e:
+        logger.error(f"保存文档失败: {e}")
+
     # 返回更新后的 final_document
     return {"final_document": updated_final_document}
 

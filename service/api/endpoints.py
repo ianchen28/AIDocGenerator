@@ -2,7 +2,7 @@
 import json
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from doc_agent.core.logger import logger
 
@@ -21,8 +21,21 @@ from doc_agent.core.task_id_generator import generate_task_id
 # 导入Celery任务
 from workers import tasks
 
+# 导入请求/响应模型 (Schemas)
+from doc_agent.schemas import (
+    OutlineGenerationRequest,
+    DocumentGenerationRequest,
+    TaskCreationResponse,
+)
+# 导入我们新的核心逻辑函数
+from doc_agent.core.outline_generator import generate_outline_sync
+from doc_agent.core.document_generator import generate_document_sync
+# 导入任务ID生成器
+from doc_agent.core.task_id_generator import generate_task_id
+
 # 创建API路由器实例
-router = APIRouter()
+# router = APIRouter()
+router = APIRouter(tags=["Generation Jobs & Tasks"])
 
 
 def get_ai_editing_tool():
@@ -30,69 +43,137 @@ def get_ai_editing_tool():
     return Container().ai_editing_tool
 
 
-@router.post(
-    "/jobs/outline",
-    response_model=TaskCreationResponse,  # 使用统一模型
-    response_model_by_alias=True,  # 强制按别名输出
-    status_code=status.HTTP_202_ACCEPTED)
-async def generate_outline_from_query(request: OutlineGenerationRequest):
-    logger.info(f"收到大纲生成请求，sessionId: {request.session_id}")
-    task_id = generate_task_id()
-    try:
-        tasks.generate_outline_from_query_task.delay(
-            job_id=task_id,
-            task_prompt=request.task_prompt,
-            is_online=request.is_online,
-            context_files=request.context_files,
-            redis_stream_key=task_id,  # 传递给 worker
-        )
-        logger.success(f"大纲生成任务已提交，Task ID: {task_id}")
-        return TaskCreationResponse(
-            redis_stream_key=task_id,
-            session_id=request.session_id,
-        )
-    except Exception as e:
-        logger.error(f"提交大纲生成任务失败: {e}")
-        raise HTTPException(status_code=500, detail="任务提交失败")
+# =================================================================
+#  核心接口改造 (使用 FastAPI BackgroundTasks, 不再依赖 Celery)
+# =================================================================
+
+
+@router.post("/jobs/outline",
+             response_model=TaskCreationResponse,
+             status_code=status.HTTP_202_ACCEPTED,
+             summary="以背景任务形式生成大纲 (非Celery)")
+async def generate_outline_endpoint(request: OutlineGenerationRequest,
+                                    background_tasks: BackgroundTasks):
+    """
+    接收大纲生成请求，将其作为后台任务运行，并立即返回任务ID。
+    该接口不使用Celery，任务在FastAPI应用进程的后台执行。
+    """
+    logger.info(f"收到大纲生成请求，正在添加到后台任务。SessionId: {request.session_id}")
+    job_id = generate_task_id()
+
+    background_tasks.add_task(
+        generate_outline_sync,
+        job_id=str(job_id),
+        session_id=request.session_id,
+        task_prompt=request.task_prompt,
+        is_online=request.is_online,
+        context_files=request.context_files,
+        style_guide_content=request.style_guide_content,
+        requirements=request.requirements,
+    )
+
+    logger.success(f"大纲生成任务 {job_id} 已提交到后台。")
+    return TaskCreationResponse(
+        redis_stream_key=str(job_id),
+        session_id=request.session_id,
+    )
 
 
 @router.post("/jobs/document-from-outline",
              response_model=TaskCreationResponse,
-             response_model_by_alias=True,
-             status_code=status.HTTP_202_ACCEPTED)
-async def generate_document_from_outline_json(
-    request: DocumentGenerationFromOutlineRequest, ):
-    logger.info(f"📥 收到从outline JSON生成文档请求，jobId: {request.job_id}")
-    logger.info(
-        f"📋 请求详情: sessionId={request.session_id}, outline长度={len(request.outline_json)}"
+             status_code=status.HTTP_202_ACCEPTED,
+             summary="从大纲生成文档的背景任务 (非Celery)")
+async def generate_document_endpoint(request: DocumentGenerationRequest,
+                                     background_tasks: BackgroundTasks):
+    """
+    接收文档生成请求，将其作为后台任务运行，并立即返回任务ID。
+    该接口不使用Celery，任务在FastAPI应用进程的后台执行。
+    """
+    logger.info(f"收到文档生成请求，正在添加到后台任务。JobId: {request.session_id}")
+    task_id = generate_task_id()
+    session_id = request.session_id
+    task_prompt = request.task_prompt
+    outline_json_file = request.outline
+    context_files = request.context_files
+    is_online = request.is_online
+
+    background_tasks.add_task(generate_document_sync,
+                              task_id=str(task_id),
+                              task_prompt=task_prompt,
+                              session_id=session_id,
+                              outline_json_file=outline_json_file,
+                              context_files=context_files,
+                              is_online=is_online)
+
+    logger.success(f"文档生成任务 {task_id} 已提交到后台。")
+    return TaskCreationResponse(
+        redis_stream_key=str(task_id),
+        session_id=session_id,
     )
 
-    task_id = generate_task_id()
-    logger.info(f"🆔 生成任务ID: {task_id}")
 
-    try:
-        # 这一步保持不变，因为请求体中 outline_json 本身就是字符串
-        logger.info("🚀 提交Celery任务...")
-        result = tasks.generate_document_from_outline_task.delay(
-            job_id=task_id,
-            # 直接传递请求中的 JSON 字符串
-            outline_json=request.outline_json,
-            session_id=request.session_id,
-        )
+# @router.post(
+#     "/jobs/outline",
+#     response_model=TaskCreationResponse,  # 使用统一模型
+#     response_model_by_alias=True,  # 强制按别名输出
+#     status_code=status.HTTP_202_ACCEPTED)
+# async def generate_outline_from_query(request: OutlineGenerationRequest):
+#     logger.info(f"收到大纲生成请求，sessionId: {request.session_id}")
+#     task_id = generate_task_id()
+#     try:
+#         tasks.generate_outline_from_query_task.delay(
+#             job_id=task_id,
+#             task_prompt=request.task_prompt,
+#             is_online=request.is_online,
+#             context_files=request.context_files,
+#             redis_stream_key=task_id,  # 传递给 worker
+#         )
+#         logger.success(f"大纲生成任务已提交，Task ID: {task_id}")
+#         return TaskCreationResponse(
+#             redis_stream_key=task_id,
+#             session_id=request.session_id,
+#         )
+#     except Exception as e:
+#         logger.error(f"提交大纲生成任务失败: {e}")
+#         raise HTTPException(status_code=500, detail="任务提交失败")
 
-        logger.info(f"🔍 Celery任务发送结果: {result.id}")
-        logger.success(f"✅ 文档生成任务已提交，Task ID: {task_id}")
+# @router.post("/jobs/document-from-outline",
+#              response_model=TaskCreationResponse,
+#              response_model_by_alias=True,
+#              status_code=status.HTTP_202_ACCEPTED)
+# async def generate_document_from_outline_json(
+#     request: DocumentGenerationFromOutlineRequest, ):
+#     logger.info(f"📥 收到从outline JSON生成文档请求，jobId: {request.job_id}")
+#     logger.info(
+#         f"📋 请求详情: sessionId={request.session_id}, outline长度={len(request.outline_json)}"
+#     )
 
-        response_object = TaskCreationResponse(
-            redis_stream_key=task_id,
-            session_id=request.session_id,
-        )
-        logger.info(f"📤 返回响应: {response_object}")
-        return response_object
+#     task_id = generate_task_id()
+#     logger.info(f"🆔 生成任务ID: {task_id}")
 
-    except Exception as e:
-        logger.error(f"❌ 提交文档生成任务失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="任务提交失败")
+#     try:
+#         # 这一步保持不变，因为请求体中 outline_json 本身就是字符串
+#         logger.info("🚀 提交Celery任务...")
+#         result = tasks.generate_document_from_outline_task.delay(
+#             job_id=task_id,
+#             # 直接传递请求中的 JSON 字符串
+#             outline_json=request.outline_json,
+#             session_id=request.session_id,
+#         )
+
+#         logger.info(f"🔍 Celery任务发送结果: {result.id}")
+#         logger.success(f"✅ 文档生成任务已提交，Task ID: {task_id}")
+
+#         response_object = TaskCreationResponse(
+#             redis_stream_key=task_id,
+#             session_id=request.session_id,
+#         )
+#         logger.info(f"📤 返回响应: {response_object}")
+#         return response_object
+
+#     except Exception as e:
+#         logger.error(f"❌ 提交文档生成任务失败: {e}", exc_info=True)
+#         raise HTTPException(status_code=500, detail="任务提交失败")
 
 
 @router.post(
@@ -101,7 +182,7 @@ async def generate_document_from_outline_json(
     response_model_by_alias=True,  # 强制按别名输出
     status_code=status.HTTP_202_ACCEPTED)
 async def generate_document_from_outline_json_mock(
-    request: DocumentGenerationFromOutlineRequest, ):
+    request: DocumentGenerationRequest, ):
     logger.info(f"收到模拟文档生成请求，sessionId: {request.session_id}")
     task_id = generate_task_id()
     try:

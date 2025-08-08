@@ -5,6 +5,7 @@ Redis Streams 事件发布器
 """
 
 import json
+import asyncio
 from typing import Optional, Union
 
 from doc_agent.core.logger import logger
@@ -27,7 +28,61 @@ class RedisStreamPublisher:
             redis_client: Redis 客户端实例
         """
         self.redis_client = redis_client
+        self._connection_lock = asyncio.Lock()
         logger.info("Redis Streams 发布器初始化完成")
+
+    async def _ensure_connection(self):
+        """
+        确保Redis连接可用，如果连接关闭则重新连接
+        """
+        try:
+            # 检查连接状态
+            if hasattr(self.redis_client,
+                       'connection') and self.redis_client.connection:
+                if hasattr(self.redis_client.connection, 'is_connected'):
+                    if not self.redis_client.connection.is_connected:
+                        logger.warning("Redis连接已关闭，尝试重新连接...")
+                        await self._reconnect()
+                        return
+
+            # 测试连接
+            await self.redis_client.ping()
+
+        except Exception as e:
+            logger.warning(f"Redis连接检查失败，尝试重新连接: {e}")
+            await self._reconnect()
+
+    async def _reconnect(self):
+        """
+        重新连接Redis
+        """
+        try:
+            from doc_agent.core.config import settings
+            import redis.asyncio as redis
+
+            # 关闭旧连接
+            if self.redis_client:
+                try:
+                    await self.redis_client.close()
+                except:
+                    pass
+
+            # 创建新连接
+            self.redis_client = redis.from_url(settings.redis_url,
+                                               encoding="utf-8",
+                                               decode_responses=True,
+                                               socket_connect_timeout=10,
+                                               socket_timeout=10,
+                                               retry_on_timeout=True,
+                                               health_check_interval=30)
+
+            # 测试新连接
+            await self.redis_client.ping()
+            logger.info("Redis重新连接成功")
+
+        except Exception as e:
+            logger.error(f"Redis重新连接失败: {e}")
+            raise
 
     async def publish_event(self, job_id: Union[str, int],
                             event_data: dict) -> Optional[str]:
@@ -36,42 +91,43 @@ class RedisStreamPublisher:
         
         Args:
             job_id: 任务ID
-            event_data: 事件数据字典
+            event_data: 事件数据
             
         Returns:
-            str: 事件ID，如果发布失败则返回 None
-            
-        Raises:
-            Exception: 当发布失败时抛出异常
+            str: 事件ID，失败时返回 None
         """
-        try:
-            # 构造 Stream 名称 - 直接使用job_id作为流名称
-            stream_name = str(job_id)
+        async with self._connection_lock:
+            try:
+                # 确保连接可用
+                await self._ensure_connection()
 
-            # 发布事件到 Redis Stream
-            counter_key = f"stream_counter:{stream_name}"
-            i = await self.redis_client.incr(counter_key)
-            # 使用时间戳格式的ID，符合Redis Stream要求
-            import time
-            timestamp = int(time.time() * 1000)  # 毫秒级时间戳
-            id_str = f"{timestamp}-{i}"
-            # 准备事件数据
-            event_data["redisId"] = id_str
+                stream_name = f"job:{job_id}"
+                i = self.job_idx.get(job_id, 0) + 1
+                self.job_idx[job_id] = i
 
-            event_id = await self.redis_client.xadd(
-                stream_name,
-                {"data": json.dumps(event_data, ensure_ascii=False)},
-                id="*")  # 让Redis自动生成ID
+                event_id = await self.redis_client.xadd(
+                    stream_name,
+                    {"data": json.dumps(event_data, ensure_ascii=False)},
+                    id="*")  # 让Redis自动生成ID
 
-            logger.info(
-                f"事件发布成功: job_id={job_id}, event_id={event_id}, event_type={event_data.get('event_type', 'unknown')}, i={i}"
-            )
+                # 设置 Stream 的过期时间为 24 小时
+                try:
+                    await self.redis_client.expire(stream_name, 24 * 60 * 60
+                                                   )  # 24小时 = 86400秒
+                    logger.debug(f"已设置 Stream {stream_name} 的过期时间为 24 小时")
+                except Exception as e:
+                    logger.warning(f"设置 Stream 过期时间失败: {e}")
 
-            return event_id
+                logger.info(
+                    f"事件发布成功: job_id={job_id}, event_id={event_id}, event_type={event_data.get('event_type', 'unknown')}, i={i}"
+                )
 
-        except Exception as e:
-            logger.error(f"事件发布失败: job_id={job_id}, error={e}")
-            raise Exception(f"发布事件失败: {str(e)}") from e
+                return event_id
+
+            except Exception as e:
+                logger.error(f"事件发布失败: job_id={job_id}, error={e}")
+                # 不抛出异常，只记录错误，避免影响主流程
+                return None
 
     async def publish_task_started(self, job_id: Union[str, int],
                                    task_type: str, **kwargs) -> Optional[str]:

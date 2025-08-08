@@ -90,53 +90,117 @@ curl -X POST "http://localhost:8000/api/v1/jobs/document" \
   -d '{
     "jobId": "123456789",
     "outline": {
-      "title": "人工智能技术发展趋势",
-      "nodes": [
+    "title": "水电站建造过程中可能出现的问题与解决方案",
+    "summary": "本报告主要探讨水电站建设过程中常见的问题，包括基坑开挖、混凝土浇筑、施工环境和技术要求等方面，并提出相应的解决方案。",
+    "chapters": [
         {
-          "title": "人工智能概述",
-          "contentSummary": "介绍人工智能的基本概念和发展历程",
-          "children": []
+            "number": 1,
+            "title": "水电站建设中的常见问题",
+            "description": "本章详细分析水电站建设过程中常见的问题，包括基坑开挖、地下水处理和混凝土浇筑等方面的具体问题。",
+            "sections": [
+                {
+                    "number": 1.1,
+                    "title": "基坑开挖中的问题",
+                    "description": "基坑开挖是水电站建设初期的关键步骤，本节讨论基坑开挖中常见的问题。",
+                    "key_points": [
+                        "基坑边坡坡比与设计不符",
+                        "戗台宽度与设计图纸不符",
+                        "存在大量超欠挖，需要二次开挖"
+                    ]
+                },
+                {
+                    "number": 1.2,
+                    "title": "地下水处理问题",
+                    "description": "地下水丰富地区的混凝土浇筑面临特殊挑战，本节分析这些问题的具体表现。",
+                    "key_points": [
+                        "岩石裂隙水不能有效外排",
+                        "混凝土浇筑过程中水泥浆被冲走",
+                        "混凝土被水浸泡，造成蜂窝、麻面现象"
+                    ]
+                },
+                {
+                    "number": 1.3,
+                    "title": "混凝土浇筑中的问题",
+                    "description": "混凝土浇筑是水电站建设中的重要环节，本节讨论混凝土浇筑中常见的问题。",
+                    "key_points": [
+                        "模板跑模、炸模、漏浆",
+                        "混凝土浇筑不均匀",
+                        "模板支撑不牢固导致混凝土变形"
+                    ]
+                }
+            ]
         },
         {
-          "title": "核心技术发展",
-          "contentSummary": "分析机器学习、深度学习等核心技术的最新进展",
-          "children": [
-            {
-              "title": "机器学习技术",
-              "contentSummary": "传统机器学习算法的发展",
-              "children": []
-            },
-            {
-              "title": "深度学习技术",
-              "contentSummary": "神经网络和深度学习的最新突破",
-              "children": []
-            }
-          ]
-        },
-        {
-          "title": "应用领域拓展",
-          "contentSummary": "探讨AI在各个行业的应用现状和前景",
-          "children": []
+            "number": 2,
+            "title": "水电站建设中的施工环境和技术要求",
+            "description": "本章探讨水电站建设过程中面临的复杂施工环境和技术要求，以及相应的应对措施。",
+            "sections": [
+                {
+                    "number": 2.1,
+                    "title": "施工环境的复杂性",
+                    "description": "水电站一般建设在山区或河流陡坡地区，本节讨论施工环境的复杂性。",
+                    "key_points": [
+                        "工作场地狭小",
+                        "地形陡峭",
+                        "气候条件恶劣"
+                    ]
+                },
+                {
+                    "number": 2.2,
+                    "title": "施工技术要求",
+                    "description": "水电站建设涉及多个专业领域的技术，本节分析对施工人员的技术要求。",
+                    "key_points": [
+                        "水利水电工程专业技能",
+                        "电气工程专业技能",
+                        "机械工程专业技能"
+                    ]
+                },
+                {
+                    "number": 2.3,
+                    "title": "国际项目管理的特殊挑战",
+                    "description": "国际水电站项目面临额外的政治和环境因素，本节讨论这些特殊挑战。",
+                    "key_points": [
+                        "政治因素影响",
+                        "人员材料机械短缺",
+                        "生产组织的严峻挑战"
+                    ]
+                }
+            ]
         }
-      ]
-    }
+    ],
+    "total_chapters": 3,
+    "estimated_total_words": 5000
+}
   }'
 
 echo -e "\n\n"
 
 # ============================================================================
-# 5. 文档生成端点 (从大纲JSON字符串)
+# 5. 文档生成端点 (从大纲 JSON 文件)
 # ============================================================================
 echo "=== 5. 文档生成 - 从大纲JSON字符串 ==="
 curl -X POST "http://localhost:8000/api/v1/jobs/document-from-outline" \
   -H "Content-Type: application/json" \
   -d '{
-    "jobId": "123456789",
-    "outlineJson": "{\"title\":\"人工智能技术发展趋势\",\"nodes\":[{\"title\":\"人工智能概述\",\"contentSummary\":\"介绍人工智能的基本概念和发展历程\",\"children\":[]},{\"title\":\"核心技术发展\",\"contentSummary\":\"分析机器学习、深度学习等核心技术的最新进展\",\"children\":[{\"title\":\"机器学习技术\",\"contentSummary\":\"传统机器学习算法的发展\",\"children\":[]},{\"title\":\"深度学习技术\",\"contentSummary\":\"神经网络和深度学习的最新突破\",\"children\":[]}]},{\"title\":\"应用领域拓展\",\"contentSummary\":\"探讨AI在各个行业的应用现状和前景\",\"children\":[]}]}",
-    "sessionId": "123456789"
+    "taskPrompt": "生命中的美好与沉思",
+    "outline": "/Users/chenyuyang/git/AIDocGenerator/test_case/outline_from_fe.json",
+    "sessionId": "123456789",
+    "contextFiles": [],
+    "isOnline": true
   }'
 
 echo -e "\n\n"
+
+
+curl -X POST "http://localhost:8000/api/v1/jobs/document-from-outline-mock" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "taskPrompt": "生命中的美好与沉思",
+    "outline": "/Users/chenyuyang/git/AIDocGenerator/test_case/outline_from_fe.json",
+    "sessionId": "123456789",
+    "contextFiles": [],
+    "isOnline": true
+  }'
 
 # ============================================================================
 # 6. 模拟文档生成端点 (从大纲JSON字符串)

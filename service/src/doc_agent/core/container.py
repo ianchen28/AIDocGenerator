@@ -235,9 +235,41 @@ class Container:
         Returns:
             RedisStreamPublisher: Redis发布器实例
         """
-        # 这里需要异步获取Redis客户端，但为了简化，我们暂时返回None
-        # 在实际使用中，需要根据具体的Redis连接方式来实现
-        return None
+        try:
+            from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
+            from doc_agent.core.redis_health_check import get_redis_connection_manager
+            import asyncio
+
+            # 使用连接管理器获取Redis客户端
+            async def create_publisher():
+                manager = await get_redis_connection_manager()
+                redis_client = await manager.get_client()
+                return RedisStreamPublisher(redis_client)
+
+            # 在事件循环中创建发布器
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环正在运行，使用线程池
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run,
+                                                 create_publisher())
+                        publisher = future.result(timeout=10)
+                else:
+                    publisher = loop.run_until_complete(create_publisher())
+            except RuntimeError:
+                # 如果没有事件循环，创建新的
+                publisher = asyncio.run(create_publisher())
+
+            logger.info("RedisStreamPublisher 创建成功")
+            return publisher
+
+        except Exception as e:
+            logger.error(f"无法创建Redis发布器: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            return None
 
     def _get_genre_aware_graph(self, genre: str, redis_handler):
         """

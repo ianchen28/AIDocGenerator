@@ -32,16 +32,46 @@ class Source(BaseModel):
     title: str = Field(..., description="信息源标题")
     url: Optional[str] = Field(None, description="信息源URL，如果可用")
     content: str = Field(..., description="信息源的实际文本内容片段")
+    date: Optional[str] = Field(None, description="信息源日期，如果可用")
+    author: Optional[str] = Field(None, description="信息源作者，如果可用")
+    page_number: Optional[int] = Field(None, description="信息源页码，如果可用")
     cited: bool = Field(False, description="是否被引用")
+    file_token: Optional[str] = Field(None, description="文件token，可选")
+    ocr_result_token: Optional[str] = Field(None,
+                                            description="ocr结果文件token，可选")
 
 
 # --- Outline Models ---
 class OutlineNode(BaseModel):
     """大纲节点模型（递归结构）"""
-    id: str
-    title: str
-    content_summary: Optional[str] = Field(None, alias="contentSummary")
-    children: List['OutlineNode'] = []
+    id: str = Field(..., description="节点ID,支持多级格式如 1.1.2")
+    title: str = Field(..., description="节点标题")
+    content_summary: Optional[str] = Field(None,
+                                           alias="contentSummary",
+                                           description="节点内容概要")
+    children: list['OutlineNode'] = Field(default_factory=list,
+                                          description="子节点列表")
+    image_infos: list[dict] = Field(default_factory=list,
+                                    alias="imageInfos",
+                                    description="节点相关图片信息")
+    level: Optional[int] = Field(None, description="节点层级,从1开始计数")
+    parent_id: Optional[str] = Field(None,
+                                     alias="parentId",
+                                     description="父节点ID")
+
+    @model_validator(mode='after')
+    def calculate_level(self):
+        """计算节点层级"""
+        if self.id:
+            self.level = len(self.id.split('.'))
+        return self
+
+    @model_validator(mode='after')
+    def set_parent_id(self):
+        """设置父节点ID"""
+        if self.id and '.' in self.id:
+            self.parent_id = '.'.join(self.id.split('.')[:-1])
+        return self
 
 
 # 支持递归模型引用
@@ -50,8 +80,23 @@ OutlineNode.model_rebuild()
 
 class Outline(BaseModel):
     """大纲模型"""
-    title: str
-    nodes: List[OutlineNode]
+    title: str = Field(..., description="文档标题")
+    word_count: int = Field(5000, alias="wordCount", description="全文字数")
+    nodes: list[OutlineNode] = Field(..., description="大纲节点列表")
+    max_depth: Optional[int] = Field(None, description="大纲最大深度")
+
+    @model_validator(mode='after')
+    def calculate_max_depth(self):
+        """计算大纲最大深度"""
+        if self.nodes:
+
+            def get_depth(node: OutlineNode) -> int:
+                if not node.children:
+                    return 1
+                return 1 + max(get_depth(child) for child in node.children)
+
+            self.max_depth = max(get_depth(node) for node in self.nodes)
+        return self
 
 
 # --- Request Models ---
@@ -64,9 +109,13 @@ class OutlineGenerationRequest(BaseModel):
                                         description="会话ID")
     task_prompt: str = Field(..., alias="taskPrompt", description="用户的核心指令")
     is_online: bool = Field(False, alias="isOnline", description="是否调用web搜索")
-    context_files: Optional[List[dict]] = Field(None,
+    context_files: Optional[list[dict]] = Field(None,
                                                 alias="contextFiles",
                                                 description="相关上传文件列表")
+    style_guide_content: Optional[str] = Field(None,
+                                               alias="styleGuideContent",
+                                               description="样式指南内容")
+    requirements: Optional[str] = Field(None, description="需求说明")
 
     @model_validator(mode='before')
     @classmethod
@@ -77,10 +126,16 @@ class OutlineGenerationRequest(BaseModel):
         return data
 
 
+# 后续和大纲生成 request 合并
 class DocumentGenerationRequest(BaseModel):
     """文档生成请求模型"""
-    job_id: str = Field(..., alias="jobId", description="由后端生成的唯一任务ID")
-    outline: Outline = Field(..., description="结构化的大纲对象")
+    task_prompt: str = Field(..., alias="taskPrompt", description="用户的核心指令")
+    session_id: str = Field(..., alias="sessionId", description="由后端生成的唯一任务ID")
+    outline: str = Field(..., description="结构化的大纲对象文件")
+    context_files: Optional[list[dict]] = Field(None,
+                                                alias="contextFiles",
+                                                description="相关上传文件列表")
+    is_online: bool = Field(False, alias="isOnline", description="是否调用web搜索")
 
 
 class DocumentGenerationFromOutlineRequest(BaseModel):
