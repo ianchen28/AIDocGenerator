@@ -31,18 +31,32 @@ def setup_logging(config: AppSettings) -> None:
     """
     from loguru import logger
 
-    # 移除所有现有的处理器
+    # 移除所有现有的处理器，但保留默认的stderr处理器
     logger.remove()
+    # 重新添加默认的stderr处理器
+    logger.add(sys.stderr, level="WARNING")
 
     # 确保日志目录存在 - 使用根目录的相对路径
     # 从当前文件位置找到项目根目录
     current_file = Path(__file__)
-    project_root = current_file.parent.parent.parent.parent
+    project_root = current_file.parent.parent.parent.parent.parent  # 多一个.parent
     log_dir = project_root / "logs"
     log_dir.mkdir(exist_ok=True)
 
     # 统一日志文件路径：使用根目录的logs/app.log
     log_file_path = log_dir / "app.log"
+
+    # 添加控制台处理器
+    logger.add(
+        sys.stdout,
+        level=config.logging.level,
+        format=
+        "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
+        colorize=True,  # 启用颜色
+        backtrace=True,
+        diagnose=True,
+        enqueue=False,  # 同步写入，确保实时输出
+    )
 
     # 添加文件处理器
     logger.add(
@@ -53,7 +67,7 @@ def setup_logging(config: AppSettings) -> None:
         rotation=config.logging.rotation,  # 日志轮转
         retention=config.logging.retention,  # 日志保留
         compression="zip",  # 压缩旧日志文件
-        enqueue=False,  # 改为同步写入，确保实时输出
+        enqueue=False,  # 同步写入，确保实时输出
         serialize=False,  # 不使用序列化，保持可读格式
         backtrace=True,
         diagnose=True,
@@ -61,7 +75,6 @@ def setup_logging(config: AppSettings) -> None:
 
     # 拦截标准库的logging
     import logging
-    import sys
 
     class InterceptHandler(logging.Handler):
 
@@ -82,19 +95,16 @@ def setup_logging(config: AppSettings) -> None:
                        exception=record.exc_info).log(level,
                                                       record.getMessage())
 
-    # 配置logging使用loguru
-    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+    # 配置logging使用loguru，但不强制覆盖
+    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=False)
 
-    # 移除所有现有的handlers
-    for name in logging.root.manager.loggerDict.keys():
-        logging.getLogger(name).handlers = []
-        logging.getLogger(name).propagate = True
+    # 不移除任何现有的handlers，让FastAPI保持原有的日志配置
 
     logger.info("日志系统已成功配置")
     logger.info(f"统一日志文件路径: {log_file_path}")
     logger.info(f"日志轮转: {config.logging.rotation}")
     logger.info(f"日志保留: {config.logging.retention}")
-    logger.info("所有日志将统一输出到上述文件")
+    logger.info("日志将同时输出到控制台和文件")
 
 
 def get_logger(name: str = None) -> Any:

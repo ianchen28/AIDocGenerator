@@ -89,6 +89,9 @@ class RedisCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         """链开始执行时的回调"""
+        # 安全处理 serialized 可能为 None 的情况
+        if serialized is None:
+            serialized = {}
         chain_name = serialized.get("name", "Unknown Chain")
 
         # 根据链名称确定阶段
@@ -173,6 +176,9 @@ class RedisCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         """工具开始执行时的回调"""
+        # 安全处理 serialized 可能为 None 的情况
+        if serialized is None:
+            serialized = {}
         tool_name = serialized.get("name", "Unknown Tool")
 
         # 发布工具调用事件
@@ -255,6 +261,9 @@ class RedisCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         """聊天模型开始时的回调"""
+        # 安全处理 serialized 可能为 None 的情况
+        if serialized is None:
+            serialized = {}
         model_name = serialized.get("name", "LLM")
 
         # 发布思考过程事件
@@ -280,6 +289,9 @@ class RedisCallbackHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         """LLM开始时的回调"""
+        # 安全处理 serialized 可能为 None 的情况
+        if serialized is None:
+            serialized = {}
         model_name = serialized.get("name", "LLM")
 
         # 发布LLM调用开始事件
