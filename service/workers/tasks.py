@@ -261,39 +261,58 @@ async def _generate_outline_from_query_task_async(
         return "FAILED"
 
 
-@celery_app.task
-def generate_document_from_outline_task(job_id: Union[str, int],
-                                        outline: dict,
-                                        session_id: str = None) -> str:
+@celery_app.task(name="workers.tasks.generate_document_from_outline_task")
+def generate_document_from_outline_task(job_id: str,
+                                        outline_json: str,
+                                        session_id: str = "default_session"):
     """
-    从大纲生成文档的异步任务
-
-    Args:
-        job_id: 作业ID
-        outline: 结构化的大纲对象
-        session_id: 会话ID，用于追踪
-
-    Returns:
-        任务状态
+    接收 outline 的 JSON 字符串，并启动文档生成工作流的 Celery 任务。
     """
-    logger.info(f"🚀 文档生成任务开始 - Job ID: {job_id}, Session ID: {session_id}")
-    logger.info(
-        f"📋 大纲信息: 标题='{outline.get('title', '未知')}', 章节数={len(outline.get('chapters', []))}"
-    )
+    # 关键的第一步：在任务开始时立刻打印日志，确认任务已被接收
+    logger.success(f"✅ Celery Worker 已成功接收文档生成任务: {job_id}")
+    logger.info(f"   - Session ID: {session_id}")
+    logger.info(f"   - Outline JSON (前100字符): {outline_json[:100]}...")
 
     try:
-        # 使用同步方式运行异步函数
-        result = asyncio.run(
-            _generate_document_from_outline_task_async(job_id, outline,
-                                                       session_id))
-        logger.success(f"✅ 文档生成任务完成 - Job ID: {job_id}, 结果: {result}")
-        return result
+        # 第二步：在任务内部解析 JSON 字符串
+        outline_data = json.loads(outline_json)
+        logger.info("✅ Outline JSON 解析成功。")
+
+        # 获取主编排器图实例
+        main_orchestrator = get_container().main_orchestrator_graph
+
+        # 准备工作流的初始状态
+        initial_state = {
+            "job_id": job_id,
+            "session_id": session_id,
+            "document_outline": outline_data,
+            # 初始化其他必要的状态字段
+            "sources": {},
+            "citation_counter": 0,
+            "completed_chapters": [],
+            "current_chapter_index": 0,
+        }
+
+        logger.info("🚀 开始执行文档生成工作流...")
+        # 同步执行完整的 LangGraph 工作流
+        final_state = main_orchestrator.invoke(
+            initial_state, config={"configurable": {
+                "thread_id": job_id
+            }})
+
+        logger.success(f"✅ 文档生成工作流执行完毕: {job_id}")
+        return {
+            "status": "COMPLETED",
+            "final_document": final_state.get("final_document")
+        }
+
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ 解析 Outline JSON 失败: {e}")
+        # 在这里可以增加任务失败的处理逻辑
+        return {"status": "FAILED", "error": "Invalid outline JSON"}
     except Exception as e:
-        logger.error(f"❌ 文档生成任务失败 - Job ID: {job_id}, 错误: {e}")
-        logger.error(f"📊 错误详情: {type(e).__name__}: {str(e)}")
-        import traceback
-        logger.error(f"🔍 堆栈跟踪: {traceback.format_exc()}")
-        return "FAILED"
+        logger.error(f"❌ 文档生成工作流执行失败: {e}", exc_info=True)
+        return {"status": "FAILED", "error": str(e)}
 
 
 async def _generate_document_from_outline_task_async(job_id: Union[str, int],

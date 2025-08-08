@@ -70,6 +70,7 @@ async def run_stage_two_document_generation(
         initial_state: ResearchState) -> dict:
     logger.info("🚀🚀🚀 STAGE 2: Starting Document Generation Workflow 🚀🚀🚀")
     final_result_state = None
+    container = get_container()
     try:
         async_stream = container.document_graph.astream(initial_state)
         async for step_output in async_stream:

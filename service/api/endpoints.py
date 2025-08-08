@@ -56,11 +56,10 @@ async def generate_outline_from_query(request: OutlineGenerationRequest):
         raise HTTPException(status_code=500, detail="任务提交失败")
 
 
-@router.post(
-    "/jobs/document-from-outline",
-    response_model=TaskCreationResponse,  # 使用统一模型
-    response_model_by_alias=True,  # 强制按别名输出
-    status_code=status.HTTP_202_ACCEPTED)
+@router.post("/jobs/document-from-outline",
+             response_model=TaskCreationResponse,
+             response_model_by_alias=True,
+             status_code=status.HTTP_202_ACCEPTED)
 async def generate_document_from_outline_json(
     request: DocumentGenerationFromOutlineRequest, ):
     logger.info(f"📥 收到从outline JSON生成文档请求，jobId: {request.job_id}")
@@ -72,46 +71,27 @@ async def generate_document_from_outline_json(
     logger.info(f"🆔 生成任务ID: {task_id}")
 
     try:
-        logger.info(f"🔍 解析outline JSON...")
-        outline_data = json.loads(request.outline_json)
-        logger.info(
-            f"✅ outline解析成功: 标题='{outline_data.get('title', '未知')}', 章节数={len(outline_data.get('chapters', []))}"
+        # 这一步保持不变，因为请求体中 outline_json 本身就是字符串
+        logger.info("🚀 提交Celery任务...")
+        result = tasks.generate_document_from_outline_task.delay(
+            job_id=task_id,
+            # 直接传递请求中的 JSON 字符串
+            outline_json=request.outline_json,
+            session_id=request.session_id,
         )
 
-        logger.info(f"🚀 提交Celery任务...")
-        try:
-            result = tasks.generate_document_from_outline_task.delay(
-                job_id=task_id,
-                outline=outline_data,
-                session_id=request.session_id,
-            )
-            logger.info(f"🔍 Celery任务发送结果: {result}")
-            logger.success(f"✅ 文档生成任务已提交，Task ID: {task_id}")
-        except Exception as e:
-            logger.error(f"❌ Celery任务发送失败: {e}")
-            logger.error(f"🔍 错误详情: {type(e).__name__}: {str(e)}")
-            import traceback
-            logger.error(f"📋 错误堆栈: {traceback.format_exc()}")
-            raise HTTPException(status_code=500, detail="Celery任务发送失败")
+        logger.info(f"🔍 Celery任务发送结果: {result.id}")
+        logger.success(f"✅ 文档生成任务已提交，Task ID: {task_id}")
 
-        response = TaskCreationResponse(
+        response_object = TaskCreationResponse(
             redis_stream_key=task_id,
             session_id=request.session_id,
         )
-        logger.info(f"📤 返回响应: {response}")
-        return response
-
-    except json.JSONDecodeError as e:
-        logger.error(f"❌ outline JSON解析失败: {e}")
-        logger.error(f"📄 原始JSON: {request.outline_json[:200]}...")
-        raise HTTPException(status_code=400,
-                            detail=f"outline JSON格式错误: {str(e)}")
+        logger.info(f"📤 返回响应: {response_object}")
+        return response_object
 
     except Exception as e:
-        logger.error(f"❌ 提交文档生成任务失败: {e}")
-        logger.error(f"🔍 错误详情: {type(e).__name__}: {str(e)}")
-        import traceback
-        logger.error(f"📋 错误堆栈: {traceback.format_exc()}")
+        logger.error(f"❌ 提交文档生成任务失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="任务提交失败")
 
 
