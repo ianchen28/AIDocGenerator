@@ -48,7 +48,7 @@ def get_container():
 # Redis连接现在每次都创建新的，避免连接超时问题
 
 
-async def get_redis_client() -> redis.Redis:
+def get_redis_client() -> redis.Redis:
     """获取Redis客户端实例"""
     try:
         # 每次都创建新的连接，避免连接超时问题
@@ -57,7 +57,7 @@ async def get_redis_client() -> redis.Redis:
                                       encoding="utf-8",
                                       decode_responses=True)
         # 测试连接
-        await redis_client.ping()
+        redis_client.ping()
         logger.info("Redis客户端连接成功")
         return redis_client
     except Exception as e:

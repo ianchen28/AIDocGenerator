@@ -28,7 +28,7 @@ from doc_agent.schemas import (
     TaskCreationResponse,
 )
 # 导入我们新的核心逻辑函数
-from doc_agent.core.outline_generator import generate_outline_sync
+from doc_agent.core.outline_generator import generate_outline_async
 from doc_agent.core.document_generator import generate_document_sync
 # 导入任务ID生成器
 from doc_agent.core.task_id_generator import generate_task_id
@@ -62,7 +62,7 @@ async def generate_outline_endpoint(request: OutlineGenerationRequest,
     job_id = generate_task_id()
 
     background_tasks.add_task(
-        generate_outline_sync,
+        generate_outline_async,
         job_id=str(job_id),
         session_id=request.session_id,
         task_prompt=request.task_prompt,

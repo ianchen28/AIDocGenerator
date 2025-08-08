@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 from doc_agent.core.container import container
 
 
-async def generate_outline_sync(
+async def generate_outline_async(
     job_id: str,
     session_id: str,
     task_prompt: str,
@@ -49,7 +49,7 @@ async def generate_outline_sync(
                                                      }
                                                  }):
             # 在后台任务中，我们主要关心日志，所以可以打印出每个步骤的完成情况
-            for key, value in event.items():
+            for key, _value in event.items():
                 logger.info(f"Job {job_id} - 大纲生成步骤: '{key}' 已完成。")
 
         logger.success(f"Job {job_id}: 后台大纲生成任务成功完成。")

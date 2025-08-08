@@ -7,6 +7,7 @@ Redis Streams 事件发布器
 import json
 import asyncio
 from typing import Optional, Union
+from redis import Redis  # 确保导入的是同步的 Redis
 
 from doc_agent.core.logger import logger
 from doc_agent.core.redis_health_check import get_redis_client
@@ -17,33 +18,23 @@ class RedisStreamPublisher:
     使用 aioredis 和 Redis INCR 命令的健壮事件发布器。
     """
 
-    def __init__(self):
-        logger.info("Redis Streams 发布器 (aioredis 模式) 初始化完成")
+    def __init__(self, redis_client: Redis, stream_name: str):
+        if not hasattr(redis_client, 'xadd'):
+            raise TypeError("redis_client 必须是一个同步的 Redis 客户端实例")
+        self.redis_client = redis_client
+        self.stream_name = stream_name
+        logger.info(
+            f"同步 RedisStreamPublisher 已初始化，将发布到 Stream: '{self.stream_name}'")
 
-    async def publish_event(self, job_id: Union[str, int],
-                            event_data: dict) -> Optional[str]:
+    def publish_event(self, job_id: Union[str, int], event_data: dict):
 
         job_id_str = str(job_id)
-        custom_id = None
 
         try:
-            # 1. 获取 aioredis 客户端实例，如果连接池未初始化则先初始化
-            try:
-                redis_client = get_redis_client()
-            except RuntimeError:
-                # 如果连接池未初始化，先初始化
-                from doc_agent.core.redis_health_check import init_redis_pool
-                await init_redis_pool()
-                redis_client = get_redis_client()
-
             # 2. 使用 Redis INCR 生成原子性的序列号
             counter_key = f"job_counter:{job_id_str}"
-            i = await redis_client.incr(counter_key)
-
-            # 3. 构建自定义 ID - 使用时间戳格式
-            import time
-            timestamp = int(time.time() * 1000)  # 毫秒时间戳
-            custom_id = f"{timestamp}-{i}"
+            i = self.redis_client.incr(counter_key)
+            custom_id = f"{job_id_str}-{i}"
 
             stream_name = f"job:{job_id_str}"
             # aioredis 的 xadd 期望一个字典，其值为 str, bytes, int 或 float
@@ -51,22 +42,21 @@ class RedisStreamPublisher:
             fields = {"data": json.dumps(event_data, ensure_ascii=False)}
 
             # 4. 使用 xadd 命令，让Redis自动生成ID
-            event_id = await redis_client.xadd(stream_name, fields)
+            event_id = self.redis_client.xadd(stream_name,
+                                              fields,
+                                              id=custom_id)
 
             # 5. 设置过期时间
-            await redis_client.expire(stream_name, 24 * 60 * 60)
-            await redis_client.expire(counter_key, 24 * 60 * 60)
+            self.redis_client.expire(stream_name, 24 * 60 * 60)
 
             logger.info(
                 f"事件发布成功: job_id={job_id_str}, event_id={event_id}, event_type={event_data.get('eventType', 'unknown')}, i={i}"
             )
-            return event_id
 
         except Exception as e:
             logger.error(
                 f"事件发布失败: job_id={job_id_str}, custom_id={custom_id}, error_type={type(e).__name__}, error_msg={e}"
             )
-            return None
 
     async def publish_task_started(self, job_id: Union[str, int],
                                    task_type: str, **kwargs) -> Optional[str]:
@@ -89,7 +79,7 @@ class RedisStreamPublisher:
             **kwargs
         }
 
-        return await self.publish_event(job_id, event_data)
+        self.publish_event(job_id, event_data)
 
     async def publish_task_progress(self, job_id: Union[str,
                                                         int], task_type: str,
@@ -115,7 +105,7 @@ class RedisStreamPublisher:
             **kwargs
         }
 
-        return await self.publish_event(job_id, event_data)
+        self.publish_event(job_id, event_data)
 
     async def publish_task_completed(self,
                                      job_id: Union[str, int],
@@ -147,7 +137,7 @@ class RedisStreamPublisher:
             **serializable_kwargs
         }
 
-        return await self.publish_event(job_id, event_data)
+        self.publish_event(job_id, event_data)
 
     async def publish_task_failed(self, job_id: Union[str,
                                                       int], task_type: str,
@@ -173,7 +163,7 @@ class RedisStreamPublisher:
             **kwargs
         }
 
-        return await self.publish_event(job_id, event_data)
+        self.publish_event(job_id, event_data)
 
     async def publish_outline_generated(self, job_id: Union[str, int],
                                         outline: dict) -> Optional[str]:
@@ -195,7 +185,7 @@ class RedisStreamPublisher:
             "timestamp": self._get_current_timestamp()
         }
 
-        return await self.publish_event(job_id, event_data)
+        self.publish_event(job_id, event_data)
 
     async def publish_document_generated(self, job_id: Union[str, int],
                                          document: dict) -> Optional[str]:
@@ -220,7 +210,7 @@ class RedisStreamPublisher:
             "timestamp": self._get_current_timestamp()
         }
 
-        return await self.publish_event(job_id, event_data)
+        self.publish_event(job_id, event_data)
 
     def _make_serializable(self, obj):
         """

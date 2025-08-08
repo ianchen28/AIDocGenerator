@@ -28,47 +28,26 @@ class RedisCallbackHandler(BaseCallbackHandler):
     """
 
     def __init__(self, job_id: str):
-        super().__init__()
+        from doc_agent.core.container import get_container
+        container = get_container()
+        # publisher 现在是一个完全同步的对象
+        self.publisher = container.redis_publisher
         self.job_id = job_id
-        self.publisher = RedisStreamPublisher()
-        # 尝试获取主事件循环，如果失败则设为None
-        try:
-            self.main_loop = get_main_event_loop()
-            logger.debug(f"成功获取主事件循环 - Job ID: {self.job_id}")
-        except RuntimeError as e:
-            logger.debug(f"无法获取主事件循环，将使用直接运行模式: {e}")
-            self.main_loop = None
-        logger.info(f"Redis回调处理器已初始化 - Job ID: {self.job_id}")
+        super().__init__()
 
     def _publish_event(self, event_type: str, data: Optional[dict] = None):
-        """
-        统一、安全地发布事件。
-        优先使用主事件循环，如果没有则直接运行异步函数。
-        """
         try:
             event_data = {"eventType": event_type}
             if data:
                 event_data.update(data)
 
-            # 创建需要执行的协程
-            coro = self.publisher.publish_event(self.job_id, event_data)
-
-            # 检查是否有可用的主事件循环
-            if self.main_loop and self.main_loop.is_running():
-                # 如果有主事件循环，使用 run_coroutine_threadsafe
-                future: Future = asyncio.run_coroutine_threadsafe(
-                    coro, self.main_loop)
-                # 等待结果，设置超时
-                future.result(timeout=10)
-            else:
-                # 没有主事件循环，直接运行
-                logger.debug("没有可用的主事件循环，直接运行异步函数")
-                asyncio.run(coro)
+            # 直接调用，不再需要任何 asyncio 的处理
+            self.publisher.publish_event(self.job_id, event_data)
 
         except Exception as e:
+            # 记录下任何可能的异常，但不要让它中断主流程
             logger.warning(
-                f"事件发布失败或超时 - 类型: {event_type}, Job ID: {self.job_id}, 错误: {e}"
-            )
+                f"事件发布失败 - 类型: {event_type}, Job ID: {self.job_id}, 错误: {e}")
 
     def on_chain_start(
         self,

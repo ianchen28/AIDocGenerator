@@ -124,7 +124,7 @@ class RedisStreamMonitor:
                               block_timeout: int = 5000,
                               pretty: bool = True):
         """监控单个流"""
-        stream_key = job_id  # 直接使用job_id作为流名称
+        stream_key = f"job:{job_id}"  # 使用job:前缀格式
         last_id = "$"
 
         # 获取流信息
@@ -182,14 +182,13 @@ class RedisStreamMonitor:
         self._print_colored("按 Ctrl+C 停止监控", "yellow")
         print()
 
-        # 获取所有流 - 现在直接查找数字ID的流
+        # 获取所有流 - 查找job:前缀的流
         try:
-            # 查找所有数字ID的流（session_id）
+            # 查找所有job:前缀的流
             all_keys = []
             for key in self.client.keys("*"):
-                # 检查是否是数字ID（session_id）
-                if key.isdigit() or (key.startswith('-')
-                                     and key[1:].isdigit()):
+                # 检查是否是job:前缀的流
+                if key.startswith("job:"):
                     all_keys.append(key)
 
             if not all_keys:
