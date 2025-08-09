@@ -36,13 +36,17 @@ class RedisStreamPublisher:
             i = self.redis_client.incr(counter_key)
 
             stream_name = f"job:{job_id_str}"
-            fields = {"data": json.dumps(event_data, ensure_ascii=False)}
             custom_id = f"{job_id_str}-{i}"
             logger.info(f"custom_id: {custom_id}")
+            event_data["redisStreamKey"] = job_id_str
+            event_data["redisStreamId"] = custom_id
+            fields = {"data": json.dumps(event_data, ensure_ascii=False)}
 
             # 4. 使用 xadd 命令，让Redis自动生成ID
-            # event_id = self.redis_client.xadd(job_id_str, fields, id=custom_id)
-            event_id = self.redis_client.xadd("test_ai_doc_gen", fields, id=custom_id)
+            event_id = self.redis_client.xadd(job_id_str, fields, id=custom_id)
+            # event_id = self.redis_client.xadd("test_ai_doc_gen",
+            #                                   fields,
+            #                                   id=custom_id)
 
             # 5. 设置过期时间
             self.redis_client.expire(stream_name, 24 * 60 * 60)
