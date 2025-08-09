@@ -662,6 +662,7 @@ def _adjust_source_to_redis_fe(
             if src.source_type == "es_result":
                 # 参考 test_case/citation_response_data.json 的结构，尽量填充可用字段
                 origin = {
+                    "id": src.id,
                     "title": src.title or "",
                     "fileToken": src.file_token or "",
                     "domainId": "document",  # 无法判定具体类型时给出通用值
@@ -691,6 +692,7 @@ def _adjust_source_to_redis_fe(
                     site_name = ""
 
                 web = {
+                    "id": src.id,
                     "datePublished": src.date or "",
                     "materialContent": (src.content or "")[:1000],
                     "materialId": f"web_{src.id}",
