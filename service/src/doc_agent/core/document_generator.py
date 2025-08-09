@@ -46,15 +46,10 @@ async def generate_document_sync(task_id: str,
             for key, _value in event.items():
                 logger.info(f"Job {task_id} - 文档生成步骤: '{key}' 已完成。")
         publish_event(task_id,
-                      "文档生成", {
-                          "name": "文档生成完成",
-                          "content": {
-                              "title": "生命中的美好与沉思",
-                              "wordcount": 5000,
-                              "wordcountType": "diy"
-                          },
-                      },
-                      taskFinished=True)
+                      "文档生成",
+                      "document_generation",
+                      "SUCCESS", {"description": "文档生成已完成"},
+                      task_finished=True)
 
         logger.success(f"Job {task_id}: 后台文档生成任务成功完成。")
 

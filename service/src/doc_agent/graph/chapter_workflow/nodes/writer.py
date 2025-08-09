@@ -70,10 +70,8 @@ def writer_node(state: ResearchState,
     sub_sections = current_chapter.get("sub_sections", [])  # 获取子节信息
 
     publish_event(
-        job_id, "章节写作", {
-            "name": f"开始写作章节{current_chapter_index + 1}：{chapter_title}",
-            "content": {}
-        })
+        job_id, "章节写作", "document_generation", "RUNNING",
+        {"description": f"开始写作章节{current_chapter_index + 1}：{chapter_title}"})
 
     if not chapter_title:
         raise ValueError("章节标题不能为空")
@@ -142,6 +140,8 @@ def writer_node(state: ResearchState,
 
         # 使用同步流式调用 LLM
         response_list = []
+        # 仅监听第一次流式输出
+        enable_listen_logger = True
         for chunk in llm_client.stream(prompt,
                                        temperature=temperature,
                                        max_tokens=max_tokens,
@@ -149,7 +149,9 @@ def writer_node(state: ResearchState,
             # 累加 token 内容
             response_list.append(chunk)
             # 使用 TokenStreamCallbackHandler 发送每个 token
-            streaming_handler.on_llm_new_token(chunk)
+            streaming_handler.on_llm_new_token(
+                chunk, enable_listen_logger=enable_listen_logger)
+            enable_listen_logger = False
 
         logger.success(f"章节 '{chapter_title}' 内容流式生成完毕。")
 

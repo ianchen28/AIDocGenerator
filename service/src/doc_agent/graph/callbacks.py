@@ -329,23 +329,32 @@ class RedisCallbackHandler(BaseCallbackHandler):
 # ==============================================================================
 def publish_event(job_id: str,
                   event_type: str,
-                  data: dict[str, Any],
-                  taskFinished: bool = False):
+                  task_type: str,
+                  status: str,
+                  data: dict[str, Any] = None,
+                  task_finished: bool = False):
     """
     一个标准化的函数，用于在任何节点内部发布事件到 Redis。
 
     Args:
         job_id (str): 当前任务的 ID。
         event_type (str): 事件的类型 (例如 'initial_research_start')。
+        status (str): 任务的状态 (例如 'START', 'RUNNING', 'ERROR')。
+        task_type (str): 任务的类型 (例如 'outline_generation')。
         data (Dict[str, Any]): 要随事件发送的数据负载。
     """
+    if data is None:
+        data = {}
     try:
         from doc_agent.core.container import get_container
         container = get_container()
         publisher = container.redis_publisher
 
         data["eventType"] = event_type
-        data["taskFinished"] = taskFinished
+        data["taskType"] = task_type
+        data["status"] = status
+        data["taskFinished"] = task_finished
+
         event_payload = data
         publisher.publish_event(job_id, event_payload)
         logger.info(f"✅ Event Published: [Job: {job_id}] [Type: {event_type}]")
@@ -392,7 +401,10 @@ class TokenStreamCallbackHandler(BaseCallbackHandler):
         self._buffer: list[str] = []
         super().__init__()
 
-    def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
+    def on_llm_new_token(self,
+                         token: str,
+                         enable_listen_logger=False,
+                         **kwargs: Any) -> None:
         """
         当 LLM 生成一个新 token 时被调用（同步）。
         采用小缓冲聚合，降低每 token 一次 Redis 的调用开销。
@@ -408,9 +420,9 @@ class TokenStreamCallbackHandler(BaseCallbackHandler):
                                 self._last_flush_ts) >= self._flush_interval_s
 
         if should_flush_by_count or should_flush_by_time:
-            self.flush()
+            self.flush(enable_listen_logger)
 
-    def flush(self) -> None:
+    def flush(self, enable_listen_logger=False) -> None:
         """立即发送缓冲区内的增量文本。"""
         if not self._buffer:
             return
@@ -418,14 +430,14 @@ class TokenStreamCallbackHandler(BaseCallbackHandler):
             chunk = "".join(self._buffer)
             event_data = {
                 "eventType": "大模型实时输出",
-                "content": {
-                    "token":
-                    chunk,
-                    "chapter":
-                    f"{self.chapter_index} {self.chapter_title} 正在生成中...",
-                },
+                "taskType": "document_generation",
+                "token": chunk,
+                "description":
+                f"{self.chapter_index} {self.chapter_title} 正在生成中...",
+                "taskFinished": False
             }
-            self.publisher.publish_event(self.job_id, event_data)
+            self.publisher.publish_event(self.job_id, event_data,
+                                         enable_listen_logger)
         except Exception as e:
             logger.warning(
                 f"Token streaming to Redis failed for job {self.job_id}: {e}")

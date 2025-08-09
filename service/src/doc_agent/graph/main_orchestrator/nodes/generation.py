@@ -81,12 +81,12 @@ def outline_generation_node(state: ResearchState,
         logger.info(
             f"✅ Job {job_id} 大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节")
 
-        publish_event(job_id, "大纲生成", {
-            "name": "大纲生成完成",
-            "content": {
-                "outline": outline
-            }
-        })
+        publish_event(
+            job_id, "大纲生成", "outline_generation", "SUCCESS", {
+                "outline": outline,
+                "description":
+                f"大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节"
+            })
 
         return {"document_outline": outline}
 
@@ -203,10 +203,8 @@ def split_chapters_node(state: ResearchState) -> dict:
     if max_chapters > 0:
         chapters = chapters[:max_chapters]
 
-    publish_event(state.get("job_id", ""), "大纲解析", {
-        "name": "开始解析现有大纲",
-        "content": {}
-    })
+    publish_event(state.get("job_id", ""), "大纲解析", "document_generation",
+                  "RUNNING", {"description": "开始解析现有大纲..."})
 
     for chapter in chapters:
         # 兼容新旧格式
@@ -249,11 +247,9 @@ def split_chapters_node(state: ResearchState) -> dict:
 
     logger.info(f"✅ 章节拆分完成，共 {len(chapters_to_process)} 个章节")
     publish_event(
-        state.get("job_id", ""), "大纲解析", {
-            "name": f"大纲解析完成，共需编写{len(chapters_to_process)}个章节",
-            "content": {
-                "chapters": chapters_to_process
-            }
+        state.get("job_id", ""), "大纲解析", "document_generation", "SUCCESS", {
+            "chapters": chapters_to_process,
+            "description": f"大纲解析完成，共需编写{len(chapters_to_process)}个章节"
         })
 
     for i, chapter in enumerate(chapters_to_process):
@@ -277,12 +273,10 @@ def bibliography_node(state: ResearchState) -> dict:
 
     logger.info(f"📚 开始生成参考文献，共 {len(cited_sources)} 个引用源")
     publish_event(
-        state.get("job_id", ""), "参考文献生成", {
-            "name": "开始生成参考文献",
-            "content": {
-                "cited_sources":
-                [safe_serialize(source) for source in cited_sources]
-            }
+        state.get("job_id", ""), "参考文献生成", "document_generation", "RUNNING", {
+            "cited_sources":
+            [safe_serialize(source) for source in cited_sources],
+            "description": f"开始生成参考文献，共 {len(cited_sources)} 个引用源"
         })
 
     if not cited_sources:

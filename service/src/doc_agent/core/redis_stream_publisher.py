@@ -26,7 +26,10 @@ class RedisStreamPublisher:
         logger.info(
             f"同步 RedisStreamPublisher 已初始化，将发布到 Stream: '{self.stream_name}'")
 
-    def publish_event(self, job_id: Union[str, int], event_data: dict):
+    def publish_event(self,
+                      job_id: Union[str, int],
+                      event_data: dict,
+                      enable_listen_logger=True):
 
         job_id_str = str(job_id)
 
@@ -41,12 +44,10 @@ class RedisStreamPublisher:
 
             event_data["redisStreamKey"] = job_id_str
             event_data["redisStreamId"] = custom_id
-            fields = {
-                "data": json.dumps(event_data, ensure_ascii=False),
-                "redisStreamKey": job_id_str,
-                "redisStreamId": custom_id
-            }
+            fields = {"data": json.dumps(event_data, ensure_ascii=False)}
 
+            if enable_listen_logger:
+                logger.info(f"redis_event listener: {fields}")
             # 4. 使用 xadd 命令，让Redis自动生成ID
             event_id = self.redis_client.xadd(job_id_str, fields, id=custom_id)
             # event_id = self.redis_client.xadd("test_ai_doc_gen",

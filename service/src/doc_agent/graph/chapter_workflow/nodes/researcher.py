@@ -117,11 +117,9 @@ async def async_researcher_node(
         search_queries = search_queries[:max_queries]
 
     publish_event(
-        job_id, "信息收集", {
-            "name": f"开始信息收集，共需搜索{len(search_queries)}个查询",
-            "content": {
-                "search_queries": search_queries
-            }
+        job_id, "信息收集", "document_generation", "RUNNING", {
+            "search_queries": search_queries,
+            "description": f"开始信息收集，共需搜索{len(search_queries)}个查询"
         })
 
     # 执行搜索
@@ -305,14 +303,13 @@ async def async_researcher_node(
     logger.info(f"📊 更新重试计数器: {current_retry_count} -> {new_retry_count}")
 
     publish_event(
-        job_id, "信息收集", {
-            "name": f"信息收集完成，搜索到{len(all_sources)}个信息源",
-            "content": {
-                "web_sources":
-                [safe_serialize(source) for source in web_raw_results],
-                "es_sources":
-                [safe_serialize(source) for source in es_raw_results]
-            }
+        job_id, "信息收集", "document_generation", "SUCCESS", {
+            "web_sources":
+            [safe_serialize(source) for source in web_raw_results],
+            "es_sources":
+            [safe_serialize(source) for source in es_raw_results],
+            "description":
+            f"信息收集完成，搜索到{len(all_sources)}个信息源，其中网络搜索结果 {len(web_raw_results)} 个，ES搜索结果 {len(es_raw_results)} 个"
         })
 
     return {

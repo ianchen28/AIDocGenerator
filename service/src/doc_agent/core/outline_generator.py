@@ -40,6 +40,12 @@ async def generate_outline_async(
             "requirements": requirements,
         }
 
+        publish_event(job_id,
+                      "大纲生成",
+                      "outline_generation",
+                      "START", {},
+                      task_finished=False)
+
         # 以流式方式调用图并获取结果，这样可以处理过程中的事件
         # config 用于设置会话ID，以便使用对话记忆
         async for event in outline_graph.astream(graph_input,
@@ -56,11 +62,10 @@ async def generate_outline_async(
 
         logger.success(f"Job {job_id}: 后台大纲生成任务成功完成。")
         publish_event(job_id,
-                      "大纲生成", {
-                          "name": "大纲生成完成",
-                          "content": {}
-                      },
-                      taskFinished=True)
+                      "大纲生成",
+                      "outline_generation",
+                      "SUCCESS", {},
+                      task_finished=True)
 
     except Exception as e:
         logger.error(f"Job {job_id}: 后台大纲生成任务失败。错误: {e}", exc_info=True)

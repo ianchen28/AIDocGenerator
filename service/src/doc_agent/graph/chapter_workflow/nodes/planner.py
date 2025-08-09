@@ -62,10 +62,8 @@ def planner_node(state: ResearchState,
     logger.info(f"📝 章节描述: {chapter_description}")
     logger.info(f"📊 子节数量: {len(sub_sections)}")
     publish_event(
-        job_id, "章节规划", {
-            "name": f"开始规划章节{current_chapter_index + 1}：{chapter_title}",
-            "content": {}
-        })
+        job_id, "章节规划", "document_generation", "RUNNING",
+        {"description": f"开始规划章节{current_chapter_index + 1}：{chapter_title}"})
 
     # 格式化子节信息
     sub_sections_text = ""
@@ -131,12 +129,10 @@ def planner_node(state: ResearchState,
         research_plan, search_queries = parse_planner_response(response)
 
         publish_event(
-            job_id, "章节规划", {
-                "name": f"章节{current_chapter_index + 1}规划完成",
-                "content": {
-                    "research_plan": research_plan,
-                    "search_queries": search_queries
-                }
+            job_id, "章节规划", "document_generation", "SUCCESS", {
+                "research_plan": research_plan,
+                "search_queries": search_queries,
+                "description": f"章节{current_chapter_index + 1}规划完成"
             })
 
         # 应用基于复杂度的查询数量限制

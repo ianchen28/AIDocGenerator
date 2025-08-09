@@ -51,15 +51,14 @@ async def initial_research_node(state: ResearchState,
     # 获取复杂度配置
     complexity_config = settings.get_complexity_config()
     job_id = state.get("job_id", "")
+    task_prompt = state.get("task_prompt", "")
 
     logger.info(f"🔍 开始初始研究 (模式: {complexity_config['level']}): {topic}")
 
     # Outline-1a & 1b: 开始初步调研，并包含 query
-    publish_event(job_id, "初步调研", {
-        "name": "开始初步调研",
-        "content": {
-            "topic": topic
-        }
+    publish_event(job_id, "初步调研", "outline_generation", "START", {
+        "task_prompt": task_prompt,
+        "description": "开始根据您的要求进行初步调研和信息搜索..."
     })
 
     # 根据配置生成查询数量
@@ -81,12 +80,9 @@ async def initial_research_node(state: ResearchState,
 
     logger.info(f"📊 配置搜索轮数: {num_queries}，实际执行: {len(initial_queries)} 轮")
 
-    publish_event(job_id, "初步调研", {
-        "name": "开始初步调研",
-        "content": {
-            "topic": topic,
-            "queries": initial_queries
-        }
+    publish_event(job_id, "初步调研", "outline_generation", "RUNNING", {
+        "queries": initial_queries,
+        "description": "开始进行信息搜索..."
     })
 
     all_sources = []  # 存储所有 Source 对象
@@ -192,17 +188,6 @@ async def initial_research_node(state: ResearchState,
             except Exception as e:
                 logger.error(f"❌ 解析ES搜索结果失败: {str(e)}")
 
-    publish_event(
-        job_id, "初步调研", {
-            "name": "初步调研完成",
-            "content": {
-                "web_sources":
-                [safe_serialize(source) for source in web_sources],
-                "es_sources":
-                [safe_serialize(source) for source in es_sources]
-            }
-        })
-
     # 根据配置决定是否截断数据
     truncate_length = complexity_config.get('data_truncate_length', -1)
     if truncate_length > 0:
@@ -215,9 +200,12 @@ async def initial_research_node(state: ResearchState,
 
     logger.info(f"✅ 初始研究完成，收集到 {len(all_sources)} 个信息源")
 
-    publish_event(job_id, "初步调研", {
-        "name": f"初步调研完成，搜索到{len(all_sources)}个信息源",
-        "content": {}
-    })
+    publish_event(
+        job_id, "初步调研", "outline_generation", "SUCCESS", {
+            "web_sources": [safe_serialize(source) for source in web_sources],
+            "es_sources": [safe_serialize(source) for source in es_sources],
+            "description":
+            f"初步调研完成，收集到信息源：内部搜索结果 {len(es_sources)} 个，网络搜索结果 {len(web_sources)} 个..."
+        })
 
     return {"initial_sources": all_sources}
