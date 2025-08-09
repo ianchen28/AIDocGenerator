@@ -38,9 +38,14 @@ class RedisStreamPublisher:
             stream_name = f"job:{job_id_str}"
             custom_id = f"{job_id_str}-{i}"
             logger.info(f"custom_id: {custom_id}")
+
             event_data["redisStreamKey"] = job_id_str
             event_data["redisStreamId"] = custom_id
-            fields = {"data": json.dumps(event_data, ensure_ascii=False)}
+            fields = {
+                "data": json.dumps(event_data, ensure_ascii=False),
+                "redisStreamKey": job_id_str,
+                "redisStreamId": custom_id
+            }
 
             # 4. 使用 xadd 命令，让Redis自动生成ID
             event_id = self.redis_client.xadd(job_id_str, fields, id=custom_id)
