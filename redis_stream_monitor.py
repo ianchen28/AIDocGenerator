@@ -124,7 +124,7 @@ class RedisStreamMonitor:
                               block_timeout: int = 5000,
                               pretty: bool = True):
         """监控单个流"""
-        stream_key = f"job:{job_id}"  # 使用job:前缀格式
+        stream_key = str(job_id)  # 直接使用job_id作为流名称
         last_id = "$"
 
         # 获取流信息
