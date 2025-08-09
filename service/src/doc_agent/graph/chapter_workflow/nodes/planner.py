@@ -16,6 +16,7 @@ from doc_agent.core.config import settings
 from doc_agent.graph.common import parse_planner_response
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
+from doc_agent.graph.callbacks import publish_event
 
 
 def planner_node(state: ResearchState,
@@ -36,8 +37,9 @@ def planner_node(state: ResearchState,
         dict: 包含 research_plan 和 search_queries 的字典
     """
     topic = state.get("topic", "")
-    current_chapter_index = state.get("current_chapter_index", 0)
+    job_id = state.get("job_id", "")
     chapters_to_process = state.get("chapters_to_process", [])
+    current_chapter_index = state.get("current_chapter_index", 0)
 
     if not topic:
         raise ValueError("Topic is required in state")
@@ -59,6 +61,11 @@ def planner_node(state: ResearchState,
     logger.info(f"📋 规划章节研究: {chapter_title}")
     logger.info(f"📝 章节描述: {chapter_description}")
     logger.info(f"📊 子节数量: {len(sub_sections)}")
+    publish_event(
+        job_id, "章节规划", {
+            "name": f"开始规划章节{current_chapter_index + 1}：{chapter_title}",
+            "content": {}
+        })
 
     # 格式化子节信息
     sub_sections_text = ""
@@ -122,6 +129,15 @@ def planner_node(state: ResearchState,
 
         # 解析 JSON 响应
         research_plan, search_queries = parse_planner_response(response)
+
+        publish_event(
+            job_id, "章节规划", {
+                "name": f"章节{current_chapter_index + 1}规划完成",
+                "content": {
+                    "research_plan": research_plan,
+                    "search_queries": search_queries
+                }
+            })
 
         # 应用基于复杂度的查询数量限制
         max_queries = complexity_config.get(

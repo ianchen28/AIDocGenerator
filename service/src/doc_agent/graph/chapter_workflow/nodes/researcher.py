@@ -18,11 +18,11 @@ from doc_agent.graph.common import parse_web_search_results as _parse_web_search
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.providers import EmbeddingClient
 from doc_agent.tools.es_search import ESSearchTool
-from doc_agent.tools.reranker import RerankerTool
-from doc_agent.tools.web_search import WebSearchTool
-from doc_agent.utils.search_utils import search_and_rerank, format_search_results
 from doc_agent.tools.es_service import ESSearchResult
 from doc_agent.tools.reranker import RerankedSearchResult, RerankerTool
+from doc_agent.tools.web_search import WebSearchTool
+from doc_agent.utils.search_utils import format_search_results, search_and_rerank
+from doc_agent.graph.callbacks import publish_event, safe_serialize
 
 
 def researcher_node(state: ResearchState,
@@ -67,6 +67,7 @@ async def async_researcher_node(
         f"  - gathered_data: {state.get('gathered_data', 'N/A')[:50]}...")
 
     search_queries = state.get("search_queries", [])
+    job_id = state.get("job_id", "")
 
     if not search_queries:
         logger.warning("❌ 没有搜索查询，返回默认消息")
@@ -114,6 +115,14 @@ async def async_researcher_node(
     if len(search_queries) > max_queries:
         logger.info(f"🔧 限制搜索查询数量从 {len(search_queries)} 到 {max_queries}")
         search_queries = search_queries[:max_queries]
+
+    publish_event(
+        job_id, "信息收集", {
+            "name": f"开始信息收集，共需搜索{len(search_queries)}个查询",
+            "content": {
+                "search_queries": search_queries
+            }
+        })
 
     # 执行搜索
     for i, query in enumerate(search_queries, 1):
@@ -294,6 +303,17 @@ async def async_researcher_node(
     current_retry_count = state.get("researcher_retry_count", 0)
     new_retry_count = current_retry_count + 1
     logger.info(f"📊 更新重试计数器: {current_retry_count} -> {new_retry_count}")
+
+    publish_event(
+        job_id, "信息收集", {
+            "name": f"信息收集完成，搜索到{len(all_sources)}个信息源",
+            "content": {
+                "web_sources":
+                [safe_serialize(source) for source in web_raw_results],
+                "es_sources":
+                [safe_serialize(source) for source in es_raw_results]
+            }
+        })
 
     return {
         "gathered_sources": all_sources,

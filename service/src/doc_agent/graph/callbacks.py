@@ -42,7 +42,7 @@ class RedisCallbackHandler(BaseCallbackHandler):
                 event_data.update(data)
 
             # 直接调用，不再需要任何 asyncio 的处理
-            self.publisher.publish_event(self.job_id, event_data)
+            # self.publisher.publish_event(self.job_id, event_data)
 
         except Exception as e:
             # 记录下任何可能的异常，但不要让它中断主流程
@@ -85,25 +85,19 @@ class RedisCallbackHandler(BaseCallbackHandler):
 
         # 同步发布事件（避免异步问题）
         try:
-            # 使用线程池执行异步操作
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    self._publish_event(
-                        "phase_update", {
-                            "phase": phase,
-                            "message": message,
-                            "chain_name": chain_name,
-                            "run_id": str(run_id),
-                            "inputs": {
-                                k:
-                                str(v)[:100] +
-                                "..." if len(str(v)) > 100 else str(v)
-                                for k, v in inputs.items()
-                            }
-                        }))
-                # 不等待结果，避免阻塞
+            # 同步直接发布，避免无事件循环错误
+            self._publish_event(
+                "phase_update", {
+                    "phase": phase,
+                    "message": message,
+                    "chain_name": chain_name,
+                    "run_id": str(run_id),
+                    "inputs": {
+                        k: str(v)[:100] +
+                        ("..." if len(str(v)) > 100 else str(v))
+                        for k, v in inputs.items()
+                    }
+                })
         except Exception as e:
             logger.debug(f"发布事件失败（非阻塞）: {e}")
 
@@ -118,20 +112,16 @@ class RedisCallbackHandler(BaseCallbackHandler):
         """链执行结束时的回调"""
         # 发布完成事件
         try:
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    self._publish_event(
-                        "done", {
-                            "task": "chain_execution",
-                            "message": "链执行完成",
-                            "run_id": str(run_id),
-                            "outputs_summary": {
-                                k: f"{len(str(v))} characters"
-                                for k, v in outputs.items()
-                            }
-                        }))
+            self._publish_event(
+                "done", {
+                    "task": "chain_execution",
+                    "message": "链执行完成",
+                    "run_id": str(run_id),
+                    "outputs_summary": {
+                        k: f"{len(str(v))} characters"
+                        for k, v in outputs.items()
+                    }
+                })
         except Exception as e:
             logger.debug(f"发布完成事件失败（非阻塞）: {e}")
 
@@ -155,22 +145,18 @@ class RedisCallbackHandler(BaseCallbackHandler):
 
         # 发布工具调用事件
         try:
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    self._publish_event(
-                        "tool_call", {
-                            "tool_name":
-                            tool_name,
-                            "status":
-                            "START",
-                            "input":
-                            input_str[:200] +
-                            "..." if len(input_str) > 200 else input_str,
-                            "run_id":
-                            str(run_id)
-                        }))
+            self._publish_event(
+                "tool_call", {
+                    "tool_name":
+                    tool_name,
+                    "status":
+                    "START",
+                    "input":
+                    input_str[:200] +
+                    ("..." if len(input_str) > 200 else input_str),
+                    "run_id":
+                    str(run_id)
+                })
         except Exception as e:
             logger.debug(f"发布工具调用事件失败（非阻塞）: {e}")
 
@@ -186,38 +172,30 @@ class RedisCallbackHandler(BaseCallbackHandler):
         # 如果输出看起来像是搜索结果，发布source_found事件
         if len(output) > 100:  # 假设是有意义的搜索结果
             try:
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        asyncio.run,
-                        self._publish_event(
-                            "source_found", {
-                                "source_type":
-                                "search_result",
-                                "title":
-                                "搜索结果",
-                                "snippet":
-                                output[:300] +
-                                "..." if len(output) > 300 else output,
-                                "run_id":
-                                str(run_id)
-                            }))
+                self._publish_event(
+                    "source_found", {
+                        "source_type":
+                        "search_result",
+                        "title":
+                        "搜索结果",
+                        "snippet":
+                        output[:300] +
+                        ("..." if len(output) > 300 else output),
+                        "run_id":
+                        str(run_id)
+                    })
             except Exception as e:
                 logger.debug(f"发布搜索结果事件失败（非阻塞）: {e}")
 
         # 发布工具完成事件
         try:
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    self._publish_event(
-                        "tool_call", {
-                            "tool_name": "tool",
-                            "status": "END",
-                            "output_length": len(output),
-                            "run_id": str(run_id)
-                        }))
+            self._publish_event(
+                "tool_call", {
+                    "tool_name": "tool",
+                    "status": "END",
+                    "output_length": len(output),
+                    "run_id": str(run_id)
+                })
         except Exception as e:
             logger.debug(f"发布工具完成事件失败（非阻塞）: {e}")
 
@@ -239,15 +217,13 @@ class RedisCallbackHandler(BaseCallbackHandler):
         model_name = serialized.get("name", "LLM")
 
         # 发布思考过程事件
-        asyncio.create_task(
-            self._publish_event(
-                "thought", {
-                    "text": f"正在调用{model_name}进行深度分析和内容生成，请稍候...",
-                    "model_name": model_name,
-                    "run_id": str(run_id),
-                    "message_count": sum(
-                        len(msg_list) for msg_list in messages)
-                }))
+        self._publish_event(
+            "thought", {
+                "text": f"正在调用{model_name}进行深度分析和内容生成，请稍候...",
+                "model_name": model_name,
+                "run_id": str(run_id),
+                "message_count": sum(len(msg_list) for msg_list in messages)
+            })
 
     def on_llm_start(
         self,
@@ -267,14 +243,13 @@ class RedisCallbackHandler(BaseCallbackHandler):
         model_name = serialized.get("name", "LLM")
 
         # 发布LLM调用开始事件
-        asyncio.create_task(
-            self._publish_event(
-                "thought", {
-                    "text": f"开始使用{model_name}处理内容，正在生成响应...",
-                    "model_name": model_name,
-                    "run_id": str(run_id),
-                    "prompt_count": len(prompts)
-                }))
+        self._publish_event(
+            "thought", {
+                "text": f"开始使用{model_name}处理内容，正在生成响应...",
+                "model_name": model_name,
+                "run_id": str(run_id),
+                "prompt_count": len(prompts)
+            })
 
     def on_llm_end(
         self,
@@ -286,13 +261,12 @@ class RedisCallbackHandler(BaseCallbackHandler):
     ) -> None:
         """LLM结束时的回调"""
         # 发布LLM完成事件
-        asyncio.create_task(
-            self._publish_event(
-                "thought", {
-                    "text": "LLM响应生成完成，正在处理结果...",
-                    "run_id": str(run_id),
-                    "generation_count": len(response.generations)
-                }))
+        self._publish_event(
+            "thought", {
+                "text": "LLM响应生成完成，正在处理结果...",
+                "run_id": str(run_id),
+                "generation_count": len(response.generations)
+            })
 
     def on_chain_error(
         self,
@@ -304,14 +278,13 @@ class RedisCallbackHandler(BaseCallbackHandler):
     ) -> None:
         """链执行错误时的回调"""
         # 发布错误事件
-        asyncio.create_task(
-            self._publish_event(
-                "error", {
-                    "code": 5001,
-                    "message": f"执行过程中遇到错误: {str(error)[:200]}",
-                    "error_type": type(error).__name__,
-                    "run_id": str(run_id)
-                }))
+        self._publish_event(
+            "error", {
+                "code": 5001,
+                "message": f"执行过程中遇到错误: {str(error)[:200]}",
+                "error_type": type(error).__name__,
+                "run_id": str(run_id)
+            })
 
     def on_tool_error(
         self,
@@ -323,14 +296,13 @@ class RedisCallbackHandler(BaseCallbackHandler):
     ) -> None:
         """工具执行错误时的回调"""
         # 发布工具错误事件
-        asyncio.create_task(
-            self._publish_event(
-                "error", {
-                    "code": 5002,
-                    "message": f"工具执行失败: {str(error)[:200]}",
-                    "error_type": type(error).__name__,
-                    "run_id": str(run_id)
-                }))
+        self._publish_event(
+            "error", {
+                "code": 5002,
+                "message": f"工具执行失败: {str(error)[:200]}",
+                "error_type": type(error).__name__,
+                "run_id": str(run_id)
+            })
 
     def on_text(
         self,
@@ -352,12 +324,45 @@ class RedisCallbackHandler(BaseCallbackHandler):
                     }))
 
 
+# ==============================================================================
+#  新增的事件发送辅助函数
+# ==============================================================================
+def publish_event(job_id: str,
+                  event_type: str,
+                  data: dict[str, Any],
+                  taskFinished: bool = False):
+    """
+    一个标准化的函数，用于在任何节点内部发布事件到 Redis。
+
+    Args:
+        job_id (str): 当前任务的 ID。
+        event_type (str): 事件的类型 (例如 'initial_research_start')。
+        data (Dict[str, Any]): 要随事件发送的数据负载。
+    """
+    try:
+        from doc_agent.core.container import get_container
+        container = get_container()
+        publisher = container.redis_publisher
+
+        event_payload = {
+            "eventType": event_type,
+            "data": data,
+            "taskFinished": taskFinished
+        }
+        publisher.publish_event(job_id, event_payload)
+        logger.info(f"✅ Event Published: [Job: {job_id}] [Type: {event_type}]")
+    except Exception as e:
+        logger.error(
+            f"❌ Failed to publish event {event_type} for job {job_id}: {e}",
+            exc_info=True)
+
+
 class TokenStreamCallbackHandler(BaseCallbackHandler):
     """
     一个专门用于将 LLM 生成的 token 流式传输到 Redis 的回调处理器。
     """
 
-    def __init__(self, job_id: str, chapter_title: str):
+    def __init__(self, job_id: str, chapter_title: str, chapter_index: int):
         """
         初始化处理器。
         Args:
@@ -369,30 +374,67 @@ class TokenStreamCallbackHandler(BaseCallbackHandler):
         self.publisher = container.redis_publisher
         self.job_id = job_id
         self.chapter_title = chapter_title
+        self.chapter_index = chapter_index
+        # 轻量缓冲：聚合若干 token 再发送，降低 Redis 调用频率
+        import os
+        import time
+        try:
+            self._flush_tokens = int(os.getenv("STREAM_FLUSH_TOKENS", "20"))
+            if self._flush_tokens <= 0:
+                self._flush_tokens = 20
+        except Exception:
+            self._flush_tokens = 20
+        try:
+            self._flush_interval_s = max(
+                0.01,
+                float(os.getenv("STREAM_FLUSH_INTERVAL_MS", "80")) / 1000.0)
+        except Exception:
+            self._flush_interval_s = 0.08
+        self._last_flush_ts = time.monotonic()
+        self._buffer: list[str] = []
         super().__init__()
 
     def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         """
-        当 LLM 生成一个新 token 时被调用。
+        当 LLM 生成一个新 token 时被调用（同步）。
+        采用小缓冲聚合，降低每 token 一次 Redis 的调用开销。
         """
-        if not token:  # 忽略空 token
+        if not token:
             return
 
+        self._buffer.append(token)
+
+        import time
+        should_flush_by_count = len(self._buffer) >= self._flush_tokens
+        should_flush_by_time = (time.monotonic() -
+                                self._last_flush_ts) >= self._flush_interval_s
+
+        if should_flush_by_count or should_flush_by_time:
+            self.flush()
+
+    def flush(self) -> None:
+        """立即发送缓冲区内的增量文本。"""
+        if not self._buffer:
+            return
         try:
-            # 定义一个清晰的事件结构
+            chunk = "".join(self._buffer)
             event_data = {
-                "eventType": "on_llm_token",
-                "data": {
-                    "token": token,
-                    "chapter_title": self.chapter_title,
-                }
+                "eventType": "大模型实时输出",
+                "content": {
+                    "token":
+                    chunk,
+                    "chapter":
+                    f"{self.chapter_index} {self.chapter_title} 正在生成中...",
+                },
             }
-            # 使用我们已经验证过的同步发布器来发送事件
             self.publisher.publish_event(self.job_id, event_data)
         except Exception as e:
-            # 只记录警告，避免因为流式传输失败而中断整个文档生成过程
             logger.warning(
                 f"Token streaming to Redis failed for job {self.job_id}: {e}")
+        finally:
+            self._buffer.clear()
+            import time
+            self._last_flush_ts = time.monotonic()
 
 
 def create_redis_callback_handler(job_id: str) -> RedisCallbackHandler:
@@ -406,3 +448,58 @@ def create_redis_callback_handler(job_id: str) -> RedisCallbackHandler:
         RedisCallbackHandler实例
     """
     return RedisCallbackHandler(job_id)
+
+
+# ==============================================================================
+#  通用安全序列化工具
+# ==============================================================================
+def safe_serialize(obj: Any) -> Any:
+    """
+    将任意对象转换为可 JSON 序列化的结构。
+
+    优先顺序：
+    - 如果是 dict/list，则递归处理
+    - 如果有 model_dump()（Pydantic），使用其结果
+    - 如果是 dataclass，使用 asdict
+    - 如果有 __dict__，返回其字典形式（递归处理）
+    - 如果有 isoformat（如 datetime），使用 isoformat
+    - 否则转换为字符串
+    """
+    try:
+        from dataclasses import is_dataclass, asdict
+    except Exception:
+        is_dataclass = lambda x: False  # type: ignore
+        asdict = lambda x: x  # type: ignore
+
+    try:
+        if obj is None:
+            return None
+        if isinstance(obj, dict):
+            return {k: safe_serialize(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [safe_serialize(i) for i in obj]
+        if hasattr(obj, "model_dump"):
+            try:
+                return safe_serialize(obj.model_dump())  # type: ignore
+            except Exception:
+                return obj.model_dump()  # type: ignore
+        if is_dataclass(obj):
+            try:
+                return safe_serialize(asdict(obj))
+            except Exception:
+                return asdict(obj)
+        if hasattr(obj, "__dict__"):
+            try:
+                return safe_serialize(obj.__dict__)  # type: ignore
+            except Exception:
+                return obj.__dict__  # type: ignore
+        if hasattr(obj, "isoformat"):
+            try:
+                return obj.isoformat()  # type: ignore
+            except Exception:
+                pass
+        return str(obj)
+    except Exception as e:
+        # 底线保护，发生异常时返回类型名
+        logger.debug(f"safe_serialize 回退: {type(obj).__name__} -> {e}")
+        return f"<{type(obj).__name__}>"

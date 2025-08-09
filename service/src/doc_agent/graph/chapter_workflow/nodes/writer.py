@@ -9,6 +9,7 @@ from pprint import pformat as pprint
 from typing import Any
 
 from doc_agent.core.logging_config import get_logger
+from doc_agent.graph.callbacks import publish_event
 
 logger = get_logger(__name__)
 
@@ -67,6 +68,12 @@ def writer_node(state: ResearchState,
     chapter_title = current_chapter.get("chapter_title", "")
     chapter_description = current_chapter.get("description", "")
     sub_sections = current_chapter.get("sub_sections", [])  # 获取子节信息
+
+    publish_event(
+        job_id, "章节写作", {
+            "name": f"开始写作章节{current_chapter_index + 1}：{chapter_title}",
+            "content": {}
+        })
 
     if not chapter_title:
         raise ValueError("章节标题不能为空")
@@ -127,26 +134,33 @@ def writer_node(state: ResearchState,
     try:
         # 创建流式回调处理器
         streaming_handler = TokenStreamCallbackHandler(
-            job_id=job_id, chapter_title=chapter_title)
+            job_id=job_id,
+            chapter_title=chapter_title,
+            chapter_index=current_chapter_index)
 
         logger.info(f"开始为章节 '{chapter_title}' 流式调用 LLM...")
 
         # 使用同步流式调用 LLM
-        full_response = ""
+        response_list = []
         for chunk in llm_client.stream(prompt,
                                        temperature=temperature,
                                        max_tokens=max_tokens,
                                        **extra_params):
             # 累加 token 内容
-            full_response += chunk
-
+            response_list.append(chunk)
             # 使用 TokenStreamCallbackHandler 发送每个 token
             streaming_handler.on_llm_new_token(chunk)
 
         logger.success(f"章节 '{chapter_title}' 内容流式生成完毕。")
 
+        # 发送剩余缓冲
+        try:
+            streaming_handler.flush()
+        except Exception:
+            pass
+
         # 使用流式生成的完整响应
-        response = full_response
+        response = "".join(response_list)
 
         # 获取章节编号信息
         current_chapter_index = state.get("current_chapter_index", 0)

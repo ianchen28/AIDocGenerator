@@ -14,6 +14,7 @@ from doc_agent.llm_clients.base import LLMClient
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.schemas import Source
 from doc_agent.graph.common import format_sources_to_text
+from doc_agent.graph.callbacks import publish_event, safe_serialize
 
 
 def outline_generation_node(state: ResearchState,
@@ -36,6 +37,7 @@ def outline_generation_node(state: ResearchState,
     """
     topic = state.get("topic", "")
     initial_sources = state.get("initial_sources", [])
+    job_id = state.get("job_id", "")
 
     if not topic:
         raise ValueError("主题不能为空")
@@ -76,7 +78,15 @@ def outline_generation_node(state: ResearchState,
         # 解析响应
         outline = _parse_outline_response(response, complexity_config)
 
-        logger.info(f"✅ 大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节")
+        logger.info(
+            f"✅ Job {job_id} 大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节")
+
+        publish_event(job_id, "大纲生成", {
+            "name": "大纲生成完成",
+            "content": {
+                "outline": outline
+            }
+        })
 
         return {"document_outline": outline}
 
@@ -193,6 +203,11 @@ def split_chapters_node(state: ResearchState) -> dict:
     if max_chapters > 0:
         chapters = chapters[:max_chapters]
 
+    publish_event(state.get("job_id", ""), "大纲解析", {
+        "name": "开始解析现有大纲",
+        "content": {}
+    })
+
     for chapter in chapters:
         # 兼容新旧格式
         chapter_title = chapter.get('title', chapter.get('chapter_title', ''))
@@ -233,6 +248,14 @@ def split_chapters_node(state: ResearchState) -> dict:
         })
 
     logger.info(f"✅ 章节拆分完成，共 {len(chapters_to_process)} 个章节")
+    publish_event(
+        state.get("job_id", ""), "大纲解析", {
+            "name": f"大纲解析完成，共需编写{len(chapters_to_process)}个章节",
+            "content": {
+                "chapters": chapters_to_process
+            }
+        })
+
     for i, chapter in enumerate(chapters_to_process):
         logger.info(
             f"  📖 第{i+1}章: {chapter['chapter_title']} ({len(chapter['sub_sections'])} 子节)"
@@ -253,6 +276,14 @@ def bibliography_node(state: ResearchState) -> dict:
     cited_sources = state.get("cited_sources", [])  # 🔧 修复：改为列表而不是字典
 
     logger.info(f"📚 开始生成参考文献，共 {len(cited_sources)} 个引用源")
+    publish_event(
+        state.get("job_id", ""), "参考文献生成", {
+            "name": "开始生成参考文献",
+            "content": {
+                "cited_sources":
+                [safe_serialize(source) for source in cited_sources]
+            }
+        })
 
     if not cited_sources:
         logger.warning("没有引用源，生成空的参考文献")
@@ -584,7 +615,7 @@ def _validate_and_fix_outline_structure(outline: dict,
         })
 
     outline['chapters'] = fixed_chapters
-    logger.info(f"✅ 大纲结构验证完成，包含 {len(fixed_chapters)} 个章节，每个章节包含子节")
+    logger.info(f"✅ 大纲结构验证完成， 包含 {len(fixed_chapters)} 个章节，每个章节包含子节")
 
     return outline
 

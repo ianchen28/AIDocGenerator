@@ -8,6 +8,7 @@ from doc_agent.core.logger import logger
 from doc_agent.graph.state import ResearchState
 from doc_agent.schemas import Source
 from doc_agent.tools.file_processor import file_processor
+from doc_agent.graph.callbacks import publish_event
 
 
 async def generate_document_sync(task_id: str,
@@ -44,6 +45,16 @@ async def generate_document_sync(task_id: str,
                                                   }):
             for key, _value in event.items():
                 logger.info(f"Job {task_id} - 文档生成步骤: '{key}' 已完成。")
+        publish_event(task_id,
+                      "文档生成", {
+                          "name": "文档生成完成",
+                          "content": {
+                              "title": "生命中的美好与沉思",
+                              "wordcount": 5000,
+                              "wordcountType": "diy"
+                          },
+                      },
+                      taskFinished=True)
 
         logger.success(f"Job {task_id}: 后台文档生成任务成功完成。")
 

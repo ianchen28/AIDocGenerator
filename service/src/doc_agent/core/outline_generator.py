@@ -5,6 +5,7 @@ from doc_agent.core.logger import logger
 from typing import List, Dict, Any
 
 from doc_agent.core.container import container
+from doc_agent.graph.callbacks import publish_event
 
 
 async def generate_outline_async(
@@ -12,7 +13,7 @@ async def generate_outline_async(
     session_id: str,
     task_prompt: str,
     is_online: bool = False,
-    context_files: List[Dict[str, Any]] = None,
+    context_files: list[dict[str, Any]] = None,
     style_guide_content: str = None,
     requirements: str = None,
 ):
@@ -31,6 +32,7 @@ async def generate_outline_async(
 
         # 准备图的输入
         graph_input = {
+            "job_id": job_id,
             "topic": task_prompt,  # 将task_prompt映射到topic
             "is_online": is_online,
             "context_files": context_files or [],
@@ -53,6 +55,12 @@ async def generate_outline_async(
                 logger.info(f"Job {job_id} - 大纲生成步骤: '{key}' 已完成。")
 
         logger.success(f"Job {job_id}: 后台大纲生成任务成功完成。")
+        publish_event(job_id,
+                      "大纲生成", {
+                          "name": "大纲生成完成",
+                          "content": {}
+                      },
+                      taskFinished=True)
 
     except Exception as e:
         logger.error(f"Job {job_id}: 后台大纲生成任务失败。错误: {e}", exc_info=True)

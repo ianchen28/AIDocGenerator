@@ -32,7 +32,10 @@ def get_llm_client(model_key: str = "qwen_2_5_235b_a22b") -> LLMClient:
         logger.error(f"❌ 模型配置未找到: {model_key}")
         raise ValueError(f"Model {model_key} not found in configuration")
 
-    logger.debug(f"Model configuration:\n{pformat(model_config.__dict__)}")
+    try:
+        logger.debug(f"Model configuration:\n{pformat(model_config.__dict__)}")
+    except Exception:
+        logger.debug("Model configuration: <unprintable>")
 
     # 根据模型类型创建相应的客户端
     if model_config.type == "enterprise_generate":

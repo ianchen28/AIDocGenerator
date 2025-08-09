@@ -21,6 +21,7 @@ from doc_agent.tools.es_search import ESSearchTool
 from doc_agent.tools.reranker import RerankerTool
 from doc_agent.tools.web_search import WebSearchTool
 from doc_agent.utils.search_utils import search_and_rerank
+from doc_agent.graph.callbacks import publish_event, safe_serialize
 
 
 async def initial_research_node(state: ResearchState,
@@ -49,8 +50,17 @@ async def initial_research_node(state: ResearchState,
 
     # 获取复杂度配置
     complexity_config = settings.get_complexity_config()
+    job_id = state.get("job_id", "")
 
     logger.info(f"🔍 开始初始研究 (模式: {complexity_config['level']}): {topic}")
+
+    # Outline-1a & 1b: 开始初步调研，并包含 query
+    publish_event(job_id, "初步调研", {
+        "name": "开始初步调研",
+        "content": {
+            "topic": topic
+        }
+    })
 
     # 根据配置生成查询数量
     num_queries = complexity_config['initial_search_queries']
@@ -71,8 +81,18 @@ async def initial_research_node(state: ResearchState,
 
     logger.info(f"📊 配置搜索轮数: {num_queries}，实际执行: {len(initial_queries)} 轮")
 
+    publish_event(job_id, "初步调研", {
+        "name": "开始初步调研",
+        "content": {
+            "topic": topic,
+            "queries": initial_queries
+        }
+    })
+
     all_sources = []  # 存储所有 Source 对象
     source_id_counter = 1  # 源ID计数器
+    web_sources = []  # 存储网络搜索源
+    es_sources = []  # 存储ES搜索源
 
     # 获取embedding配置
     embedding_config = settings.supported_models.get("gte_qwen")
@@ -152,23 +172,36 @@ async def initial_research_node(state: ResearchState,
         # 处理搜索结果并创建Source对象
         if web_str_results and web_str_results.strip():
             try:
-                web_sources = parse_web_search_results(web_raw_results, query,
-                                                       source_id_counter)
-                all_sources.extend(web_sources)
-                source_id_counter += len(web_sources)
-                logger.info(f"✅ 从网络搜索中提取到 {len(web_sources)} 个源")
+                current_web_sources = parse_web_search_results(
+                    web_raw_results, query, source_id_counter)
+                web_sources.extend(current_web_sources)
+                all_sources.extend(current_web_sources)
+                source_id_counter += len(current_web_sources)
+                logger.info(f"✅ 从网络搜索中提取到 {len(current_web_sources)} 个源")
             except Exception as e:
                 logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
 
         if es_raw_results and len(es_raw_results) > 0:
             try:
-                es_sources = parse_es_search_results(es_raw_results, query,
-                                                     source_id_counter)
-                all_sources.extend(es_sources)
-                source_id_counter += len(es_sources)
-                logger.info(f"✅ 从ES搜索中提取到 {len(es_sources)} 个源")
+                current_es_sources = parse_es_search_results(
+                    es_raw_results, query, source_id_counter)
+                es_sources.extend(current_es_sources)
+                all_sources.extend(current_es_sources)
+                source_id_counter += len(current_es_sources)
+                logger.info(f"✅ 从ES搜索中提取到 {len(current_es_sources)} 个源")
             except Exception as e:
                 logger.error(f"❌ 解析ES搜索结果失败: {str(e)}")
+
+    publish_event(
+        job_id, "初步调研", {
+            "name": "初步调研完成",
+            "content": {
+                "web_sources":
+                [safe_serialize(source) for source in web_sources],
+                "es_sources":
+                [safe_serialize(source) for source in es_sources]
+            }
+        })
 
     # 根据配置决定是否截断数据
     truncate_length = complexity_config.get('data_truncate_length', -1)
@@ -181,5 +214,10 @@ async def initial_research_node(state: ResearchState,
                                                     )] + "... (内容已截断)"
 
     logger.info(f"✅ 初始研究完成，收集到 {len(all_sources)} 个信息源")
+
+    publish_event(job_id, "初步调研", {
+        "name": f"初步调研完成，搜索到{len(all_sources)}个信息源",
+        "content": {}
+    })
 
     return {"initial_sources": all_sources}
