@@ -61,9 +61,6 @@ def planner_node(state: ResearchState,
     logger.info(f"📋 规划章节研究: {chapter_title}")
     logger.info(f"📝 章节描述: {chapter_description}")
     logger.info(f"📊 子节数量: {len(sub_sections)}")
-    publish_event(
-        job_id, "章节规划", "document_generation", "RUNNING",
-        {"description": f"开始规划章节{current_chapter_index + 1}：{chapter_title}"})
 
     # 格式化子节信息
     sub_sections_text = ""
@@ -132,7 +129,7 @@ def planner_node(state: ResearchState,
             job_id, "章节规划", "document_generation", "SUCCESS", {
                 "research_plan": research_plan,
                 "search_queries": search_queries,
-                "description": f"章节{current_chapter_index + 1}规划完成"
+                "description": f"收集 {chapter_title} 相关信息"
             })
 
         # 应用基于复杂度的查询数量限制

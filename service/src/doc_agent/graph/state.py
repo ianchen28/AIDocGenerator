@@ -20,6 +20,7 @@ class ResearchState(TypedDict):
 
     # 研究主题
     topic: str
+    word_count: int  # 文档总字数
 
     # 文档样式和需求指南
     style_guide_content: Optional[str]  # 样式指南内容

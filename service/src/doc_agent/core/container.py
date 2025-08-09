@@ -192,7 +192,9 @@ class Container:
             llm_client=self.llm_client,
             prompt_selector=self.prompt_selector,
             genre="default")
-        main_split_chapters_node = main_orchestrator_nodes.split_chapters_node
+        main_split_chapters_node = partial(
+            main_orchestrator_nodes.split_chapters_node,
+            llm_client=self.llm_client)
         main_fusion_editor_node = partial(
             main_orchestrator_nodes.fusion_editor_node,
             llm_client=self.llm_client)
@@ -281,7 +283,8 @@ class Container:
             es_search_tool=self.es_search_tool,
             reranker_tool=self.reranker_tool)
         main_split_chapters_node = partial(
-            main_orchestrator_nodes.split_chapters_node)
+            main_orchestrator_nodes.split_chapters_node,
+            llm_client=self.llm_client)
         bibliography_node = partial(main_orchestrator_nodes.bibliography_node)
         fusion_editor_node = partial(
             main_orchestrator_nodes.fusion_editor_node,
@@ -357,7 +360,9 @@ class Container:
             writer_node=chapter_writer_node,
             supervisor_router_func=chapter_supervisor_router,
             reflection_node=reflection_node)
-        main_split_chapters_node = main_orchestrator_nodes.split_chapters_node
+        main_split_chapters_node = partial(
+            main_orchestrator_nodes.split_chapters_node,
+            llm_client=self.llm_client)
         fusion_editor_node = partial(
             main_orchestrator_nodes.fusion_editor_node,
             llm_client=self.llm_client)

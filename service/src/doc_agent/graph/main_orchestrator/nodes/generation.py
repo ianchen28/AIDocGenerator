@@ -6,7 +6,7 @@
 
 import json
 from typing import Any, Dict, Optional
-
+from doc_agent.llm_clients.base import LLMClient
 from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
 from doc_agent.graph.state import ResearchState
@@ -99,96 +99,11 @@ def outline_generation_node(state: ResearchState,
         return _generate_default_outline(topic, complexity_config)
 
 
-def split_chapters_node(state: ResearchState) -> dict:
+def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
     """
     章节拆分节点 - 统一版本
     将文档大纲拆分为独立的章节任务列表
     根据配置限制章节数量
-
-    大纲范例（新格式）：
-
-    {
-        "title": "水电站建造过程中的问题与解决方案",
-        "summary": "本报告旨在探讨水电站建造过程中常见的问题及其解决措施，从施工技术、环境条件和项目管理等多个角度进行分析，以期为未来的水电站建设提供参考。",
-        "chapters": [
-            {
-                "number": 1,
-                "title": "施工技术问题",
-                "description": "本章详细分析了水电站建造过程中的具体施工技术问题及其解决方案，包括基坑开挖、混凝土浇筑和模板缺陷等方面。",
-                "sections": [
-                    {
-                        "number": 1.1,
-                        "title": "基坑土石方开挖问题",
-                        "description": "讨论基坑开挖过程中常见的问题，如边坡坡比不符、超欠挖等，并提出相应的解决措施。",
-                        "key_points": [
-                            "基坑边坡坡比与设计图纸不符",
-                            "存在大量超欠挖，导致二次开挖",
-                            "解决方案：精确控制开挖参数，避免超欠挖"
-                        ]
-                    },
-                    {
-                        "number": 1.2,
-                        "title": "地下水丰富情况下的混凝土浇筑问题",
-                        "description": "分析在地下水丰富的条件下进行混凝土浇筑时可能出现的问题，如水泥浆被冲走、混凝土被水浸泡等，并提供解决方案。",
-                        "key_points": [
-                            "岩石裂隙水无法有效外排",
-                            "混凝土浇筑过程中水泥浆被冲走",
-                            "解决方案：采用有效的排水系统，确保混凝土质量"
-                        ]
-                    },
-                    {
-                        "number": 1.3,
-                        "title": "混凝土模板缺陷问题",
-                        "description": "探讨混凝土浇筑过程中模板可能出现的缺陷，如跑模、炸模、漏浆等，并提出预防措施。",
-                        "key_points": [
-                            "模板固定不牢导致跑模、炸模",
-                            "模板密封不良导致漏浆",
-                            "解决方案：加强模板设计和施工质量控制"
-                        ]
-                    }
-                ]
-            },
-            {
-                "number": 2,
-                "title": "施工环境与条件问题",
-                "description": "本章分析了水电站建造过程中面临的复杂施工环境和条件，包括地形、气候等因素，并提供相应的应对策略。",
-                "sections": [
-                    {
-                        "number": 2.1,
-                        "title": "地形条件问题",
-                        "description": "讨论水电站建设地点的地形条件对施工的影响，如工作场地狭小、地形陡峭等，并提出解决方案。",
-                        "key_points": [
-                            "工作场地狭小，施工空间有限",
-                            "地形陡峭，施工难度大",
-                            "解决方案：提前做好工程布局，合理利用空间资源"
-                        ]
-                    },
-                    {
-                        "number": 2.2,
-                        "title": "气候条件问题",
-                        "description": "分析恶劣气候条件对水电站施工的影响，如雨季施工、高温或低温施工等，并提供应对措施。",
-                        "key_points": [
-                            "雨季施工导致排水困难",
-                            "高温或低温影响施工进度和质量",
-                            "解决方案：根据气候条件合理安排施工进度"
-                        ]
-                    },
-                    {
-                        "number": 2.3,
-                        "title": "资源与材料供应问题",
-                        "description": "探讨水电站建设过程中资源与材料供应的挑战，尤其是在偏远地区，并提出解决办法。",
-                        "key_points": [
-                            "偏远地区材料供应不足",
-                            "运输成本高，供应链不稳定",
-                            "解决方案：提前储备材料，建立稳定的供应链"
-                        ]
-                    }
-                ]
-            }
-        ],
-        "total_chapters": 3,
-        "estimated_total_words": 5000
-    }
     """
 
     document_outline = state.get("document_outline", {})
@@ -207,8 +122,11 @@ def split_chapters_node(state: ResearchState) -> dict:
     if max_chapters > 0:
         chapters = chapters[:max_chapters]
 
-    publish_event(state.get("job_id", ""), "大纲解析", "document_generation",
-                  "RUNNING", {"description": "开始解析现有大纲..."})
+    publish_event(
+        state.get("job_id", ""), "大纲解析", "document_generation", "RUNNING", {
+            "description": "开始解析现有大纲...",
+            "documentTitle": document_outline.get("title", "")
+        })
 
     for chapter in chapters:
         # 兼容新旧格式
@@ -248,6 +166,44 @@ def split_chapters_node(state: ResearchState) -> dict:
             "sub_sections": sub_sections,
             "research_data": ""
         })
+
+    # 获取一句话研究计划告知
+    plan_prompt_template = """
+**角色:** 你是一位专业的需求分析专家和任务规划专家，你需要根据文章主题，任务要求和大纲内容，给出任务的一句话描述
+
+**文章主题:** {topic}
+
+**任务要求:** {task_prompt}
+
+**大纲内容:** {document_outline_str}
+
+**输出格式:**
+- 最好只有一句话，不用太长
+- 要适当提炼任务要求
+- 要明确点出符合任务要求和大纲中各章节标题和内容的研究方向
+
+**样式范例**
+文章主题：帮我写一个关于人工智能领域最新进展的文章
+大纲：
+第一章：人工智能的定义和历史
+第二章：人工智能的分类和应用
+第三章：人工智能的最新进展
+输出：
+好的，我会帮您写一篇关于人工智能最新进展的文章。
+我需要收集关于人工智能的最新进展，包括人工智能的定义和历史、人工智能的分类和应用、人工智能的最新进展等方面的信息。
+"""
+    plan_prompt = plan_prompt_template.format(
+        topic=state.get("title", ""),
+        task_prompt=state.get("task_prompt", ""),
+        document_outline_str=json.dumps(document_outline))
+
+    response = llm_client.invoke(plan_prompt, temperature=0.5, max_tokens=2000)
+    plan_str = response.strip()
+
+    logger.info(f"一句话研究计划：{plan_str}")
+
+    publish_event(state.get("job_id", ""), "一句话研究计划", "document_generation",
+                  "SUCCESS", {"description": plan_str})
 
     logger.info(f"✅ 章节拆分完成，共 {len(chapters_to_process)} 个章节")
     publish_event(

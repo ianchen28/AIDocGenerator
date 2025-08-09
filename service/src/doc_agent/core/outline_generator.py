@@ -61,11 +61,6 @@ async def generate_outline_async(
                 logger.info(f"Job {job_id} - 大纲生成步骤: '{key}' 已完成。")
 
         logger.success(f"Job {job_id}: 后台大纲生成任务成功完成。")
-        publish_event(job_id,
-                      "大纲生成",
-                      "outline_generation",
-                      "SUCCESS", {},
-                      task_finished=True)
 
     except Exception as e:
         logger.error(f"Job {job_id}: 后台大纲生成任务失败。错误: {e}", exc_info=True)
