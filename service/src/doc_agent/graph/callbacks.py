@@ -344,11 +344,9 @@ def publish_event(job_id: str,
         container = get_container()
         publisher = container.redis_publisher
 
-        event_payload = {
-            "eventType": event_type,
-            "data": data,
-            "taskFinished": taskFinished
-        }
+        data["eventType"] = event_type
+        data["taskFinished"] = taskFinished
+        event_payload = data
         publisher.publish_event(job_id, event_payload)
         logger.info(f"✅ Event Published: [Job: {job_id}] [Type: {event_type}]")
     except Exception as e:
