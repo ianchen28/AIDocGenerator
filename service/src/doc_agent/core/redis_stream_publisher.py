@@ -44,6 +44,7 @@ class RedisStreamPublisher:
 
             event_data["redisStreamKey"] = job_id_str
             event_data["redisStreamId"] = custom_id
+            event_data["timestamp"] = self._get_current_timestamp()
             fields = {"data": json.dumps(event_data, ensure_ascii=False)}
 
             if enable_listen_logger:

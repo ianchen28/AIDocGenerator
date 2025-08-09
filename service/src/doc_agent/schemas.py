@@ -41,6 +41,37 @@ class Source(BaseModel):
                                             description="ocr结果文件token，可选")
 
 
+class AnswerOrigin(BaseModel):
+    """
+    内部参考文献来源模型，用于追踪和引用信息来源
+    """
+    domain_id: str = Field(..., description="域ID", alias="domainId")
+    file_token: str = Field(..., description="文件token", alias="fileToken")
+    is_feishu_source: bool = Field(...,
+                                   description="是否是飞书源",
+                                   alias="isFeishuSource")
+    metadata: dict = Field(..., description="元数据", alias="metadata")
+    origininfo: str = Field(..., description="来源信息", alias="origininfo")
+    title: str = Field(..., description="标题", alias="title")
+    valid: bool = Field(..., description="是否有效", alias="valid")
+
+
+class WebSource(BaseModel):
+    """
+    网页源模型，用于追踪和引用信息来源
+    """
+    date_published: str = Field(...,
+                                description="数据发布时间",
+                                alias="datePublished")
+    material_content: str = Field(...,
+                                  description="材料内容",
+                                  alias="materialContent")
+    material_id: str = Field(..., description="材料ID", alias="materialId")
+    material_title: str = Field(..., description="材料标题", alias="materialTitle")
+    site_name: str = Field(..., description="站点名称", alias="siteName")
+    url: str = Field(..., description="URL", alias="url")
+
+
 # --- Outline Models ---
 class OutlineNode(BaseModel):
     """大纲节点模型（递归结构）"""

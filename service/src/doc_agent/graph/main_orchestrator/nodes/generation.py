@@ -5,16 +5,16 @@
 """
 
 import json
-from typing import Any, Dict, Optional
-from doc_agent.llm_clients.base import LLMClient
-from doc_agent.core.logger import logger
+from typing import Any
+
+from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.config import settings
+from doc_agent.core.logger import logger
+from doc_agent.graph.callbacks import publish_event, safe_serialize
+from doc_agent.graph.common import format_sources_to_text
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
-from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.schemas import Source
-from doc_agent.graph.common import format_sources_to_text
-from doc_agent.graph.callbacks import publish_event, safe_serialize
 
 
 def outline_generation_node(state: ResearchState,
@@ -232,10 +232,13 @@ def bibliography_node(state: ResearchState) -> dict:
     cited_sources = state.get("cited_sources", [])  # 🔧 修复：改为列表而不是字典
 
     logger.info(f"📚 开始生成参考文献，共 {len(cited_sources)} 个引用源")
+
+    answer_origins, webs = _adjust_source_to_redis_fe(cited_sources)
+
     publish_event(
         state.get("job_id", ""), "参考文献生成", "document_generation", "RUNNING", {
-            "cited_sources":
-            [safe_serialize(source) for source in cited_sources],
+            "answerOrigins": answer_origins,
+            "webs": webs,
             "description": f"开始生成参考文献，共 {len(cited_sources)} 个引用源"
         })
 
@@ -310,13 +313,13 @@ def _get_outline_prompt_template(complexity_config, prompt_selector, genre):
                 return prompt_selector.get_prompt("main_orchestrator",
                                                   "outline",
                                                   "v3_with_subsections")
-            except:
+            except Exception:
                 # 如果三级版本不可用，使用默认版本
                 return prompt_selector.get_prompt("main_orchestrator",
                                                   "outline", genre)
 
     except Exception as e:
-        logger.error(f"获取提示词模板失败: {e}")
+        logger.error("获取提示词模板失败: {}", e)
 
     # 备用模板 - 使用三级大纲结构
     return """
@@ -637,3 +640,68 @@ def _format_citation(source_id: int, source: Source) -> str:
     citation += f" ({source.source_type})"
 
     return citation
+
+
+def _adjust_source_to_redis_fe(
+    sources: list[Source]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """
+    按前端（Redis 监听端）所需结构整理参考文献信息。
+
+    返回:
+        (answer_origins, webs)
+        - answer_origins: 文档/检索类来源（es_result）列表
+        - webs: 网页类来源（webpage）列表
+    """
+    answer_origins: list[dict[str, Any]] = []
+    webs: list[dict[str, Any]] = []
+
+    # 将 Source 转换为 FE 期望的字段命名与结构
+    for src in sources:
+        try:
+            if src.source_type == "es_result":
+                # 参考 test_case/citation_response_data.json 的结构，尽量填充可用字段
+                origin = {
+                    "title": src.title or "",
+                    "fileToken": src.file_token or "",
+                    "domainId": "document",  # 无法判定具体类型时给出通用值
+                    "isFeishuSource": False,
+                    "valid": True,
+                    "originInfo": (src.content or "")[:1000],  # 控制长度
+                    "metadata": {
+                        "file_name":
+                        src.title or "",
+                        "locations": ([{
+                            "pagenum": src.page_number
+                        }] if src.page_number is not None else []),
+                        "source":
+                        "data_platform"
+                    }
+                }
+                answer_origins.append(safe_serialize(origin))
+            elif src.source_type == "webpage":
+                # 构造网页来源字段
+                # 提取站点名
+                site_name = ""
+                try:
+                    if src.url:
+                        from urllib.parse import urlparse
+                        site_name = urlparse(src.url).netloc
+                except Exception:
+                    site_name = ""
+
+                web = {
+                    "datePublished": src.date or "",
+                    "materialContent": (src.content or "")[:1000],
+                    "materialId": f"web_{src.id}",
+                    "materialTitle": src.title or "",
+                    "siteName": site_name,
+                    "url": src.url or ""
+                }
+                webs.append(safe_serialize(web))
+            else:
+                logger.warning(f"未知来源类型: {src.source_type}")
+        except Exception as conv_err:
+            logger.warning("参考文献信息转换失败: {}", conv_err)
+
+    return answer_origins, webs

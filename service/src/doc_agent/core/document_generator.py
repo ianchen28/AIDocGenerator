@@ -1,14 +1,12 @@
-# service/src/doc_agent/core/document_generator.py
+"""service/src/doc_agent/core/document_generator.py"""
 
-import json
 from typing import Optional
 
 from doc_agent.core.container import container
 from doc_agent.core.logger import logger
-from doc_agent.graph.state import ResearchState
-from doc_agent.schemas import Source
-from doc_agent.tools.file_processor import file_processor
 from doc_agent.graph.callbacks import publish_event
+from doc_agent.graph.state import ResearchState
+from doc_agent.tools.file_processor import file_processor
 
 
 async def generate_document_sync(task_id: str,
@@ -54,7 +52,8 @@ async def generate_document_sync(task_id: str,
         logger.success(f"Job {task_id}: 后台文档生成任务成功完成。")
 
     except Exception as e:
-        logger.error(f"Job {task_id}: 后台文档生成任务失败。错误: {e}", exc_info=True)
+        # 使用逗号参数传入异常而不是在 f-string 中使用替换，避免格式化错误
+        logger.error("Job {}: 后台文档生成任务失败。错误: {}", task_id, e, exc_info=True)
 
 
 def generate_initial_state(task_prompt: str,
@@ -71,7 +70,6 @@ def generate_initial_state(task_prompt: str,
     word_count = document_outline["word_count"]
     logger.info(f"word_count: {word_count}")
     logger.info(f"document_outline: {document_outline}")
-
     # 解析用户上传文件
     user_data_reference_files = []
     user_style_guide_content = []
