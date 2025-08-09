@@ -82,11 +82,15 @@ def outline_generation_node(state: ResearchState,
             f"✅ Job {job_id} 大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节")
 
         publish_event(
-            job_id, "大纲生成", "outline_generation", "SUCCESS", {
+            job_id,
+            "大纲生成",
+            "outline_generation",
+            "SUCCESS", {
                 "outline": outline,
                 "description":
                 f"大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节"
-            })
+            },
+            task_finished=True)
 
         return {"document_outline": outline}
 
