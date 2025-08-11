@@ -285,6 +285,14 @@ def _format_available_sources(gathered_sources: list[Source]) -> str:
         available_sources_text += f"  类型: {source.source_type}\n"
         if source.url:
             available_sources_text += f"  URL: {source.url}\n"
+        if source.author:
+            available_sources_text += f"  作者: {source.author}\n"
+        if source.date:
+            available_sources_text += f"  日期: {source.date}\n"
+        if source.page_number is not None:
+            available_sources_text += f"  页码: {source.page_number}\n"
+        if source.file_token:
+            available_sources_text += f"  文件Token: {source.file_token}\n"
         available_sources_text += f"  内容: {source.content[:200]}...\n\n"
 
     return available_sources_text

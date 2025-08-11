@@ -19,7 +19,7 @@ async def test_background_task():
 
     try:
         # 模拟后台任务调用
-        await generate_outline_async(job_id="test_job_999",
+        await generate_outline_async(task_id="test_job_999",
                                      session_id="test_session_999",
                                      task_prompt="请生成一个关于人工智能发展趋势的大纲",
                                      is_online=False,

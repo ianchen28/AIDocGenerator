@@ -2,39 +2,48 @@
 文件处理器 - 整合上传、下载和解析功能的主类
 """
 
-import os
-import sys
-import re
-import platform
-from pathlib import Path
-import unicodedata
-import traceback
-import requests
-from urllib.parse import quote, unquote
-import hmac
-import hashlib
 import base64
-import time
-import logging
+import hashlib
+import hmac
 import json
+import logging
 import mimetypes
-import tempfile
+import os
+import re
 import shutil
-from typing import Dict, List, Optional, Union, Tuple
+import tempfile
+import time
+import traceback
+from pathlib import Path
+from typing import Optional
+from urllib.parse import quote, unquote
 
 import httpx
+import requests
 from bs4 import BeautifulSoup
 
 # 使用相对导入，支持独立运行
 try:
     from .file_utils import FileUtils
-    from .parsers import (WordParser, ExcelParser, PowerPointParser,
-                          TextParser, MarkdownParser, HtmlParser)
+    from .parsers import (
+        ExcelParser,
+        HtmlParser,
+        MarkdownParser,
+        PowerPointParser,
+        TextParser,
+        WordParser,
+    )
 except ImportError:
     # 如果相对导入失败，尝试绝对导入
     from file_utils import FileUtils
-    from parsers import (WordParser, ExcelParser, PowerPointParser, TextParser,
-                         MarkdownParser, HtmlParser)
+    from parsers import (
+        ExcelParser,
+        HtmlParser,
+        MarkdownParser,
+        PowerPointParser,
+        TextParser,
+        WordParser,
+    )
 
 # 尝试导入Source类
 try:
@@ -140,13 +149,13 @@ class FileProcessor:
         except Exception as e:
             raise Exception(f"Failed to generate HMAC: {str(e)}")
 
-    def build_sort_param(self, single_value_map: Dict) -> str:
+    def build_sort_param(self, single_value_map: dict[str, str]) -> str:
         """构建排序后的参数字符串"""
         sorted_params = sorted(single_value_map.items())
         param_strings = [f"{key}={value}" for key, value in sorted_params]
         return "&".join(param_strings)
 
-    def sign(self, params: Optional[Dict] = None) -> Dict:
+    def sign(self, params: Optional[dict[str, str]] = None) -> dict[str, str]:
         """
         生成API请求的签名认证
         
@@ -187,7 +196,7 @@ class FileProcessor:
 
     def build_url_with_sign(self,
                             base_url: str,
-                            params: Optional[Dict] = None) -> str:
+                            params: Optional[dict[str, str]] = None) -> str:
         """
         使用签名构建完整的URL
         
@@ -322,7 +331,7 @@ class FileProcessor:
             logger.error(f"文件上传失败: {str(e)}")
             raise Exception(f"文件上传失败: {str(e)}")
 
-    def parse_file(self, file_path: str, file_type: str) -> List:
+    def parse_file(self, file_path: str, file_type: str) -> list[list[str]]:
         """
         解析文件内容
         
@@ -366,7 +375,7 @@ class FileProcessor:
             logger.error(f"Parse file error: {str(e)}")
             raise
 
-    def _parse_json_file(self, file_path: str) -> List:
+    def _parse_json_file(self, file_path: str) -> list[list[str]]:
         """
         解析JSON文件
         
@@ -378,7 +387,7 @@ class FileProcessor:
         """
         try:
             import json
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 json_data = json.load(f)
 
             # 将JSON转换为字符串
@@ -400,7 +409,7 @@ class FileProcessor:
                 return [['paragraph', json_str, [[0, 0, 0, 0]], [0], [0]]]
 
         except Exception as e:
-            raise Exception(f"解析JSON文件失败: {str(e)}")
+            raise Exception(f"解析JSON文件失败: {str(e)}") from e
 
     def _convert_doc_to_docx(self, file_path: str) -> str:
         """
@@ -419,7 +428,7 @@ class FileProcessor:
     def download_and_parse(self,
                            file_token: str,
                            file_type: str,
-                           tmpdir: str = "/tmp") -> List:
+                           tmpdir: str = "/tmp") -> list[list[str]]:
         """
         下载文件并解析内容
         
@@ -440,7 +449,7 @@ class FileProcessor:
                 os.remove(file_path)
                 logger.info(f"临时文件已删除: {file_path}")
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """
         获取支持的文件格式列表
         
@@ -566,7 +575,7 @@ class FileProcessor:
                         source_type: str = "document",
                         chunk_size: int = 2000,
                         overlap: int = 200,
-                        source_info: dict = None) -> List[Source]:
+                        source_info: dict = None) -> list[Source]:
         """
         将给定文本切分并封装为 Source 列表。
 
@@ -586,7 +595,7 @@ class FileProcessor:
             return []
         chunks = self._split_text(text, chunk_size=chunk_size, overlap=overlap)
         logger.info(f"文本切分完成，共 {len(chunks)} 段")
-        sources: List[Source] = []
+        sources: list[Source] = []
         for idx, chunk in enumerate(chunks, start=1):
             source = Source(
                 id=idx,
@@ -605,42 +614,104 @@ class FileProcessor:
 
     def filetoken_to_sources(self,
                              file_token: str,
+                             ocr_file_token: str,
                              *,
                              title: str | None = None,
                              chunk_size: int = 2000,
                              overlap: int = 200,
-                             source_info: dict = None) -> List[Source]:
+                             source_info: dict = None) -> list[Source]:
         """
         将给定 file_token 转换为 Sources 列表
+        优化版本：直接使用 download_and_parse 的分块结果，避免重复分块
 
         Args:
             file_token: 文件token
+            ocr_file_token: ocr文件token
             title: 可选的标题
-            chunk_size: 分段大小
-            overlap: 段间重叠
+            chunk_size: 分段大小（已废弃，保留参数用于兼容）
+            overlap: 段间重叠（已废弃，保留参数用于兼容）
             source_info: 可选的源信息覆盖
 
         Returns:
             List[Source]
         """
-        text, meta = self._load_text_from_token(file_token)
-        if not text:
-            return []
+        # 优先使用 ocr 文件
+        target_token = ocr_file_token if ocr_file_token else file_token
 
-        # 使用元数据中的标题，如果没有则使用传入的标题
-        final_title = title or meta.get("title", "未命名文档")
-        url = meta.get("url")
+        try:
+            # 创建临时目录
+            temp_dir = tempfile.mkdtemp()
 
-        return self.text_to_sources(text,
-                                    title=final_title,
-                                    url=url,
-                                    source_type=meta.get(
-                                        "source_type", "document"),
-                                    chunk_size=chunk_size,
-                                    overlap=overlap,
-                                    source_info=source_info)
+            try:
+                # 获取文件信息
+                file_path = self.download_file(target_token, temp_dir)
+                file_name = os.path.basename(file_path)
 
-    def _load_text_from_token(self, file_token: str) -> Tuple[str, dict]:
+                # 根据文件扩展名确定文件类型
+                file_ext = os.path.splitext(file_name)[1].lower()
+                if file_ext in ['.json']:
+                    file_type = "json"
+                elif file_ext in ['.md', '.markdown']:
+                    file_type = "md"
+                elif file_ext in ['.txt']:
+                    file_type = "txt"
+                elif file_ext in ['.docx', '.doc']:
+                    file_type = "word"
+                elif file_ext in ['.xlsx', '.xls']:
+                    file_type = "excel"
+                elif file_ext in ['.pptx', '.ppt']:
+                    file_type = "powerpoint"
+                elif file_ext in ['.html', '.htm']:
+                    file_type = "html"
+                else:
+                    file_type = "txt"
+
+                # 直接使用分块结果
+                parsed_content = self.download_and_parse(
+                    target_token, file_type, temp_dir)
+
+                if not parsed_content:
+                    raise Exception("文件内容为空")
+
+                # 使用元数据中的标题，如果没有则使用传入的标题
+                final_title = title or f"storage_file_{target_token[:8]}"
+
+                # 直接转换为 Source 对象，保持原有分块结构
+                sources = []
+                for idx, content in enumerate(parsed_content):
+                    if len(content) > 1:
+                        source = Source(
+                            id=idx + 1,
+                            sourceType="document",
+                            title=f"{final_title} - 切片 {idx + 1}",
+                            url=None,
+                            content=content[1],
+                        )
+                        # 应用 source_info 覆盖
+                        if source_info:
+                            for key, value in source_info.items():
+                                if hasattr(source, key):
+                                    setattr(source, key, value)
+                        sources.append(source)
+
+                logger.info(
+                    f"成功从storage加载文件并分块: {target_token} (类型: {file_type}, 分块数: {len(sources)})"
+                )
+                return sources
+
+            finally:
+                # 清理临时目录
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception as e:
+                    logger.warning(f"清理临时目录失败: {e}")
+
+        except Exception as e:
+            logger.error(f"从storage加载文件失败: {e}")
+            raise
+
+    def _load_text_from_token(self,
+                              file_token: str) -> tuple[str, dict[str, str]]:
         """
         根据 file_token 下载/读取，并尽力提取纯文本。
 
@@ -658,7 +729,7 @@ class FileProcessor:
             logger.error(f"加载文件失败: {e}")
             return "", {}
 
-    def _load_text_from_http(self, url: str) -> Tuple[str, dict]:
+    def _load_text_from_http(self, url: str) -> tuple[str, dict]:
         """从HTTP URL加载文本"""
         logger.info(f"通过HTTP下载: {url}")
         with httpx.Client(timeout=30) as client:
@@ -689,7 +760,7 @@ class FileProcessor:
         }
         return text, meta
 
-    def _load_text_from_local(self, token: str) -> Tuple[str, dict]:
+    def _load_text_from_local(self, token: str) -> tuple[str, dict[str, str]]:
         """从本地文件加载文本"""
         # 支持 file:// 与普通路径
         path_str = token[7:] if token.startswith("file://") else token
@@ -724,7 +795,8 @@ class FileProcessor:
         }
         return text, meta
 
-    def _load_text_from_storage(self, file_token: str) -> Tuple[str, dict]:
+    def _load_text_from_storage(self,
+                                file_token: str) -> tuple[str, dict[str, str]]:
         """
         从远程storage下载文件并提取文本
         
@@ -775,9 +847,14 @@ class FileProcessor:
                     # JSON文件通常只有一个内容块
                     text = parsed_content[0][1] if parsed_content else ""
                 else:
-                    # 其他文件类型，合并所有内容块
-                    text = "\n\n".join(
-                        [content[1] for content in parsed_content])
+                    # 其他文件类型，保持分块结构，只提取文本内容
+                    # 注意：这个方法主要用于 filetoken_to_text 等需要完整文本的场景
+                    # 对于 Source 生成，建议直接使用 filetoken_to_sources 方法，避免重复分块
+                    text_blocks = []
+                    for content in parsed_content:
+                        if len(content) > 1:
+                            text_blocks.append(content[1])
+                    text = "\n\n".join(text_blocks)
 
                 meta = {
                     "title": f"storage_file_{file_token[:8]}",
@@ -824,11 +901,11 @@ class FileProcessor:
         return text
 
     def _split_text(self, text: str, *, chunk_size: int,
-                    overlap: int) -> List[str]:
+                    overlap: int) -> list[str]:
         """将文本分割成块"""
         if chunk_size <= 0:
             return [text]
-        chunks: List[str] = []
+        chunks: list[str] = []
         start = 0
         n = len(text)
         while start < n:

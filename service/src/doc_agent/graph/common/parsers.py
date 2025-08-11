@@ -272,12 +272,23 @@ def parse_web_search_results(web_raw_results: list[dict], query: str,
             if len(content) > 500:
                 content = content[:500] + "..."
 
-            source = Source(
-                id=source_id,
-                sourceType=source_type,  # 🔧 修复：使用别名 sourceType
-                title=title,
-                url=url,
-                content=content)
+            # 从 meta_data 中获取更多信息
+            date = meta_data.get('datePublished', '')
+            author = meta_data.get('author', '')
+            site_name = meta_data.get('siteName', '')
+
+            source = Source(id=source_id,
+                            source_type=source_type,
+                            title=title,
+                            url=url,
+                            content=content,
+                            date=date,
+                            author=author,
+                            metadata={
+                                "file_name": title,
+                                "locations": [],
+                                "source": "web_search"
+                            })
 
             sources.append(source)
             logger.debug(f"✅ 成功创建网页源: {source_id} - {title}")
@@ -333,12 +344,31 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
             if len(content) > 500:
                 content = content[:500] + "..."
 
-            source = Source(
-                id=source_id,
-                sourceType=source_type,  # 🔧 修复：使用别名 sourceType
-                title=title,
-                url=url,
-                content=content)
+            # 从 metadata 中获取更多信息
+            metadata = es_raw_result.metadata or {}
+            date = metadata.get('date', '')
+            author = metadata.get('author', '')
+            file_token = metadata.get('file_token', '')
+            page_number = metadata.get('page_number')
+
+            source = Source(id=source_id,
+                            source_type=source_type,
+                            title=title,
+                            url=url,
+                            content=content,
+                            date=date,
+                            author=author,
+                            file_token=file_token,
+                            page_number=page_number,
+                            metadata={
+                                "file_name":
+                                title,
+                                "locations": ([{
+                                    "pagenum": page_number
+                                }] if page_number is not None else []),
+                                "source":
+                                "es_search"
+                            })
 
             sources.append(source)
             logger.debug(f"✅ 成功创建ES源: {source_id} - {title}")

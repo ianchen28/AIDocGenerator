@@ -8,10 +8,8 @@ from unittest.mock import Mock, patch
 from loguru import logger
 
 from doc_agent.common.prompt_selector import PromptSelector
-from doc_agent.graph.chapter_workflow.nodes import (
-    _parse_reflection_response,
-    reflection_node,
-)
+from doc_agent.graph.chapter_workflow.nodes import reflection_node
+from doc_agent.graph.common.parsers import parse_reflection_response
 from doc_agent.llm_clients.base import LLMClient
 
 
@@ -32,7 +30,7 @@ def test_parse_reflection_response_json():
         }
         '''
 
-        queries = _parse_reflection_response(json_response)
+        queries = parse_reflection_response(json_response)
         assert len(queries) == 3
         assert "人工智能在医疗领域的应用案例" in queries
         assert "机器学习算法在诊断中的准确性" in queries
@@ -61,7 +59,7 @@ def test_parse_reflection_response_text():
         3. AI辅助医疗系统的未来发展趋势和挑战
         '''
 
-        queries = _parse_reflection_response(text_response)
+        queries = parse_reflection_response(text_response)
         assert len(queries) == 3
         assert "人工智能在医疗诊断中的实际应用案例" in queries
         assert "机器学习算法在医学影像识别中的准确性研究" in queries
@@ -90,7 +88,7 @@ def test_parse_reflection_response_bullet_points():
         • AI医疗系统的伦理问题和监管挑战
         '''
 
-        queries = _parse_reflection_response(bullet_response)
+        queries = parse_reflection_response(bullet_response)
         assert len(queries) == 3
         assert "深度学习在医学影像分析中的应用" in queries
         assert "人工智能辅助诊断的准确性和可靠性" in queries
@@ -119,7 +117,7 @@ def test_parse_reflection_response_quotes():
         "AI辅助医疗的未来发展"
         '''
 
-        queries = _parse_reflection_response(quote_response)
+        queries = parse_reflection_response(quote_response)
         assert len(queries) == 3
         assert "人工智能在医疗领域的实际应用" in queries
         assert "机器学习在医学诊断中的准确性" in queries
@@ -141,17 +139,17 @@ def test_parse_reflection_response_invalid():
     try:
         # 测试空响应
         empty_response = ""
-        queries = _parse_reflection_response(empty_response)
+        queries = parse_reflection_response(empty_response)
         assert len(queries) == 0
 
         # 测试只有标题的响应
         title_response = "新的搜索查询：\n\n# 标题\n\n## 子标题"
-        queries = _parse_reflection_response(title_response)
+        queries = parse_reflection_response(title_response)
         assert len(queries) == 0
 
         # 测试只有数字的响应
         number_response = "1. 2. 3. 4. 5."
-        queries = _parse_reflection_response(number_response)
+        queries = parse_reflection_response(number_response)
         assert len(queries) == 0
 
         logger.success("✅ 无效响应解析测试成功")
@@ -163,7 +161,7 @@ def test_parse_reflection_response_invalid():
     return True
 
 
-@patch('doc_agent.graph.chapter_workflow.nodes.settings')
+@patch('doc_agent.graph.chapter_workflow.nodes.reflection.settings')
 async def test_reflection_node_basic(mock_settings):
     """测试 reflection_node 的基本功能"""
     logger.info("🧪 测试 reflection_node 的基本功能...")
@@ -243,7 +241,7 @@ async def test_reflection_node_basic(mock_settings):
     return True
 
 
-@patch('doc_agent.graph.chapter_workflow.nodes.settings')
+@patch('doc_agent.graph.chapter_workflow.nodes.reflection.settings')
 async def test_reflection_node_insufficient_data(mock_settings):
     """测试 reflection_node 在数据不足时的情况"""
     logger.info("🧪 测试 reflection_node 在数据不足时的情况...")
@@ -296,7 +294,7 @@ async def test_reflection_node_insufficient_data(mock_settings):
     return True
 
 
-@patch('doc_agent.graph.chapter_workflow.nodes.settings')
+@patch('doc_agent.graph.chapter_workflow.nodes.reflection.settings')
 async def test_reflection_node_no_queries(mock_settings):
     """测试 reflection_node 在没有原始查询时的情况"""
     logger.info("🧪 测试 reflection_node 在没有原始查询时的情况...")

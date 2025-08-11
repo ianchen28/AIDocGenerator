@@ -5,9 +5,6 @@ Redis回调处理器
 """
 
 import asyncio
-from concurrent.futures import Future
-
-from datetime import datetime
 from typing import Any, Optional, Union
 from uuid import UUID
 
@@ -16,10 +13,6 @@ from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 
 from doc_agent.core.logger import logger
-
-# 导入Redis Streams发布器
-from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
-from doc_agent.core.redis_health_check import get_main_event_loop
 
 
 class RedisCallbackHandler(BaseCallbackHandler):
@@ -476,10 +469,14 @@ def safe_serialize(obj: Any) -> Any:
     - 否则转换为字符串
     """
     try:
-        from dataclasses import is_dataclass, asdict
+        from dataclasses import asdict, is_dataclass
     except Exception:
-        is_dataclass = lambda x: False  # type: ignore
-        asdict = lambda x: x  # type: ignore
+
+        def is_dataclass(x: Any) -> bool:
+            return False
+
+        def asdict(x: Any) -> Any:
+            return x
 
     try:
         if obj is None:

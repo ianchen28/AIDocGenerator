@@ -1,15 +1,16 @@
 # service/src/doc_agent/graph/main_orchestrator/builder.py
 import pprint
-import json
-from typing import Any, Dict, List, Optional
 
 from langgraph.graph import END, StateGraph
 
-from doc_agent.graph.main_orchestrator import nodes
+from doc_agent.core.logger import logger
+from doc_agent.graph.main_orchestrator.nodes import (bibliography_node,
+                                                     fusion_editor_node,
+                                                     initial_research_node,
+                                                     outline_generation_node,
+                                                     split_chapters_node)
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients import get_llm_client
-from doc_agent.llm_clients.base import LLMClient
-from doc_agent.core.logger import logger
 
 
 def create_chapter_processing_node(chapter_workflow_graph):
@@ -460,11 +461,11 @@ def build_main_orchestrator_graph(initial_research_node,
 
     # 使用提供的或默认的融合编辑器节点
     if fusion_editor_node is None:
-        fusion_editor_node = nodes.fusion_editor_node
+        fusion_editor_node = fusion_editor_node
 
     # 使用提供的或默认的参考文献生成节点
     if bibliography_node_func is None:
-        bibliography_node_func = nodes.bibliography_node
+        bibliography_node_func = bibliography_node
 
     # 注册所有节点
     workflow.add_node("initial_research", initial_research_node)
@@ -573,13 +574,13 @@ def build_document_graph(chapter_workflow_graph,
 
     # 使用提供的或默认的节点函数
     if fusion_editor_node is None:
-        fusion_editor_node = nodes.fusion_editor_node
+        fusion_editor_node = fusion_editor_node
 
     if finalize_document_node_func is None:
         finalize_document_node_func = finalize_document_node
 
     if bibliography_node_func is None:
-        bibliography_node_func = nodes.bibliography_node
+        bibliography_node_func = bibliography_node
 
     # 注册所有节点
     workflow.add_node("split_chapters", split_chapters_node)

@@ -11,19 +11,31 @@ from doc_agent.core.env_loader import setup_environment
 setup_environment()
 
 # 导入 doc_agent 模块
-import redis.asyncio as aredis
 import redis  # 导入同步 redis
+import redis.asyncio as aredis
+
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
 from doc_agent.graph.callbacks import create_redis_callback_handler
-from doc_agent.graph.chapter_workflow import nodes as chapter_nodes
 from doc_agent.graph.chapter_workflow import router as chapter_router
 from doc_agent.graph.chapter_workflow.builder import build_chapter_workflow_graph
-from doc_agent.graph.main_orchestrator import nodes as main_orchestrator_nodes
+from doc_agent.graph.chapter_workflow.nodes import (
+    async_researcher_node,
+    planner_node,
+    reflection_node,
+    writer_node,
+)
 from doc_agent.graph.main_orchestrator.builder import (
     build_document_graph,
     build_main_orchestrator_graph,
     build_outline_graph,
+)
+from doc_agent.graph.main_orchestrator.nodes import (
+    bibliography_node,
+    fusion_editor_node,
+    initial_research_node,
+    outline_generation_node,
+    split_chapters_node,
 )
 from doc_agent.llm_clients import get_llm_client
 from doc_agent.tools import (
@@ -148,15 +160,15 @@ class Container:
         logger.info("    - LLM Client, Tools and PromptSelector are ready.")
 
         logger.info("    - Binding dependencies for Chapter Workflow...")
-        chapter_planner_node = partial(chapter_nodes.planner_node,
+        chapter_planner_node = partial(planner_node,
                                        llm_client=self.llm_client,
                                        prompt_selector=self.prompt_selector,
                                        genre="default")
-        chapter_researcher_node = partial(chapter_nodes.async_researcher_node,
+        chapter_researcher_node = partial(async_researcher_node,
                                           web_search_tool=self.web_search_tool,
                                           es_search_tool=self.es_search_tool,
                                           reranker_tool=self.reranker_tool)
-        chapter_writer_node = partial(chapter_nodes.writer_node,
+        chapter_writer_node = partial(writer_node,
                                       llm_client=self.llm_client,
                                       prompt_selector=self.prompt_selector,
                                       genre="default",
@@ -182,22 +194,20 @@ class Container:
 
         # 为主工作流的节点绑定依赖
         main_initial_research_node = partial(
-            main_orchestrator_nodes.initial_research_node,
+            initial_research_node,
             web_search_tool=self.web_search_tool,
             es_search_tool=self.es_search_tool,
             reranker_tool=self.reranker_tool,
             llm_client=self.llm_client)
         main_outline_generation_node = partial(
-            main_orchestrator_nodes.outline_generation_node,
+            outline_generation_node,
             llm_client=self.llm_client,
             prompt_selector=self.prompt_selector,
             genre="default")
-        main_split_chapters_node = partial(
-            main_orchestrator_nodes.split_chapters_node,
-            llm_client=self.llm_client)
-        main_fusion_editor_node = partial(
-            main_orchestrator_nodes.fusion_editor_node,
-            llm_client=self.llm_client)
+        main_split_chapters_node = partial(split_chapters_node,
+                                           llm_client=self.llm_client)
+        main_fusion_editor_node = partial(fusion_editor_node,
+                                          llm_client=self.llm_client)
 
         # 编译大纲生成图
         self.outline_graph = build_outline_graph(
@@ -244,11 +254,11 @@ class Container:
             logger.warning(f"Genre '{genre}' 不存在，使用默认genre")
             genre = "default"
 
-        chapter_planner_node = partial(chapter_nodes.planner_node,
+        chapter_planner_node = partial(planner_node,
                                        llm_client=self.llm_client,
                                        prompt_selector=self.prompt_selector,
                                        genre=genre)
-        chapter_writer_node = partial(chapter_nodes.writer_node,
+        chapter_writer_node = partial(writer_node,
                                       llm_client=self.llm_client,
                                       prompt_selector=self.prompt_selector,
                                       genre=genre,
@@ -258,11 +268,11 @@ class Container:
             llm_client=self.llm_client,
             prompt_selector=self.prompt_selector,
             genre=genre)
-        reflection_node = partial(chapter_nodes.reflection_node,
-                                  llm_client=self.llm_client,
-                                  prompt_selector=self.prompt_selector,
-                                  genre=genre)
-        chapter_researcher_node = partial(chapter_nodes.async_researcher_node,
+        reflection_node_func = partial(reflection_node,
+                                       llm_client=self.llm_client,
+                                       prompt_selector=self.prompt_selector,
+                                       genre=genre)
+        chapter_researcher_node = partial(async_researcher_node,
                                           web_search_tool=self.web_search_tool,
                                           es_search_tool=self.es_search_tool,
                                           reranker_tool=self.reranker_tool)
@@ -271,31 +281,29 @@ class Container:
             researcher_node=chapter_researcher_node,
             writer_node=chapter_writer_node,
             supervisor_router_func=chapter_supervisor_router,
-            reflection_node=reflection_node)
+            reflection_node=reflection_node_func)
         main_outline_generation_node = partial(
-            main_orchestrator_nodes.outline_generation_node,
+            outline_generation_node,
             llm_client=self.llm_client,
             prompt_selector=self.prompt_selector,
             genre=genre)
         main_initial_research_node = partial(
-            main_orchestrator_nodes.initial_research_node,
+            initial_research_node,
             web_search_tool=self.web_search_tool,
             es_search_tool=self.es_search_tool,
             reranker_tool=self.reranker_tool)
-        main_split_chapters_node = partial(
-            main_orchestrator_nodes.split_chapters_node,
-            llm_client=self.llm_client)
-        bibliography_node = partial(main_orchestrator_nodes.bibliography_node)
-        fusion_editor_node = partial(
-            main_orchestrator_nodes.fusion_editor_node,
-            llm_client=self.llm_client)
+        main_split_chapters_node = partial(split_chapters_node,
+                                           llm_client=self.llm_client)
+        bibliography_node_func = partial(bibliography_node)
+        fusion_editor_node_func = partial(fusion_editor_node,
+                                          llm_client=self.llm_client)
         main_graph = build_main_orchestrator_graph(
             initial_research_node=main_initial_research_node,
             outline_generation_node=main_outline_generation_node,
             split_chapters_node=main_split_chapters_node,
             chapter_workflow_graph=chapter_graph,
-            fusion_editor_node=fusion_editor_node,
-            bibliography_node_func=bibliography_node)
+            fusion_editor_node=fusion_editor_node_func,
+            bibliography_node_func=bibliography_node_func)
         configured_graph = main_graph.with_config(
             {"callbacks": [redis_handler]})
         return configured_graph
@@ -308,13 +316,13 @@ class Container:
             logger.warning(f"Genre '{genre}' 不存在，使用默认genre")
             genre = "default"
         main_initial_research_node = partial(
-            main_orchestrator_nodes.initial_research_node,
+            initial_research_node,
             web_search_tool=self.web_search_tool,
             es_search_tool=self.es_search_tool,
             reranker_tool=self.reranker_tool,
             llm_client=self.llm_client)
         main_outline_generation_node = partial(
-            main_orchestrator_nodes.outline_generation_node,
+            outline_generation_node,
             llm_client=self.llm_client,
             prompt_selector=self.prompt_selector,
             genre=genre)
@@ -332,11 +340,11 @@ class Container:
         if genre not in self.genre_strategies:
             logger.warning(f"Genre '{genre}' 不存在，使用默认genre")
             genre = "default"
-        chapter_planner_node = partial(chapter_nodes.planner_node,
+        chapter_planner_node = partial(planner_node,
                                        llm_client=self.llm_client,
                                        prompt_selector=self.prompt_selector,
                                        genre=genre)
-        chapter_writer_node = partial(chapter_nodes.writer_node,
+        chapter_writer_node = partial(writer_node,
                                       llm_client=self.llm_client,
                                       prompt_selector=self.prompt_selector,
                                       genre=genre,
@@ -346,11 +354,11 @@ class Container:
             llm_client=self.llm_client,
             prompt_selector=self.prompt_selector,
             genre=genre)
-        reflection_node = partial(chapter_nodes.reflection_node,
-                                  llm_client=self.llm_client,
-                                  prompt_selector=self.prompt_selector,
-                                  genre=genre)
-        chapter_researcher_node = partial(chapter_nodes.async_researcher_node,
+        reflection_node_func = partial(reflection_node,
+                                       llm_client=self.llm_client,
+                                       prompt_selector=self.prompt_selector,
+                                       genre=genre)
+        chapter_researcher_node = partial(async_researcher_node,
                                           web_search_tool=self.web_search_tool,
                                           es_search_tool=self.es_search_tool,
                                           reranker_tool=self.reranker_tool)
@@ -359,18 +367,17 @@ class Container:
             researcher_node=chapter_researcher_node,
             writer_node=chapter_writer_node,
             supervisor_router_func=chapter_supervisor_router,
-            reflection_node=reflection_node)
-        main_split_chapters_node = partial(
-            main_orchestrator_nodes.split_chapters_node,
-            llm_client=self.llm_client)
-        fusion_editor_node = partial(
-            main_orchestrator_nodes.fusion_editor_node,
-            llm_client=self.llm_client)
+            reflection_node=reflection_node_func)
+        main_split_chapters_node = partial(split_chapters_node,
+                                           llm_client=self.llm_client)
+        bibliography_node_func = partial(bibliography_node)
+        fusion_editor_node_func = partial(fusion_editor_node,
+                                          llm_client=self.llm_client)
         document_graph = build_document_graph(
             chapter_workflow_graph=chapter_graph,
             split_chapters_node=main_split_chapters_node,
-            fusion_editor_node=fusion_editor_node,
-            bibliography_node_func=main_orchestrator_nodes.bibliography_node)
+            fusion_editor_node=fusion_editor_node_func,
+            bibliography_node_func=bibliography_node_func)
         configured_graph = document_graph.with_config(
             {"callbacks": [redis_handler]})
         return configured_graph

@@ -35,6 +35,14 @@ def format_sources_to_text(sources: list[Source], start_idx: int = 1) -> str:
         if source.url:
             formatted_text += f"URL: {source.url}\n"
         formatted_text += f"类型: {source.source_type}\n"
+        if source.author:
+            formatted_text += f"作者: {source.author}\n"
+        if source.date:
+            formatted_text += f"日期: {source.date}\n"
+        if source.page_number is not None:
+            formatted_text += f"页码: {source.page_number}\n"
+        if source.file_token:
+            formatted_text += f"文件Token: {source.file_token}\n"
         formatted_text += f"内容: {source.content}\n\n"
 
     return formatted_text

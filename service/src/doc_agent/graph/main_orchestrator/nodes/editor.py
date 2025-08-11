@@ -3,11 +3,10 @@
 
 负责融合编辑器功能，对生成的文档进行润色和优化
 """
-import json
-from typing import Any, Dict, Optional
+from typing import Any
 
-from doc_agent.core.logger import logger
 from doc_agent.core.config import settings
+from doc_agent.core.logger import logger
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
 
@@ -17,11 +16,11 @@ def fusion_editor_node(state: ResearchState,
     """
     融合编辑器节点
     对已完成的所有章节进行整体润色和优化
-    
+
     Args:
         state: 研究状态
         llm_client: LLM客户端
-        
+
     Returns:
         dict: 包含编辑后内容的字典
     """
@@ -41,7 +40,10 @@ def fusion_editor_node(state: ResearchState,
     # 快速模式跳过融合编辑
     if complexity_config['level'] == 'fast':
         logger.info("🚀 快速模式，跳过融合编辑")
-        return {"fusion_edited": False, "completed_chapters": completed_chapters}
+        return {
+            "fusion_edited": False,
+            "completed_chapters": completed_chapters
+        }
 
     try:
         # 提取所有章节内容

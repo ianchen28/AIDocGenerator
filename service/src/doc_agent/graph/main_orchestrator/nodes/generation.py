@@ -266,7 +266,8 @@ def bibliography_node(state: ResearchState) -> dict:
 
     logger.info(f"📚 开始生成参考文献，共 {len(cited_sources)} 个引用源")
 
-    answer_origins, webs = _adjust_source_to_redis_fe(cited_sources)
+    # 使用新的 Source 类方法进行批量转换
+    answer_origins, webs = Source.batch_to_redis_fe(cited_sources)
 
     publish_event(
         state.get("job_id", ""), "参考文献生成", "document_generation", "RUNNING", {
@@ -667,76 +668,22 @@ def _format_citation(source_id: int, source: Source) -> str:
     """格式化单个引用"""
     citation = f"[{source_id}] {source.title}"
 
+    # 添加作者信息
+    if source.author:
+        citation += f", {source.author}"
+
+    # 添加日期信息
+    if source.date:
+        citation += f", {source.date}"
+
+    # 添加URL信息
     if source.url:
         citation += f" - {source.url}"
+
+    # 添加页码信息
+    if source.page_number is not None:
+        citation += f" (第{source.page_number}页)"
 
     citation += f" ({source.source_type})"
 
     return citation
-
-
-def _adjust_source_to_redis_fe(
-    sources: list[Source]
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """
-    按前端（Redis 监听端）所需结构整理参考文献信息。
-
-    返回:
-        (answer_origins, webs)
-        - answer_origins: 文档/检索类来源（es_result）列表
-        - webs: 网页类来源（webpage）列表
-    """
-    answer_origins: list[dict[str, Any]] = []
-    webs: list[dict[str, Any]] = []
-
-    # 将 Source 转换为 FE 期望的字段命名与结构
-    for src in sources:
-        try:
-            if src.source_type == "es_result":
-                # 参考 test_case/citation_response_data.json 的结构，尽量填充可用字段
-                origin = {
-                    "id": src.id,
-                    "title": src.title or "",
-                    "fileToken": src.file_token or "",
-                    "domainId": "document",  # 无法判定具体类型时给出通用值
-                    "isFeishuSource": False,
-                    "valid": True,
-                    "originInfo": (src.content or "")[:1000],  # 控制长度
-                    "metadata": {
-                        "file_name":
-                        src.title or "",
-                        "locations": ([{
-                            "pagenum": src.page_number
-                        }] if src.page_number is not None else []),
-                        "source":
-                        "data_platform"
-                    }
-                }
-                answer_origins.append(safe_serialize(origin))
-            elif src.source_type == "webpage":
-                # 构造网页来源字段
-                # 提取站点名
-                site_name = ""
-                try:
-                    if src.url:
-                        from urllib.parse import urlparse
-                        site_name = urlparse(src.url).netloc
-                except Exception:
-                    site_name = ""
-
-                web = {
-                    "id": src.id,
-                    "datePublished": src.date or "",
-                    "materialContent": (src.content or "")[:1000],
-                    "materialId": f"web_{src.id}",
-                    "materialTitle": src.title or "",
-                    "siteName": site_name,
-                    "url": src.url or ""
-                }
-                webs.append(safe_serialize(web))
-            else:
-                logger.warning(f"未知来源类型: {src.source_type}")
-        except Exception as conv_err:
-            logger.warning("参考文献信息转换失败: {}", conv_err)
-
-    return answer_origins, webs

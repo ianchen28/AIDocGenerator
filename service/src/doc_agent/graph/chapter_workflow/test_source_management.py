@@ -15,7 +15,7 @@ sys.path.append(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 from doc_agent.schemas import Source
-from doc_agent.graph.chapter_workflow.nodes import (
+from doc_agent.graph.common.source_manager import (
     get_or_create_source_id, merge_sources_with_deduplication,
     calculate_text_similarity)
 from loguru import logger
