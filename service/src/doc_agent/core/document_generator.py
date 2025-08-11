@@ -7,6 +7,7 @@ from doc_agent.core.logger import logger
 from doc_agent.graph.callbacks import publish_event
 from doc_agent.graph.state import ResearchState
 from doc_agent.tools.file_module import file_processor
+from doc_agent.schemas import Source
 
 
 async def generate_document_sync(task_id: str,
@@ -78,35 +79,36 @@ def generate_initial_state(task_prompt: str,
 
     if context_files:
         logger.info(f"Job {task_id}: 开始解析 {len(context_files)} 个context_files")
+        user_data_reference_files: list[Source] = []  # 用户上传的数据参考文件
+        user_style_guide_content: list[Source] = []  # 用户上传的样式指南
+        user_requirements_content: list[Source] = []  # 用户上传的需求文档
         for file in context_files:
             try:
                 file_token = file.get("attachmentFileToken")
+                ocr_file_token = file.get("attachmentOCRResultToken")
                 if file_token:
                     # 文件装载为 Source 对象
                     sources = file_processor.filetoken_to_sources(
                         file_token,
+                        ocr_file_token,
                         title=
                         f"Context File: {file.get('fileName', 'Unknown')}",
                         chunk_size=2000,
                         overlap=200)
-
-                    # 根据attachmentType分类
-                    for source in sources:
-                        if file.get("attachmentType") == 1:
-                            user_data_reference_files.append(source)
-                        elif file.get("attachmentType") == 2:
-                            user_style_guide_content.append(source)
-                        elif file.get("attachmentType") == 3:
-                            user_requirements_content.append(source)
-
-                    # 将所有sources加入到initial_sources中用于搜索
                     initial_sources.extend(sources)
                     logger.info(
-                        f"Job {task_id}: 成功解析文件 {file_token}，生成 {len(sources)} 个sources"
+                        f"Task {task_id}: 成功解析文件 {file_token}，生成 {len(sources)} 个sources"
                     )
                 else:
                     logger.warning(
-                        f"Job {task_id}: 文件缺少attachmentFileToken: {file}")
+                        f"Task {task_id}: 文件缺少attachmentFileToken: {file}")
+
+                if file.get("attachmentType") == 1:
+                    user_data_reference_files.extend(sources)
+                elif file.get("attachmentType") == 2:
+                    user_style_guide_content.extend(sources)
+                elif file.get("attachmentType") == 3:
+                    user_requirements_content.extend(sources)
             except Exception as e:
                 logger.error(f"Job {task_id}: 解析文件失败: {e}")
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from elasticsearch import AsyncElasticsearch
+
 from doc_agent.core.logger import logger
 
 

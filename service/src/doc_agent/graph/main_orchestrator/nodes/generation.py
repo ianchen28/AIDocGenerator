@@ -5,14 +5,14 @@
 """
 
 import json
-import tempfile
 import os
+import tempfile
 from typing import Any
 
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.config import settings
 from doc_agent.core.logger import logger
-from doc_agent.graph.callbacks import publish_event, safe_serialize
+from doc_agent.graph.callbacks import publish_event
 from doc_agent.graph.common import format_sources_to_text
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient

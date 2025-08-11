@@ -21,6 +21,7 @@ class ResearchState(TypedDict):
     # 研究主题
     topic: str
     word_count: int  # 文档总字数
+    prompt_requirements: str  # 用户输入的 prompt 要求
 
     # 文档样式和需求指南
     style_guide_content: Optional[str]  # 样式指南内容

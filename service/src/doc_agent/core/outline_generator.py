@@ -6,6 +6,7 @@ from doc_agent.core.container import container
 from doc_agent.core.logger import logger
 from doc_agent.graph.callbacks import publish_event
 from doc_agent.tools.file_module import file_processor
+from doc_agent.schemas import Source
 
 
 async def generate_outline_async(
@@ -32,6 +33,9 @@ async def generate_outline_async(
 
         # 解析用户上传的context_files为sources
         initial_sources = []
+        user_data_reference_files: list[Source] = []  # 用户上传的数据参考文件
+        user_style_guide_content: list[Source] = []  # 用户上传的样式指南
+        user_requirements_content: list[Source] = []  # 用户上传的需求文档
         if context_files:
             logger.info(
                 f"Task {task_id}: 开始解析 {len(context_files)} 个context_files")
@@ -55,6 +59,12 @@ async def generate_outline_async(
                     else:
                         logger.warning(
                             f"Task {task_id}: 文件缺少attachmentFileToken: {file}")
+                    if file.get("attachmentType") == 1:
+                        user_data_reference_files.extend(sources)
+                    elif file.get("attachmentType") == 2:
+                        user_style_guide_content.extend(sources)
+                    elif file.get("attachmentType") == 3:
+                        user_requirements_content.extend(sources)
                 except Exception as e:
                     logger.error(f"Task {task_id}: 解析文件失败: {e}")
 
@@ -64,11 +74,14 @@ async def generate_outline_async(
         # 准备图的输入
         graph_input = {
             "job_id": task_id,
-            "topic": task_prompt,  # 将task_prompt映射到topic
+            "task_prompt": task_prompt,  # 将task_prompt映射到topic
             "is_online": is_online,
             "initial_sources": initial_sources,  # 添加解析后的sources
             "style_guide_content": style_guide_content,
             "requirements": requirements,
+            "user_data_reference_files": user_data_reference_files,
+            "user_style_guide_content": user_style_guide_content,
+            "user_requirements_content": user_requirements_content,
         }
 
         publish_event(task_id,
