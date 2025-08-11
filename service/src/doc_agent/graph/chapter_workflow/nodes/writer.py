@@ -161,6 +161,9 @@ def writer_node(state: ResearchState,
                 chunk, enable_listen_logger=enable_listen_logger)
             enable_listen_logger = False
 
+        # 在一章生成结束时额外添加一个换行符
+        streaming_handler.on_llm_new_token(
+            "\n", enable_listen_logger=enable_listen_logger)
         logger.success(f"章节 '{chapter_title}' 内容流式生成完毕。")
 
         # 发送剩余缓冲
