@@ -5,6 +5,8 @@
 """
 
 import json
+import tempfile
+import os
 from typing import Any
 
 from doc_agent.common.prompt_selector import PromptSelector
@@ -15,6 +17,7 @@ from doc_agent.graph.common import format_sources_to_text
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
 from doc_agent.schemas import Source
+from doc_agent.tools.file_module import FileProcessor
 
 
 def outline_generation_node(state: ResearchState,
@@ -81,12 +84,42 @@ def outline_generation_node(state: ResearchState,
         logger.info(
             f"✅ Job {job_id} 大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节")
 
+        # 将大纲保存为文件并上传到存储服务
+        file_token = None
+        try:
+            # 初始化文件处理器
+            file_processor = FileProcessor(
+                storage_base_url="http://ai.test.hcece.net",
+                app="hdec",
+                app_secret="hdec_secret",
+                tenant_id="100023")
+
+            # 创建临时文件
+            with tempfile.NamedTemporaryFile(mode='w',
+                                             suffix='.json',
+                                             delete=False,
+                                             encoding='utf-8') as temp_file:
+                json.dump(outline, temp_file, ensure_ascii=False, indent=2)
+                temp_file_path = temp_file.name
+
+            # 上传文件
+            file_token = file_processor.upload_file(temp_file_path)
+            logger.info(f"📁 大纲文件上传成功，Token: {file_token}")
+
+            # 清理临时文件
+            os.unlink(temp_file_path)
+
+        except Exception as e:
+            logger.error(f"大纲文件上传失败: {str(e)}")
+            file_token = None
+
         publish_event(
             job_id,
             "大纲生成",
             "outline_generation",
             "SUCCESS", {
                 "outline": outline,
+                "file_token": file_token,
                 "description":
                 f"大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节"
             },

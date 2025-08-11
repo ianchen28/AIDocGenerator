@@ -2,10 +2,11 @@
 
 import asyncio
 from doc_agent.core.logger import logger
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from doc_agent.core.container import container
 from doc_agent.graph.callbacks import publish_event
+from doc_agent.tools.file_module import file_processor
 
 
 async def generate_outline_async(
@@ -30,12 +31,40 @@ async def generate_outline_async(
         outline_graph = container_instance.get_outline_graph_runnable_for_job(
             job_id)
 
+        # 解析用户上传的context_files为sources
+        initial_sources = []
+        if context_files:
+            logger.info(
+                f"Job {job_id}: 开始解析 {len(context_files)} 个context_files")
+            for file in context_files:
+                try:
+                    file_token = file.get("attachmentFileToken")
+                    if file_token:
+                        # 使用file_processor解析文件为sources
+                        sources = file_processor.filetoken_to_sources(
+                            file_token,
+                            title=
+                            f"Context File: {file.get('fileName', 'Unknown')}",
+                            chunk_size=2000,
+                            overlap=200)
+                        initial_sources.extend(sources)
+                        logger.info(
+                            f"Job {job_id}: 成功解析文件 {file_token}，生成 {len(sources)} 个sources"
+                        )
+                    else:
+                        logger.warning(
+                            f"Job {job_id}: 文件缺少attachmentFileToken: {file}")
+                except Exception as e:
+                    logger.error(f"Job {job_id}: 解析文件失败: {e}")
+
+            logger.info(f"Job {job_id}: 总共解析出 {len(initial_sources)} 个sources")
+
         # 准备图的输入
         graph_input = {
             "job_id": job_id,
             "topic": task_prompt,  # 将task_prompt映射到topic
             "is_online": is_online,
-            "context_files": context_files or [],
+            "initial_sources": initial_sources,  # 添加解析后的sources
             "style_guide_content": style_guide_content,
             "requirements": requirements,
         }

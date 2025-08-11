@@ -101,7 +101,7 @@ async def generate_document_endpoint(request: DocumentGenerationRequest,
                               task_id=str(task_id),
                               task_prompt=task_prompt,
                               session_id=session_id,
-                              outline_json_file=outline_json_file,
+                              outline_file_token=outline_json_file,
                               context_files=context_files,
                               is_online=is_online)
 

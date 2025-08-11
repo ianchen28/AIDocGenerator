@@ -1,0 +1,188 @@
+# AI文档生成器API - 新file_token功能curl命令集合
+# 使用方法: 复制粘贴命令到终端执行
+
+# =================================================================
+# 环境变量
+# =================================================================
+BASE_URL="http://localhost:8000/api/v1"
+
+# =================================================================
+# 1. 健康检查
+# =================================================================
+echo "1. 健康检查"
+curl -X GET "$BASE_URL/health" \
+  -H "Content-Type: application/json" \
+  -w "\n状态码: %{http_code}\n耗时: %{time_total}s\n"
+echo -e "\n"
+
+# =================================================================
+# 2. 大纲生成端点测试 (新功能：返回file_token)
+# =================================================================
+echo "2. 大纲生成端点测试"
+OUTLINE_RESPONSE=$(curl -s -X POST "$BASE_URL/jobs/outline" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "test_session_001",
+    "taskPrompt": "请生成一份关于人工智能技术发展趋势的详细大纲",
+    "isOnline": true,
+    "contextFiles": [],
+    "styleGuideContent": "请使用专业的技术文档风格",
+    "requirements": "需要包含实际案例和未来发展趋势"
+  }')
+
+echo "$OUTLINE_RESPONSE"
+echo -e "\n"
+
+# 提取taskId
+TASK_ID=$(echo "$OUTLINE_RESPONSE" | grep -o '"redisStreamKey":"[^"]*"' | cut -d'"' -f4)
+echo "TaskId: $TASK_ID"
+echo -e "\n"
+
+# =================================================================
+# 3. 等待大纲生成完成
+# =================================================================
+echo "3. 等待大纲生成完成..."
+echo "⏳ 等待5秒..."
+sleep 5
+
+echo "💡 使用以下命令监听Redis流获取file_token:"
+echo "redis-cli XREAD COUNT 10 STREAMS $TASK_ID 0"
+echo -e "\n"
+
+# =================================================================
+# 4. 文档生成端点测试 (使用file_token)
+# =================================================================
+echo "4. 文档生成端点测试 (使用file_token)"
+curl -X POST "$BASE_URL/jobs/document-from-outline" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "taskPrompt": "基于大纲生成一份详细的技术文档",
+    "sessionId": "test_session_001",
+    "outline": "8b7e75b4150cde04bffba318da25068e",
+    "contextFiles": [],
+    "isOnline": true
+  }' \
+  -w "\n状态码: %{http_code}\n耗时: %{time_total}s\n"
+echo -e "\n"
+
+# =================================================================
+# 5. 带context_files的文档生成测试
+# =================================================================
+echo "5. 带context_files的文档生成测试"
+curl -X POST "$BASE_URL/jobs/document-from-outline" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "taskPrompt": "基于大纲和提供的参考资料生成技术文档",
+    "sessionId": "test_session_002",
+    "outline": "8b7e75b4150cde04bffba318da25068e",
+    "contextFiles": [
+      {
+        "attachmentFileToken": "example_file_token_001",
+        "attachmentType": 1
+      },
+      {
+        "attachmentFileToken": "example_file_token_002",
+        "attachmentType": 2
+      }
+    ],
+    "isOnline": false
+  }' \
+  -w "\n状态码: %{http_code}\n耗时: %{time_total}s\n"
+echo -e "\n"
+
+# =================================================================
+# 6. 模拟文档生成端点测试
+# =================================================================
+echo "6. 模拟文档生成端点测试"
+MOCK_RESPONSE=$(curl -s -X POST "$BASE_URL/jobs/document-from-outline-mock" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "taskPrompt": "模拟生成技术文档",
+    "sessionId": "mock_session_001",
+    "outline": "8b7e75b4150cde04bffba318da25068e",
+    "contextFiles": [],
+    "isOnline": false
+  }')
+
+echo "$MOCK_RESPONSE"
+echo -e "\n"
+
+# 提取模拟任务的taskId
+MOCK_TASK_ID=$(echo "$MOCK_RESPONSE" | grep -o '"redisStreamKey":"[^"]*"' | cut -d'"' -f4)
+echo "模拟任务TaskId: $MOCK_TASK_ID"
+echo -e "\n"
+
+# =================================================================
+# 7. 错误情况测试
+# =================================================================
+echo "7. 错误情况测试"
+
+echo "7.1 测试无效的file_token"
+curl -X POST "$BASE_URL/jobs/document-from-outline" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "taskPrompt": "测试无效token",
+    "sessionId": "error_test_001",
+    "outline": "invalid_file_token_123",
+    "contextFiles": [],
+    "isOnline": false
+  }' \
+  -w "\n状态码: %{http_code}\n耗时: %{time_total}s\n"
+echo -e "\n"
+
+echo "7.2 测试缺少必需参数"
+curl -X POST "$BASE_URL/jobs/document-from-outline" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "error_test_002",
+    "outline": "8b7e75b4150cde04bffba318da25068e"
+  }' \
+  -w "\n状态码: %{http_code}\n耗时: %{time_total}s\n"
+echo -e "\n"
+
+# =================================================================
+# 8. AI文本编辑端点测试
+# =================================================================
+echo "8. AI文本编辑端点测试"
+
+echo "8.1 润色文本"
+curl -X POST "$BASE_URL/actions/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "polish",
+    "text": "人工智能是计算机科学的一个分支，它企图了解智能的实质，并生产出一种新的能以人类智能相似的方式做出反应的智能机器。",
+    "polishStyle": "professional"
+  }' \
+  -w "\n状态码: %{http_code}\n耗时: %{time_total}s\n"
+echo -e "\n"
+
+echo "8.2 扩写文本"
+curl -X POST "$BASE_URL/actions/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "expand",
+    "text": "人工智能技术正在快速发展。"
+  }' \
+  -w "\n状态码: %{http_code}\n耗时: %{time_total}s\n"
+echo -e "\n"
+
+echo "8.3 总结文本"
+curl -X POST "$BASE_URL/actions/edit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "summarize",
+    "text": "人工智能（Artificial Intelligence，AI）是计算机科学的一个分支，它企图了解智能的实质，并生产出一种新的能以人类智能相似的方式做出反应的智能机器。该领域的研究包括机器人、语言识别、图像识别、自然语言处理和专家系统等。"
+  }' \
+  -w "\n状态码: %{http_code}\n耗时: %{time_total}s\n"
+echo -e "\n"
+
+# =================================================================
+# Redis流监听命令
+# =================================================================
+echo "Redis流监听命令:"
+echo "监听实时事件: redis-cli XREAD COUNT 10 STREAMS $TASK_ID 0"
+echo "查看历史事件: redis-cli XRANGE $TASK_ID - +"
+echo "查看流长度: redis-cli XLEN $TASK_ID"
+echo -e "\n"
+
+echo "🎉 测试完成!"

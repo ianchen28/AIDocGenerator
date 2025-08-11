@@ -6,13 +6,13 @@ from doc_agent.core.container import container
 from doc_agent.core.logger import logger
 from doc_agent.graph.callbacks import publish_event
 from doc_agent.graph.state import ResearchState
-from doc_agent.tools.file_processor import file_processor
+from doc_agent.tools.file_module import file_processor
 
 
 async def generate_document_sync(task_id: str,
                                  task_prompt: str,
                                  session_id: str,
-                                 outline_json_file: str,
+                                 outline_file_token: str,
                                  context_files: Optional[list[dict]] = None,
                                  is_online: bool = False):
     """
@@ -27,7 +27,7 @@ async def generate_document_sync(task_id: str,
             task_id)
 
         # 准备图的初始状态
-        initial_state = generate_initial_state(task_prompt, outline_json_file,
+        initial_state = generate_initial_state(task_prompt, outline_file_token,
                                                task_id, context_files,
                                                is_online)
 
@@ -57,16 +57,16 @@ async def generate_document_sync(task_id: str,
 
 
 def generate_initial_state(task_prompt: str,
-                           outline_json_file: str,
+                           outline_file_token: str,
                            task_id: str,
                            context_files: Optional[list[dict]] = None,
                            is_online: bool = False) -> ResearchState:
     """
     生成初始状态
     
-    outline_json_file: 大纲文件路径
+    outline_file_token: 大纲文件的storage token
     """
-    document_outline = file_processor.filetoken_to_outline(outline_json_file)
+    document_outline = file_processor.filetoken_to_outline(outline_file_token)
     word_count = document_outline["word_count"]
     logger.info(f"word_count: {word_count}")
     logger.info(f"document_outline: {document_outline}")
@@ -74,17 +74,46 @@ def generate_initial_state(task_prompt: str,
     user_data_reference_files = []
     user_style_guide_content = []
     user_requirements_content = []
-    for file in context_files:
-        # 文件装载为 Source 对象
-        sources = file_processor.filetoken_to_sources(
-            file.get("attachmentFileToken"))
-        for source in sources:
-            if file.get("attachmentType") == 1:
-                user_data_reference_files.append(source)
-            elif file.get("attachmentType") == 2:
-                user_style_guide_content.append(source)
-            elif file.get("attachmentType") == 3:
-                user_requirements_content.append(source)
+    initial_sources = []  # 用于搜索知识的sources
+
+    if context_files:
+        logger.info(f"Job {task_id}: 开始解析 {len(context_files)} 个context_files")
+        for file in context_files:
+            try:
+                file_token = file.get("attachmentFileToken")
+                if file_token:
+                    # 文件装载为 Source 对象
+                    sources = file_processor.filetoken_to_sources(
+                        file_token,
+                        title=
+                        f"Context File: {file.get('fileName', 'Unknown')}",
+                        chunk_size=2000,
+                        overlap=200)
+
+                    # 根据attachmentType分类
+                    for source in sources:
+                        if file.get("attachmentType") == 1:
+                            user_data_reference_files.append(source)
+                        elif file.get("attachmentType") == 2:
+                            user_style_guide_content.append(source)
+                        elif file.get("attachmentType") == 3:
+                            user_requirements_content.append(source)
+
+                    # 将所有sources加入到initial_sources中用于搜索
+                    initial_sources.extend(sources)
+                    logger.info(
+                        f"Job {task_id}: 成功解析文件 {file_token}，生成 {len(sources)} 个sources"
+                    )
+                else:
+                    logger.warning(
+                        f"Job {task_id}: 文件缺少attachmentFileToken: {file}")
+            except Exception as e:
+                logger.error(f"Job {task_id}: 解析文件失败: {e}")
+
+        logger.info(
+            f"Job {task_id}: 总共解析出 {len(initial_sources)} 个sources用于搜索")
+    else:
+        logger.info(f"Job {task_id}: 没有context_files需要解析")
 
     return ResearchState(
         job_id=task_id,
@@ -100,7 +129,7 @@ def generate_initial_state(task_prompt: str,
         run_id=None,
         style_guide_content=None,
         requirements_content=None,
-        initial_sources=[],
+        initial_sources=initial_sources,  # 使用解析的sources
         chapters_to_process=[],
         current_chapter_index=0,
         completed_chapters=[],
