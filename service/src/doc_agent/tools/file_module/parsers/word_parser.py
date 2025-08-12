@@ -4,12 +4,13 @@ Word文档解析器 - 解析.docx文件内容
 
 import os
 from typing import List
+
 from docx import Document
-from docx.text.paragraph import Paragraph
 from docx.document import Document as doctwo
 from docx.oxml.table import CT_Tbl
 from docx.oxml.text.paragraph import CT_P
-from docx.table import _Cell, Table
+from docx.table import Table, _Cell
+from docx.text.paragraph import Paragraph
 
 
 class WordParser:

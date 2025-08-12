@@ -259,7 +259,7 @@ def parse_web_search_results(web_raw_results: list[dict], query: str,
         try:
             # 🔧 修复：确保所有必需字段都存在
             source_id = start_id + index
-            source_type = "webpage"
+            source_type = "web"
 
             # 从 meta_data 中获取标题，如果没有则使用默认值
             meta_data = web_raw_result.get('meta_data', {})
@@ -283,6 +283,7 @@ def parse_web_search_results(web_raw_results: list[dict], query: str,
                             url=url,
                             content=content,
                             date=date,
+                            date_published=date,
                             author=author,
                             metadata={
                                 "file_name": title,

@@ -13,10 +13,10 @@ logger = get_logger(__name__)
 
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.config import settings
+from doc_agent.graph.callbacks import publish_event
 from doc_agent.graph.common import parse_planner_response
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
-from doc_agent.graph.callbacks import publish_event
 
 
 def planner_node(state: ResearchState,
@@ -53,6 +53,7 @@ def planner_node(state: ResearchState,
                                         "") if current_chapter else ""
     chapter_description = current_chapter.get("description",
                                               "") if current_chapter else ""
+    chapter_word_count = current_chapter.get("chapter_word_count")
 
     # 获取子节信息
     sub_sections = current_chapter.get("sub_sections",
@@ -70,13 +71,10 @@ def planner_node(state: ResearchState,
             section_number = sub_section.get("section_number", "?")
             section_title = sub_section.get("section_title", "未命名子节")
             section_description = sub_section.get("section_description", "")
-            key_points = sub_section.get("key_points", [])
 
             sub_sections_text += f"\n{section_number} {section_title}\n"
             if section_description:
                 sub_sections_text += f"描述: {section_description}\n"
-            if key_points:
-                sub_sections_text += f"要点: {', '.join(key_points)}\n"
 
     # 获取复杂度配置
     complexity_config = settings.get_complexity_config()

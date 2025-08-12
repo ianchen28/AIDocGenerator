@@ -234,6 +234,7 @@ V4_FAST = """
 - 章节描述: {chapter_description}
 - 章节序号: 第{chapter_number}章（共{total_chapters}章）
 - 子章节编排：{sub_sections_info}
+- 章节字数：{chapter_word_count}
 
 **已完成的章节内容（用于保持连贯性）:**
 {previous_chapters_context}
@@ -276,13 +277,17 @@ V4_FAST = """
 
 4. **格式要求:**
    - 使用Markdown格式
-   - 适当使用列表、引用等格式元素
+   - 根据需要适当使用列表、公式、表格、引用等格式元素
    - 重要观点使用粗体强调
 
 5. **篇幅控制:**
    - 章节内容应该简洁但完整
-   - 每章控制在1000-1500字为宜
+   - 字数控制在{chapter_word_count}字左右
    - 重点突出，避免冗余
+
+6. **其他要求**
+   - 写作要求：{prompt_requirements}
+   - 行文风格参考：{style_requirements}
 
 **输出格式示例:**
 ```

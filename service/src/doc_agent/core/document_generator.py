@@ -6,8 +6,8 @@ from doc_agent.core.container import container
 from doc_agent.core.logger import logger
 from doc_agent.graph.callbacks import publish_event
 from doc_agent.graph.state import ResearchState
-from doc_agent.tools.file_module import file_processor
 from doc_agent.schemas import Source
+from doc_agent.tools.file_module import file_processor
 
 
 async def generate_document_sync(task_id: str,
@@ -64,24 +64,22 @@ def generate_initial_state(task_prompt: str,
                            is_online: bool = False) -> ResearchState:
     """
     生成初始状态
-    
+
     outline_file_token: 大纲文件的storage token
     """
     document_outline = file_processor.filetoken_to_outline(outline_file_token)
     word_count = document_outline["word_count"]
+    title = document_outline["title"]
     logger.info(f"word_count: {word_count}")
     logger.info(f"document_outline: {document_outline}")
     # 解析用户上传文件
-    user_data_reference_files = []
-    user_style_guide_content = []
-    user_requirements_content = []
-    initial_sources = []  # 用于搜索知识的sources
+    user_data_reference_files: list[Source] = []  # 用户上传的数据参考文件
+    user_style_guide_content: list[Source] = []  # 用户上传的样式指南
+    user_requirements_content: list[Source] = []  # 用户上传的需求文档
+    initial_sources: list[Source] = []  # 用于搜索知识的sources
 
     if context_files:
         logger.info(f"Job {task_id}: 开始解析 {len(context_files)} 个context_files")
-        user_data_reference_files: list[Source] = []  # 用户上传的数据参考文件
-        user_style_guide_content: list[Source] = []  # 用户上传的样式指南
-        user_requirements_content: list[Source] = []  # 用户上传的需求文档
         for file in context_files:
             try:
                 file_token = file.get("attachmentFileToken")
@@ -103,24 +101,38 @@ def generate_initial_state(task_prompt: str,
                     logger.warning(
                         f"Task {task_id}: 文件缺少attachmentFileToken: {file}")
 
-                if file.get("attachmentType") == 1:
+                if file.get("isContentRefer") == 1:
                     user_data_reference_files.extend(sources)
-                elif file.get("attachmentType") == 2:
+                elif file.get("isStyleImitative") == 1:
                     user_style_guide_content.extend(sources)
-                elif file.get("attachmentType") == 3:
+                elif file.get("isWritingRequirement") == 1:
                     user_requirements_content.extend(sources)
             except Exception as e:
                 logger.error(f"Job {task_id}: 解析文件失败: {e}")
 
         logger.info(
             f"Job {task_id}: 总共解析出 {len(initial_sources)} 个sources用于搜索")
+        logger.info(
+            f"Job {task_id}: user_data_reference_files 数量: {len(user_data_reference_files)}"
+        )
+        logger.info(
+            f"Job {task_id}: user_style_guide_content 数量: {len(user_style_guide_content)}"
+        )
+        logger.info(
+            f"Job {task_id}: user_requirements_content 数量: {len(user_requirements_content)}"
+        )
     else:
         logger.info(f"Job {task_id}: 没有context_files需要解析")
+
+    # 创建 ResearchState 前记录数据
+    logger.info(
+        f"Job {task_id}: 创建 ResearchState，user_data_reference_files 数量: {len(user_data_reference_files)}"
+    )
 
     return ResearchState(
         job_id=task_id,
         task_prompt=task_prompt,
-        topic=task_prompt,  # 使用 task_prompt 作为 topic
+        topic=title,  # 使用 task_prompt 作为 topic
         document_outline=document_outline,
         user_data_reference_files=user_data_reference_files,
         user_style_guide_content=user_style_guide_content,

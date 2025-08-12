@@ -15,14 +15,16 @@ logger = get_logger(__name__)
 
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.config import settings
-from doc_agent.graph.common import (
-    format_sources_to_text as _format_sources_to_text, )
+from doc_agent.graph.callbacks import TokenStreamCallbackHandler
+from doc_agent.graph.common import (format_sources_to_text as
+                                    _format_sources_to_text,
+                                    format_requirements_to_text as
+                                    _format_requirements_to_text)
 from doc_agent.graph.common import (
     get_or_create_source_id, )
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
 from doc_agent.schemas import Source
-from doc_agent.graph.callbacks import TokenStreamCallbackHandler
 
 
 def writer_node(state: ResearchState,
@@ -46,6 +48,7 @@ def writer_node(state: ResearchState,
         dict: 包含当前章节内容和引用源的字典
     """
     logger.info("--- WRITER NODE ---")
+    logger.info(f"writer state keys: {list(state.keys())}")
     job_id = state.get("job_id")
     if not job_id:
         logger.error("Writer node: job_id not found in state.")
@@ -67,6 +70,7 @@ def writer_node(state: ResearchState,
     current_chapter = chapters_to_process[current_chapter_index]
     chapter_title = current_chapter.get("chapter_title", "")
     chapter_description = current_chapter.get("description", "")
+    chapter_word_count = current_chapter.get("chapter_word_count", 0)
     sub_sections = current_chapter.get("sub_sections", [])  # 获取子节信息
 
     publish_event(
@@ -83,14 +87,23 @@ def writer_node(state: ResearchState,
 
     # 从状态中获取研究数据
     gathered_sources = state.get("gathered_sources", [])
+    user_data_reference_files = state.get("user_data_reference_files", [])
+    user_style_guide_content = state.get("user_style_guide_content", [])
+    user_requirements_content = state.get("user_requirements_content", [])
+
+    # 添加调试日志
+    logger.info(f"📚 gathered_sources 数量: {len(gathered_sources)}")
+    logger.info(
+        f"📁 user_data_reference_files 数量: {len(user_data_reference_files)}")
+    logger.info(
+        f"🎨 user_style_guide_content 数量: {len(user_style_guide_content)}")
+    logger.info(
+        f"📋 user_requirements_content 数量: {len(user_requirements_content)}")
 
     # 构建上下文
     context_for_writing = _build_writing_context(completed_chapters)
     previous_chapters_context = _build_previous_chapters_context(
         completed_chapters_content)
-
-    available_sources_text = _format_sources_to_text(
-        gathered_sources, state.get("current_citation_index", 1))  # 修复：从1开始
 
     # 获取文档生成器配置
     document_writer_config = settings.get_agent_component_config(
@@ -116,16 +129,11 @@ def writer_node(state: ResearchState,
     prompt = _build_prompt(prompt_template, topic, chapter_title,
                            chapter_description, current_chapter_index,
                            chapters_to_process, previous_chapters_context,
-                           available_sources_text, context_for_writing,
-                           style_guide_content, sub_sections)  # 添加子节信息
-
-    # 限制 prompt 长度
-    prompt = _truncate_prompt_if_needed(prompt, previous_chapters_context,
-                                        completed_chapters_content,
-                                        available_sources_text, topic,
-                                        chapter_title, chapter_description,
-                                        current_chapter_index,
-                                        chapters_to_process, prompt_selector)
+                           gathered_sources, user_data_reference_files,
+                           chapter_word_count, user_requirements_content,
+                           user_style_guide_content, context_for_writing,
+                           style_guide_content, sub_sections,
+                           state.get("current_citation_index", 1))
 
     logger.debug(f"Invoking LLM with writer prompt:\n{pprint(prompt)}")
 
@@ -274,30 +282,6 @@ def _build_previous_chapters_context(completed_chapters_content: list) -> str:
     ])
 
 
-def _format_available_sources(gathered_sources: list[Source]) -> str:
-    """格式化可用信息源列表"""
-    if not gathered_sources:
-        return ""
-
-    available_sources_text = "可用信息源列表:\n\n"
-    for source in gathered_sources:
-        available_sources_text += f"[Source {source.id}] {source.title}\n"
-        available_sources_text += f"  类型: {source.source_type}\n"
-        if source.url:
-            available_sources_text += f"  URL: {source.url}\n"
-        if source.author:
-            available_sources_text += f"  作者: {source.author}\n"
-        if source.date:
-            available_sources_text += f"  日期: {source.date}\n"
-        if source.page_number is not None:
-            available_sources_text += f"  页码: {source.page_number}\n"
-        if source.file_token:
-            available_sources_text += f"  文件Token: {source.file_token}\n"
-        available_sources_text += f"  内容: {source.content[:200]}...\n\n"
-
-    return available_sources_text
-
-
 def _get_prompt_template(prompt_selector, prompt_version, genre,
                          style_guide_content, complexity_config):
     """获取合适的提示词模板"""
@@ -363,11 +347,40 @@ def _get_fallback_prompt_template() -> str:
 """
 
 
-def _build_prompt(prompt_template, topic, chapter_title, chapter_description,
-                  current_chapter_index, chapters_to_process,
-                  previous_chapters_context, available_sources_text,
-                  context_for_writing, style_guide_content, sub_sections):
-    """构建完整的提示词"""
+def _build_prompt(prompt_template,
+                  topic,
+                  chapter_title,
+                  chapter_description,
+                  current_chapter_index,
+                  chapters_to_process,
+                  previous_chapters_context,
+                  gathered_sources,
+                  user_data_reference_files,
+                  chapter_word_count,
+                  user_requirements_content,
+                  user_style_guide_content,
+                  context_for_writing,
+                  style_guide_content,
+                  sub_sections,
+                  source_begin_idx=1,
+                  max_length=30000):
+    """构建完整的提示词，智能控制长度"""
+
+    # 初始化各部分内容
+    available_sources_text = ""
+    prompt_requirements = ""
+    style_requirements = ""
+
+    # 计算基础内容的长度（不包括可变部分）
+    base_content = f"""
+topic={topic}
+chapter_title={chapter_title}
+chapter_description={chapter_description}
+chapter_number={current_chapter_index + 1}
+total_chapters={len(chapters_to_process)}
+previous_chapters_context={previous_chapters_context or "这是第一章，没有前置内容。"}
+context_for_writing={context_for_writing}
+"""
 
     # 格式化子节信息
     sub_sections_text = ""
@@ -385,82 +398,75 @@ def _build_prompt(prompt_template, topic, chapter_title, chapter_description,
             if key_points:
                 sub_sections_text += f"要点: {', '.join(key_points)}\n"
 
+    # 计算已用长度
+    used_length = len(base_content) + len(sub_sections_text)
+    remaining_length = max_length - used_length
+
+    # 智能分配剩余长度
+    # 优先级：可用信息源 > 用户要求 > 样式指南
+    sources_ratio = 0.6  # 60% 给信息源
+    requirements_ratio = 0.25  # 25% 给用户要求
+    style_ratio = 0.15  # 15% 给样式指南
+
+    sources_max_length = int(remaining_length * sources_ratio)
+    requirements_max_length = int(remaining_length * requirements_ratio)
+    style_max_length = int(remaining_length * style_ratio)
+
+    # 1. 处理可用信息源
+    if gathered_sources:
+        available_sources_text = _format_sources_to_text(
+            gathered_sources + user_data_reference_files, source_begin_idx)
+
+        # 如果信息源内容过长，进行智能截断
+        if len(available_sources_text) > sources_max_length:
+            available_sources_text = _truncate_sources_text(
+                gathered_sources + user_data_reference_files,
+                sources_max_length)
+            logger.info(f"📚 信息源内容已截断至 {len(available_sources_text)} 字符")
+
+    # 2. 处理用户要求内容
+    if user_requirements_content:
+        # 直接处理字符串列表，不依赖 _format_requirements_to_text
+        prompt_requirements = _sample_format_source_list(
+            user_requirements_content, requirements_max_length)
+
+    # 3. 处理样式指南内容
+    if user_style_guide_content:
+        # 直接处理字符串列表，不依赖 _format_requirements_to_text
+        style_requirements = _sample_format_source_list(
+            user_style_guide_content, style_max_length)
+
+    # 4. 处理样式指南内容（如果有）
+    formatted_style_guide = ""
     if style_guide_content and style_guide_content.strip():
-        # 格式化样式指南内容
-        formatted_style_guide = f"\n{style_guide_content}\n"
-        logger.info(f"📝 包含样式指南的写作，样式指南长度: {len(style_guide_content)} 字符")
+        # 为样式指南预留一些空间
+        style_guide_max_length = style_max_length - len(style_requirements)
+        if len(style_guide_content) > style_guide_max_length:
+            formatted_style_guide = _sample_format_source_list(
+                [style_guide_content], style_guide_max_length)
+        else:
+            formatted_style_guide = f"\n{style_guide_content}\n"
 
-        return prompt_template.format(
-            topic=topic,
-            chapter_title=chapter_title,
-            chapter_description=chapter_description,
-            chapter_number=current_chapter_index + 1,
-            total_chapters=len(chapters_to_process),
-            previous_chapters_context=previous_chapters_context
-            or "这是第一章，没有前置内容。",
-            available_sources_text=available_sources_text,
-            context_for_writing=context_for_writing,
-            style_guide_content=formatted_style_guide,
-            sub_sections_info=sub_sections_text)  # 添加子节信息
-    else:
-        logger.info("📝 标准写作，未包含样式指南")
-        return prompt_template.format(
-            topic=topic,
-            chapter_title=chapter_title,
-            chapter_description=chapter_description,
-            chapter_number=current_chapter_index + 1,
-            total_chapters=len(chapters_to_process),
-            previous_chapters_context=previous_chapters_context
-            or "这是第一章，没有前置内容。",
-            available_sources_text=available_sources_text,
-            context_for_writing=context_for_writing,
-            sub_sections_info=sub_sections_text)  # 添加子节信息
+        logger.info(f"📝 样式指南长度: {len(formatted_style_guide)} 字符")
 
-
-def _truncate_prompt_if_needed(prompt, previous_chapters_context,
-                               completed_chapters_content,
-                               available_sources_text, topic, chapter_title,
-                               chapter_description, current_chapter_index,
-                               chapters_to_process, prompt_selector):
-    """如果提示词过长，进行截断处理"""
-    max_prompt_length = 30000
-
-    if len(prompt) <= max_prompt_length:
-        return prompt
-
-    logger.warning(
-        f"⚠️  Writer prompt 长度 {len(prompt)} 超过限制 {max_prompt_length}，进行截断")
-
-    # 优先保留当前章节的研究数据，适当缩减已完成章节的上下文
-    if len(previous_chapters_context) > 5000:
-        # 只保留每章的简短摘要
-        previous_chapters_context = "\n\n".join([
-            f"第{i+1}章摘要:\n{content[:200]}..."
-            for i, content in enumerate(completed_chapters_content)
-        ])
-
-    # 如果研究数据也太长，进行截断
-    if len(available_sources_text) > 15000:
-        available_sources_text = available_sources_text[:15000] + "\n\n... (研究数据已截断)"
-
-    # 使用简化的模板重新构建prompt
-    simple_prompt_template = _get_fallback_prompt_template()
-
-    # 即使截断，也要保留基本的源信息
-    available_sources_text = "可用信息源列表:\n\n"
-    if len(available_sources_text) > 1000:  # 如果数据很长，只显示前几个源
-        available_sources_text += "由于数据量较大，仅显示部分信息源。请基于研究数据撰写内容，并正确引用。\n\n"
-
-    prompt = simple_prompt_template.format(
+    # 构建最终prompt
+    final_prompt = prompt_template.format(
         topic=topic,
         chapter_title=chapter_title,
         chapter_description=chapter_description,
         chapter_number=current_chapter_index + 1,
         total_chapters=len(chapters_to_process),
-        available_sources_text=available_sources_text)
+        previous_chapters_context=previous_chapters_context or "这是第一章，没有前置内容。",
+        available_sources_text=available_sources_text,
+        chapter_word_count=chapter_word_count,
+        prompt_requirements=prompt_requirements,
+        style_requirements=style_requirements,
+        context_for_writing=context_for_writing,
+        style_guide_content=formatted_style_guide,
+        sub_sections_info=sub_sections_text)
 
-    logger.info(f"📝 截断后 writer prompt 长度: {len(prompt)} 字符")
-    return prompt
+    logger.info(f"📝 最终prompt长度: {len(final_prompt)} 字符 (限制: {max_length})")
+    return final_prompt
 
 
 def _update_cited_sources_inplace(raw_text: str,
@@ -554,3 +560,111 @@ def _standardize_citation_formats(text: str) -> str:
 
     logger.debug(f"📝 引用格式标准化完成")
     return text
+
+
+def _truncate_sources_text(sources: list[Source], max_length: int) -> str:
+    """智能截断信息源文本，优先保留重要信息源"""
+    if not sources:
+        return ""
+
+    # 按重要性排序：已引用的 > 有URL的 > 有作者的 > 其他
+    def source_priority(source):
+        priority = 0
+        if source.cited:
+            priority += 1000
+        if source.url:
+            priority += 100
+        if source.author:
+            priority += 10
+        return priority
+
+    sorted_sources = sorted(sources, key=source_priority, reverse=True)
+
+    truncated_text = "可用信息源列表:\n\n"
+    current_length = len(truncated_text)
+
+    for source in sorted_sources:
+        source_text = f"[Source {source.id}] {source.title}\n"
+        source_text += f"  类型: {source.source_type}\n"
+        if source.url:
+            source_text += f"  URL: {source.url}\n"
+        if source.author:
+            source_text += f"  作者: {source.author}\n"
+        if source.date:
+            source_text += f"  日期: {source.date}\n"
+        if source.page_number is not None:
+            source_text += f"  页码: {source.page_number}\n"
+        if source.file_token:
+            source_text += f"  文件Token: {source.file_token}\n"
+
+        # 智能截断内容
+        content_preview = source.content[:150] + "..." if len(
+            source.content) > 150 else source.content
+        source_text += f"  内容: {content_preview}\n\n"
+
+        if current_length + len(source_text) > max_length:
+            truncated_text += f"... (还有 {len(sorted_sources) - len(truncated_text.split('[Source')) + 1} 个信息源未显示)\n"
+            break
+
+        truncated_text += source_text
+        current_length += len(source_text)
+
+    return truncated_text
+
+
+def _summarize_requirements(requirements_content: list,
+                            max_length: int) -> str:
+    """提炼用户要求的要点"""
+    if not requirements_content:
+        return ""
+
+    # 简单的关键词提取和总结
+    summary = "用户要求要点:\n"
+
+    for i, requirement in enumerate(requirements_content, 1):
+        if isinstance(requirement, str):
+            # 提取前50个字符作为要点
+            key_point = requirement[:50] + "..." if len(
+                requirement) > 50 else requirement
+            summary += f"{i}. {key_point}\n"
+        elif isinstance(requirement, dict):
+            # 如果是字典，提取关键字段
+            title = requirement.get('title', '未命名要求')
+            content = requirement.get('content', '')
+            key_point = content[:30] + "..." if len(content) > 30 else content
+            summary += f"{i}. {title}: {key_point}\n"
+
+    # 如果还是太长，进一步截断
+    if len(summary) > max_length:
+        summary = summary[:max_length - 20] + "...\n"
+
+    return summary
+
+
+def _sample_format_source_list(requirements_content: list[Source],
+                               max_length: int) -> str:
+    """格式化要求列表为文本"""
+    if not requirements_content:
+        return ""
+
+    whole_content = "".join(
+        [source.content for source in requirements_content])
+    if len(whole_content) <= max_length:
+        return whole_content
+
+    sample_rate = max_length / len(whole_content)
+    sample_count = max(1, int(sample_rate * len(requirements_content)))
+
+    # 随机抽取但保持顺序
+    if sample_rate < 1:
+        import random
+        # 生成所有索引，然后随机选择 sample_count 个，保持顺序
+        all_indices = list(range(len(requirements_content)))
+        selected_indices = sorted(random.sample(all_indices, sample_count))
+        sampled_sources = [requirements_content[i] for i in selected_indices]
+        sampled_content = "... ".join(
+            [source.content for source in sampled_sources])
+    else:
+        sampled_content = whole_content
+
+    return sampled_content

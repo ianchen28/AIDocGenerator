@@ -682,7 +682,7 @@ class FileProcessor:
                     if len(content) > 1:
                         source = Source(
                             id=idx + 1,
-                            sourceType="document",
+                            sourceType="documentUploadAnswer",
                             title=f"{final_title} - 切片 {idx + 1}",
                             url=None,
                             content=content[1],

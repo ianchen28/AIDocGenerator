@@ -70,6 +70,14 @@ def create_chapter_processing_node(chapter_workflow_graph):
             state.get("job_id", ""),
             "topic":
             topic,
+            "is_online":
+            state.get("is_online", False),
+            "user_data_reference_files":
+            state.get("user_data_reference_files", []),
+            "user_style_guide_content":
+            state.get("user_style_guide_content", []),
+            "user_requirements_content":
+            state.get("user_requirements_content", []),
             "current_chapter_index":
             current_chapter_index,
             "chapters_to_process":
@@ -267,7 +275,7 @@ def chapter_decision_function(state: ResearchState) -> str:
         logger.info(f"➡️  继续处理第 {current_chapter_index + 1} 章")
         return "process_chapter"
     else:
-        logger.info(f"✅ 所有章节已处理完成")
+        logger.info("✅ 所有章节已处理完成")
         return "finalize_document"
 
 

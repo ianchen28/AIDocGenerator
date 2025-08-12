@@ -48,6 +48,7 @@ class ResearchState(TypedDict):
 
     # 章节级研究状态
     research_plan: str  # 当前章节的研究计划
+    chapter_word_count: int  # 当前章节字数
     search_queries: list[str]  # 当前章节的搜索查询列表
     gathered_sources: list[Source]  # 当前章节收集的数据
 

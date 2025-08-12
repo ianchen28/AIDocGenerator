@@ -5,6 +5,7 @@
 """
 
 from .formatters import (
+    format_requirements_to_text,
     format_sources_to_text,
     process_citations,
     format_chapter_summary,
@@ -34,6 +35,7 @@ __all__ = [
     'parse_reflection_response',
     'parse_llm_json_response',
     # 格式化器
+    'format_requirements_to_text',
     'format_sources_to_text',
     'process_citations',
     'format_chapter_summary',

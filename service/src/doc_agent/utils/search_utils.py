@@ -212,6 +212,7 @@ async def search_and_rerank(
                                                  config=config)
 
     logger.info(f"搜索完成，获得 {len(search_results)} 个原始结果")
+    logger.info(f"es result example: {search_results[0]}")
 
     # 如果没有搜索结果，返回空结果
     if not search_results:

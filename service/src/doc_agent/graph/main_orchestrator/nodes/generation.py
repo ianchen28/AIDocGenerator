@@ -7,7 +7,6 @@
 import json
 import os
 import tempfile
-from typing import Any
 
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.config import settings
@@ -28,13 +27,13 @@ def outline_generation_node(state: ResearchState,
     大纲生成节点 - 统一版本
     根据初始研究数据生成文档大纲
     支持基于配置的行为调整
-    
+
     Args:
         state: 研究状态
         llm_client: LLM客户端
         prompt_selector: 提示词选择器
         genre: 文档类型
-        
+
     Returns:
         dict: 包含 document_outline 的字典
     """
@@ -201,42 +200,120 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
         })
 
     # 获取一句话研究计划告知
-    plan_prompt_template = """
-**角色:** 你是一位专业的需求分析专家和任务规划专家，你需要根据文章主题，任务要求和大纲内容，给出任务的一句话描述
+    plan_prompt1 = """
+你是一位经验丰富的总编辑和写作规划师。
 
-**文章主题:** {topic}
+你的任务是根据用户提供的文章标题、任务要求、文章大纲和总字数，制定一个清晰的章节写作计划。
+**输入内容**
+- 【文章标题】
+- 【任务要求】
+- 【文章大纲】
+- 【全文字数】
 
-**任务要求:** {task_prompt}
+**核心指令:**
 
-**大纲内容:** {document_outline_str}
+1.  **生成任务概述 (Overview)**: 结合【文章标题】和【任务要求】，用一句话精炼地总结出本次写作任务的核心目标以及你计划要做的事情。
+2.  **分配章节字数 (Allocate Word Count)**:
+    * **智能加权分配**: 你必须将【全文字数】智能地分配到【文章大纲】的每一个主要章节（通常是二级标题）。**切勿平均分配**。
+    * **分配依据**: 分配字数时，必须综合考虑以下因素：
+        * **内容重要性**: 大纲中包含更多子要点、描述更详细、或与【任务要求】直接相关的核心章节，应分配更多字数。
+        * **章节类型**: 通常，“引言”和“结论”部分占比较小（例如，各自占总字数的 10-15%），而主体分析、论证章节占比较大。
+    * **数学约束**: 所有 `chapter_word_counts` 列表中的 `word_count` 之和，**必须严格等于**【全文字数】。这是一个硬性要求。
+3.  **格式化输出**: 你的输出必须是一个单一、有效的 JSON 对象。除了这个 JSON 对象，不要返回任何额外的解释、注释或文字。
 
-**输出格式:**
-- 最好只有一句话，不用太长
-- 要适当提炼任务要求
-- 要明确点出符合任务要求和大纲中各章节标题和内容的研究方向
+**JSON 输出格式:**
+```json
+{
+  "overview": "一句话总结一下要完成任务要做的事情。",
+  "chapter_word_counts": [
+    {
+      "title": "章节标题",
+      "word_count": "分配给该章节的字数（数字）"
+    }
+  ]
+}
 
-**样式范例**
-文章主题：帮我写一个关于人工智能领域最新进展的文章
-大纲：
-第一章：人工智能的定义和历史
-第二章：人工智能的分类和应用
-第三章：人工智能的最新进展
+示例学习：
+
+输入：
+- 【文章标题】: "人工智能在教育领域的应用与挑战"
+- 【任务要求】: "帮我写一篇 5000 字的深度研究报告来研究人工智能在教育领域的应用进展，需要有具体的案例分析，并对未来的发展趋势提出自己的看法。"
+- 【文章大纲】:
+{'title': '人工智能技术发展趋势', 'word_count': 0, 'chapters': [{'number': 1, 'title': '人工智能技术概述', 'description': '介绍人工智能的基本概念、发展历程和当前技术现状，为后续章节的深入分析奠定基础。', 'sections': [{'number': 1.1, 'title': '人工智能的基本概念', 'description': '定义人工智能，介绍其核心技术和工作原理。', 'key_points': ['人工智能的定义', '核心技术和工作原理', '与相关领域的联系']}, {'number': 1.2, 'title': '人工智能的发展历程', 'description': '回顾人工智能从诞生到现在的关键发展阶段，分析各阶段的主要成就和挑战。', 'key_points': ['20世纪50年代的兴起与冷落', '20世纪60年代末到70年代的专家系统', '21世纪的快速发展']}, {'number': 1.3, 'title': '当前技术现状', 'description': '概述当前人工智能技术的主要特点和发展水平，探讨其在全球范围内的应用情况。', 'key_points': ['技术特点概述', '全球应用情况', '主要挑战与机遇']}]}, {'number': 2, 'title': '机器学习与深度学习', 'description': '深入探讨机器学习和深度学习的基本理论、技术特点及其在实际应用中的表现。', 'sections': [{'number': 2.1, 'title': '机器学习的基础理论', 'description': '介绍机器学习的基本原理、主要算法和应用场景。', 'key_points': ['机器学习的定义与原理', '主要算法类型', '典型应用场景']}, {'number': 2.2, 'title': '深度学习的技术特点', 'description': '探讨深度学习的技术特点、架构和优势，分析其在图像识别、自然语言处理等领域的应用。', 'key_points': ['深度学习的定义与特点', '多层神经网络架构', '应用案例分析']}, {'number': 2.3, 'title': '机器学习与深度学习的对比', 'description': '对比分析机器学习和深度学习的主要异同，探讨其在不同应用场景中的选择策略。', 'key_points': ['技术上的异同点', '应用场景的差异', '选择策略与未来趋势']}]}]}
+
+- 【全文字数】: 5000
+
 输出：
-好的，我会帮您写一篇关于人工智能最新进展的文章。
-我需要收集关于人工智能的最新进展，包括人工智能的定义和历史、人工智能的分类和应用、人工智能的最新进展等方面的信息。
-"""
-    plan_prompt = plan_prompt_template.format(
-        topic=state.get("title", ""),
-        task_prompt=state.get("task_prompt", ""),
-        document_outline_str=json.dumps(document_outline))
+{
+  "overview": "我将为您撰写一篇文章来分析人工智能技术的发展趋势，包括基本概念、发展历程、技术现状、机器学习与深度学习、应用场景等，为后续章节的深入分析奠定基础。",
+  "chapter_word_counts": [
+    {
+      "title": "人工智能技术概述",
+      "word_count": 2500
+    },
+    {
+      "title": "机器学习与深度学习",
+      "word_count": 2500
+    }
+  ]
+}
 
+"""
+
+    plan_prompt_template2 = """
+任务开始
+请根据下面的输入，生成写作计划，并输出json格式
+
+输入：
+- 【文章标题】：{topic}
+- 【任务要求】: {task_prompt}
+- 【文章大纲】: {document_outline_str}
+- 【全文字数】: {word_count}
+
+输出：
+"""
+    logger.info(f"outline_from_fe: {document_outline}")
+    plan_prompt2 = plan_prompt_template2.format(
+        topic=state.get("topic", ""),
+        task_prompt=state.get("task_prompt", ""),
+        document_outline_str=json.dumps(document_outline, ensure_ascii=False),
+        word_count=state.get("word_count", 0))
+
+    plan_prompt = plan_prompt1 + plan_prompt2
     response = llm_client.invoke(plan_prompt, temperature=0.5, max_tokens=2000)
-    plan_str = response.strip()
+
+    # 删除 ```json 和 ```
+    response = response.replace("```json", "").replace("```", "")
+
+    logger.info(f"plan_prompt: {plan_prompt}")
+    logger.info(f"response: {response}")
+    try:
+        plan_json = json.loads(response)
+    except Exception as e:
+        logger.error(f"解析计划失败: {e}")
+        plan_json = None
+    plan_str = plan_json.get("overview", "")
 
     logger.info(f"一句话研究计划：{plan_str}")
 
     publish_event(state.get("job_id", ""), "一句话研究计划", "document_generation",
                   "SUCCESS", {"description": plan_str})
+
+    chapter_word_counts = plan_json.get("chapter_word_counts", [])
+    if len(chapter_word_counts) != len(chapters_to_process):
+        logger.error(
+            f"章节字数分配不一致，章节数不一致, {len(chapter_word_counts)} != {len(chapters_to_process)}"
+        )
+        chapter_word_counts = [{
+            "title":
+            chapter["chapter_title"],
+            "word_count":
+            int(state.get("word_count", 0) / len(chapters_to_process))
+        } for chapter in chapters_to_process]
+    else:
+        for (word_count, chapter) in zip(chapter_word_counts,
+                                         chapters_to_process):
+            chapter["chapter_word_count"] = word_count.get("word_count", 0)
 
     logger.info(f"✅ 章节拆分完成，共 {len(chapters_to_process)} 个章节")
     publish_event(
@@ -253,7 +330,11 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
     return {
         "chapters_to_process": chapters_to_process,
         "current_chapter_index": 0,
-        "completed_chapters": []
+        "completed_chapters": [],
+        "user_data_reference_files": state.get("user_data_reference_files",
+                                               []),
+        "user_style_guide_content": state.get("user_style_guide_content", []),
+        "user_requirements_content": state.get("user_requirements_content", [])
     }
 
 

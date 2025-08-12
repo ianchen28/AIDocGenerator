@@ -10,7 +10,6 @@ import re
 from typing import Optional
 
 from doc_agent.core.logger import logger
-
 from doc_agent.schemas import Source
 
 
@@ -45,6 +44,23 @@ def format_sources_to_text(sources: list[Source], start_idx: int = 1) -> str:
             formatted_text += f"文件Token: {source.file_token}\n"
         formatted_text += f"内容: {source.content}\n\n"
 
+    return formatted_text
+
+
+def format_requirements_to_text(sources: list[Source]) -> str:
+    """
+    将 Source 对象列表格式拼接文为本格式，用于向后兼容
+    
+    Args:
+        sources: Source 对象列表
+        
+    Returns:
+        str: 格式化的文本
+    """
+    if not sources:
+        return "没有相关数据"
+
+    formatted_text = "".join([source.content for source in sources])
     return formatted_text
 
 

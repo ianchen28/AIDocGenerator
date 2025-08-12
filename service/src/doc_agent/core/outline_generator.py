@@ -5,8 +5,8 @@ from typing import Any
 from doc_agent.core.container import container
 from doc_agent.core.logger import logger
 from doc_agent.graph.callbacks import publish_event
-from doc_agent.tools.file_module import file_processor
 from doc_agent.schemas import Source
+from doc_agent.tools.file_module import file_processor
 
 
 async def generate_outline_async(
