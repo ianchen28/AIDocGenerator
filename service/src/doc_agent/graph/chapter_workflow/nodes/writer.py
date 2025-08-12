@@ -172,6 +172,7 @@ def writer_node(state: ResearchState,
         # 使用流式生成的完整响应
         response = "".join(response_list)
 
+        logger.info(f"实际生成 {len(response)} 字，目标 {chapter_word_count} 字")
         # 获取章节编号信息
         current_chapter_index = state.get("current_chapter_index", 0)
         chapters_to_process = state.get("chapters_to_process", [])

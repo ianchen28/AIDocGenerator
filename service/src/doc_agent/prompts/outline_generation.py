@@ -247,6 +247,8 @@ V4_FAST = """
 
 **主题**: {topic}
 
+**目标字数**：{word_count}
+
 **初始研究数据**:
 {initial_gathered_data}
 

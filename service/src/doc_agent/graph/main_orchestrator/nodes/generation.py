@@ -40,6 +40,7 @@ def outline_generation_node(state: ResearchState,
     topic = state.get("topic", "")
     initial_sources = state.get("initial_sources", [])
     job_id = state.get("job_id", "")
+    word_count = state.get("word_count", -1)
 
     if not topic:
         raise ValueError("主题不能为空")
@@ -65,7 +66,8 @@ def outline_generation_node(state: ResearchState,
     # 构建提示词
     prompt = prompt_template.format(
         topic=topic,
-        initial_gathered_data=initial_gathered_data[:5000]  # 限制长度
+        word_count=word_count,
+        initial_gathered_data=initial_gathered_data[:10000]  # 限制长度
     )
 
     try:
@@ -79,6 +81,8 @@ def outline_generation_node(state: ResearchState,
 
         # 解析响应
         outline = _parse_outline_response(response, complexity_config)
+        if word_count > 0:
+            outline["estimated_total_words"] = word_count
 
         logger.info(
             f"✅ Job {job_id} 大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节")
