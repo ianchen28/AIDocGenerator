@@ -16,6 +16,8 @@ from doc_agent.core.logger import logger
 class ESSearchResult:
     """ES搜索结果"""
     id: str
+    doc_id: str
+    file_token: str
     original_content: str  # 原始内容
     div_content: str = ""  # 切分后的内容
     source: str = ""
@@ -150,7 +152,13 @@ class ESService:
                           or doc_data.get('file_name') or doc_data.get('name')
                           or '')
 
+                # 安全获取 doc_id，如果不存在则使用 _id
+                doc_id = doc_data.get('doc_id', "")
+
                 result = ESSearchResult(id=hit['_id'],
+                                        doc_id=doc_id,
+                                        file_token=doc_data.get(
+                                            'file_token', ""),
                                         original_content=original_content,
                                         div_content=div_content,
                                         source=source,
@@ -438,8 +446,13 @@ class ESService:
                                   or doc_data.get('file_name')
                                   or doc_data.get('name') or '')
 
+                        # 安全获取 doc_id，如果不存在则使用 _id
+                        doc_id = doc_data.get('doc_id', "")
+
                         result = ESSearchResult(
                             id=hit["_id"],
+                            doc_id=doc_id,
+                            file_token=doc_data.get('file_token', ""),
                             original_content=original_content,
                             div_content=div_content,
                             source=source,

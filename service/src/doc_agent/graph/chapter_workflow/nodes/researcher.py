@@ -315,6 +315,11 @@ async def async_researcher_node(
             f"信息收集完成，搜索到{len(all_sources)}个信息源，其中网络搜索结果 {len(web_raw_results)} 个，ES搜索结果 {len(es_raw_results)} 个"
         })
 
+    logger.info(
+        f"🔍 信息收集完成，搜索到{len(all_sources)}个信息源，其中网络搜索结果 {len(web_raw_results)} 个，ES搜索结果 {len(es_raw_results)} 个"
+    )
+    logger.info(f"搜索结果示例：{es_raw_results[0]}")
+
     return {
         "gathered_sources": all_sources,
         "researcher_retry_count": new_retry_count

@@ -17,6 +17,7 @@ from .es_service import ESSearchResult
 class RerankedSearchResult:
     """重排序后的搜索结果"""
     id: str
+    doc_id: str
     original_content: str
     div_content: str = ""
     source: str = ""
@@ -145,6 +146,7 @@ class RerankerTool:
                     # 创建重排序结果
                     reranked_result = RerankedSearchResult(
                         id=original_result.id,
+                        doc_id=original_result.doc_id,
                         original_content=original_result.original_content,
                         div_content=original_result.div_content,
                         source=original_result.source,
@@ -183,6 +185,7 @@ class RerankerTool:
         for result in original_results:
             fallback_result = RerankedSearchResult(
                 id=result.id,
+                doc_id=result.doc_id,
                 original_content=result.original_content,
                 div_content=result.div_content,
                 source=result.source,

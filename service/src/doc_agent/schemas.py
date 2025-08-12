@@ -35,6 +35,7 @@ class Source(BaseModel):
 
     # === 基础字段 ===
     id: int = Field(..., description="唯一顺序标识符，用于引用（如 1, 2, 3...）")
+    doc_id: str = Field(..., description="文档ID", alias="docId")
     source_type: str = Field(
         ...,
         alias="sourceType",
@@ -187,6 +188,8 @@ class Source(BaseModel):
                     origin_dict = {
                         "id":
                         source_dict.get("id"),
+                        "docId":
+                        source_dict.get("docId", ""),
                         "title":
                         source_dict.get("title", ""),
                         "fileToken":

@@ -111,6 +111,7 @@ async def rerank_search_results(search_results: list[ESSearchResult],
         for result in search_results[:top_k]:
             fallback_result = RerankedSearchResult(
                 id=result.id,
+                doc_id=result.doc_id,
                 original_content=result.original_content,
                 div_content=result.div_content,
                 source=result.source,
@@ -212,12 +213,15 @@ async def search_and_rerank(
                                                  config=config)
 
     logger.info(f"搜索完成，获得 {len(search_results)} 个原始结果")
-    logger.info(f"es result example: {search_results[0]}")
 
     # 如果没有搜索结果，返回空结果
     if not search_results:
         logger.warning("搜索未返回任何结果")
         return [], [], f"未找到与 '{query}' 相关的文档。"
+
+    # 安全地显示第一个结果示例
+    if search_results:
+        logger.info(f"es result example: {search_results[0]}")
 
     # 如果没有重排序工具，直接格式化原始结果
     if not reranker_tool:

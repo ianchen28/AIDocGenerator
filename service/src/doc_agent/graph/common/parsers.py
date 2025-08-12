@@ -340,6 +340,7 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
             url = es_raw_result.metadata.get(
                 'url', '') if es_raw_result.metadata else ''
             content = es_raw_result.original_content or ''
+            locations = es_raw_result.metadata.get('locations', [])
 
             # 截断内容到500字符
             if len(content) > 500:
@@ -353,6 +354,7 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
             page_number = metadata.get('page_number')
 
             source = Source(id=source_id,
+                            doc_id=es_raw_result.doc_id,
                             source_type=source_type,
                             title=title,
                             url=url,
@@ -362,13 +364,9 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
                             file_token=file_token,
                             page_number=page_number,
                             metadata={
-                                "file_name":
-                                title,
-                                "locations": ([{
-                                    "pagenum": page_number
-                                }] if page_number is not None else []),
-                                "source":
-                                "es_search"
+                                "file_name": title,
+                                "locations": locations,
+                                "source": "es_search"
                             })
 
             sources.append(source)
