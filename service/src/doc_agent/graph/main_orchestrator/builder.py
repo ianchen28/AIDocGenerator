@@ -71,7 +71,7 @@ def create_chapter_processing_node(chapter_workflow_graph):
             "topic":
             topic,
             "is_online":
-            state.get("is_online", False),
+            state.get("is_online", True),
             "user_data_reference_files":
             state.get("user_data_reference_files", []),
             "user_style_guide_content":

@@ -68,6 +68,7 @@ async def async_researcher_node(
 
     search_queries = state.get("search_queries", [])
     job_id = state.get("job_id", "")
+    is_online = state.get("is_online", True)
 
     if not search_queries:
         logger.warning("❌ 没有搜索查询，返回默认消息")
@@ -244,21 +245,23 @@ async def async_researcher_node(
         # ============================
         web_raw_results = []
         web_str_results = ""
-        try:
-            # 使用异步搜索方法
-            web_raw_results, web_str_results = await web_search_tool.search_async(
-                query)
-            if "模拟" in web_str_results or "mock" in web_str_results.lower():
-                logger.info(f"网络搜索返回模拟结果，跳过: {query}")
+        if is_online:
+            try:
+                # 使用异步搜索方法
+                web_raw_results, web_str_results = await web_search_tool.search_async(
+                    query)
+                if "模拟" in web_str_results or "mock" in web_str_results.lower(
+                ):
+                    logger.info(f"网络搜索返回模拟结果，跳过: {query}")
+                    web_str_results = ""
+                    web_raw_results = []
+                if "搜索失败" in web_str_results:
+                    logger.error(f"网络搜索失败: {web_str_results}")
+                    web_str_results = ""
+                    web_raw_results = []
+            except Exception as e:
+                logger.error(f"网络搜索失败: {str(e)}")
                 web_str_results = ""
-                web_raw_results = []
-            if "搜索失败" in web_str_results:
-                logger.error(f"网络搜索失败: {web_str_results}")
-                web_str_results = ""
-                web_raw_results = []
-        except Exception as e:
-            logger.error(f"网络搜索失败: {str(e)}")
-            web_str_results = ""
 
         # 处理ES搜索结果
         if es_str_results and es_str_results.strip():

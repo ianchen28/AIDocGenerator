@@ -45,6 +45,7 @@ async def initial_research_node(state: ResearchState,
     task_prompt = state.get("task_prompt", "")
     if not task_prompt:
         raise ValueError("主 task_prompt 不能为空")
+    is_online = state.get("is_online", True)
 
     # LLM 提取 topic，要求字数（如有），其他格式内容要求
     # 返回
@@ -273,17 +274,19 @@ JSON
         # 网络搜索
         web_raw_results = []
         web_str_results = ""
-        try:
-            # 使用异步搜索方法
-            web_raw_results, web_str_results = await web_search_tool.search_async(
-                query)
-            if "模拟" in web_str_results or "mock" in web_str_results.lower():
+        if is_online:
+            try:
+                # 使用异步搜索方法
+                web_raw_results, web_str_results = await web_search_tool.search_async(
+                    query)
+                if "模拟" in web_str_results or "mock" in web_str_results.lower(
+                ):
+                    web_str_results = ""
+                    web_raw_results = []
+            except Exception as e:
+                logger.error(f"网络搜索失败: {str(e)}")
                 web_str_results = ""
                 web_raw_results = []
-        except Exception as e:
-            logger.error(f"网络搜索失败: {str(e)}")
-            web_str_results = ""
-            web_raw_results = []
 
         # ES搜索
         es_raw_results = []

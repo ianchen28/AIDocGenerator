@@ -338,7 +338,9 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
         "user_data_reference_files": state.get("user_data_reference_files",
                                                []),
         "user_style_guide_content": state.get("user_style_guide_content", []),
-        "user_requirements_content": state.get("user_requirements_content", [])
+        "user_requirements_content": state.get("user_requirements_content",
+                                               []),
+        "is_online": state.get("is_online", True)
     }
 
 
