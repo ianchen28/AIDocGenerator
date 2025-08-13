@@ -263,6 +263,40 @@ class ESSearchTool:
             logger.error(f"混合搜索失败: {str(e)}")
             return []
 
+    async def search_by_file_token(
+            self,
+            file_token: str,
+            top_k: int = 100,
+            config: Optional[dict[str, Any]] = None) -> list[ESSearchResult]:
+        """
+        根据file_token查询文档内容
+        
+        Args:
+            file_token: 文件token
+            top_k: 返回结果数量
+            config: 配置参数
+            
+        Returns:
+            List[ESSearchResult]: 搜索结果列表
+        """
+        logger.info(f"开始按file_token查询: {file_token}")
+
+        await self._ensure_initialized()
+
+        try:
+            # 使用通配符索引进行查询，这样可以搜索所有索引
+            index_to_use = "*"
+            logger.info(f"使用通配符索引 {index_to_use} 进行file_token查询")
+            results = await self._es_service.search_by_file_token(
+                index=index_to_use, file_token=file_token, top_k=top_k)
+
+            logger.info(f"file_token查询完成，返回 {len(results)} 个结果")
+            return results
+
+        except Exception as e:
+            logger.error(f"file_token查询失败: {str(e)}")
+            return []
+
     async def get_available_indices(self) -> list[str]:
         """获取可用索引列表"""
         await self._ensure_initialized()

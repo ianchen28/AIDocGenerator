@@ -62,6 +62,7 @@ class ResearchState(TypedDict):
     cited_sources_in_chapter: list[Source]  # 当前章节引用源
 
     # 用户上传文件
+    user_outline_file: str  # 用户上传的大纲文件
     user_data_reference_files: list[Source]  # 用户上传的数据参考文件
     user_style_guide_content: list[Source]  # 用户上传的样式指南
     user_requirements_content: list[Source]  # 用户上传的需求文档

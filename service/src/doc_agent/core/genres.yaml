@@ -11,6 +11,7 @@ genres:
       supervisor: "v1_metadata_based"
       writer: "v1_default"
       outline_generation: "v1_default"
+      outline_loader: "v1_default"
       reflection: "v1_default"
       # ... etc
 
@@ -23,6 +24,7 @@ genres:
       supervisor: "v1_simple"
       writer: "v2_simple_citations"
       outline_generation: "v1_simple"
+      outline_loader: "v1_default"
       reflection: "v1_default"
 
   # 工作报告策略
@@ -34,6 +36,7 @@ genres:
       supervisor: "v1_metadata_based"
       writer: "v2_formal_style" # 使用文风更正式的 writer prompt
       outline_generation: "v2_structured" # 使用更结构化的大纲 prompt
+      outline_loader: "v1_default"
       reflection: "v1_analytical" # 使用分析性更强的 reflection prompt
 
   # 讲话稿策略
@@ -45,6 +48,7 @@ genres:
       supervisor: "v1_metadata_based"
       writer: "v3_conversational"
       outline_generation: "v3_keynote_style"
+      outline_loader: "v1_default"
       reflection: "v1_exploratory" # 使用探索性更强的 reflection prompt
 
   # ...可以继续添加 "论文写作"、"市场调研" 等...

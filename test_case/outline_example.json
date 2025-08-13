@@ -80,3 +80,95 @@
     "total_chapters": 3,
     "estimated_total_words": 5000
 }
+
+
+{'data': '{
+        "outline": {
+            "title": "人工智能技术发展趋势",
+            "description": "本项目旨在探讨和分析人工智能技术的最新发展趋势，涵盖项目背景、进展、工作内容、挑战、未来计划及总结展望。",
+            "chapters": [
+                {
+                    "title": "项目背景与目标",
+                    "description": "介绍项目的背景信息和设立目标，为后续内容提供基础。",
+                    "sections": [
+                        {
+                            "title": "项目概况",
+                            "description": "概述项目的背景、起因及重要性。"
+                        },
+                        {
+                            "title": "项目目标",
+                            "description": "明确项目的具体目标和预期成果。"
+                        }
+                    ]
+                },
+                {
+                    "title": "项目进展总览",
+                    "description": "提供项目的整体进展情况，包括已完成的工作和当前状态。",
+                    "sections": []
+                },
+                {
+                    "title": "工作内容与成果详述",
+                    "description": "详细描述项目的核心工作内容及取得的成果。",
+                    "sections": [
+                        {
+                            "title": "核心工作成果",
+                            "description": "列出项目的主要工作成果和重要发现。"
+                        },
+                        {
+                            "title": "重点突破与创新",
+                            "description": "介绍项目中的关键突破和创新点。"
+                        },
+                        {
+                            "title": "团队协作与沟通",
+                            "description": "描述团队成员之间的协作和沟通方式，以及这些过程对项目的影响。"
+                        }
+                    ]
+                },
+                {
+                    "title": "问题与挑战",
+                    "description": "分析项目过程中遇到的问题及挑战，并提出解决措施。",
+                    "sections": [
+                        {
+                            "title": "已遇问题与解决措施",
+                            "description": "总结项目过程中遇到的具体问题及采取的解决措施。"
+                        },
+                        {
+                            "title": "潜在风险预估",
+                            "description": "评估项目未来可能遇到的风险，并提出预防措施。"
+                        }
+                    ]
+                },
+                {
+                    "title": "未来工作计划",
+                    "description": "规划项目的后续工作，包括具体任务和目标。",
+                    "sections": [
+                        {
+                            "title": "后续任务规划",
+                            "description": "详细列出后续的具体任务和时间表。"
+                        },
+                        {
+                            "title": "目标与期望成果",
+                            "description": "明确项目后续的目标和期望达成的成果。"
+                        }
+                    ]
+                },
+                {
+                    "title": "总结与展望",
+                    "description": "对项目进行全面总结，并展望未来的发展方向。",
+                    "sections": []
+                }
+            ]
+        },
+        "file_token": "03ce4b8e62d2e67364097c7eb94e2cc6",
+        "description": "成功加载并解析用户大纲文件，包含 6 个章节",
+        "chapters_count": 6,
+        "title": "人工智能技术发展趋势",
+        "eventType": "大纲加载",
+        "taskType": "outline_loader",
+        "status": "SUCCESS",
+        "taskFinished": true,
+        "redisStreamKey": "1755056209873305998",
+        "redisStreamId": "1755056209873305998-2",
+        "timestamp": "2025-08-13T11:37:11.318052"
+    }'
+}

@@ -553,6 +553,35 @@ def build_outline_graph(initial_research_node, outline_generation_node):
     return workflow.compile()
 
 
+def build_outline_loader_graph(outline_loader_node):
+    """
+    构建大纲加载器图
+    
+    流程：entry -> outline_loader_node -> END
+    
+    Args:
+        outline_loader_node: 已绑定依赖的大纲加载器节点
+        
+    Returns:
+        CompiledGraph: 编译后的大纲加载器图
+    """
+    # 创建状态图
+    workflow = StateGraph(ResearchState)
+
+    # 注册节点
+    workflow.add_node("outline_loader", outline_loader_node)
+
+    # 设置入口点
+    workflow.set_entry_point("outline_loader")
+
+    # 添加顺序边
+    workflow.add_edge("outline_loader", END)
+
+    # 编译并返回图
+    logger.info("🏗️  大纲加载器图构建完成")
+    return workflow.compile()
+
+
 def build_document_graph(chapter_workflow_graph,
                          split_chapters_node,
                          fusion_editor_node=None,

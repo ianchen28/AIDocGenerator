@@ -28,14 +28,15 @@ async def generate_outline_async(
         # 获取编译好的图（Graph）
         # 为每个作业创建专门的图执行器
         container_instance = container()
-        outline_graph = container_instance.get_outline_graph_runnable_for_job(
-            task_id)
 
         # 解析用户上传的context_files为sources
         initial_sources = []
         user_data_reference_files: list[Source] = []  # 用户上传的数据参考文件
         user_style_guide_content: list[Source] = []  # 用户上传的样式指南
         user_requirements_content: list[Source] = []  # 用户上传的需求文档
+        user_outline_file: str = ""
+
+        # 先解析context_files来获取user_outline_file
         if context_files:
             logger.info(
                 f"Task {task_id}: 开始解析 {len(context_files)} 个context_files")
@@ -43,6 +44,9 @@ async def generate_outline_async(
                 try:
                     file_token = file.get("attachmentFileToken")
                     ocr_file_token = file.get("attachmentOCRResultToken")
+                    # 用户上传大纲文件，单独处理
+                    if file.get("attachmentType") == 0:
+                        user_outline_file = file_token
                     if file_token:
                         # 使用file_processor解析文件为sources
                         sources = file_processor.filetoken_to_sources(
@@ -71,6 +75,16 @@ async def generate_outline_async(
             logger.info(
                 f"Task {task_id}: 总共解析出 {len(initial_sources)} 个sources")
 
+        # 根据是否有用户上传的大纲文件来决定使用哪个图
+        if user_outline_file:
+            logger.info(f"Task {task_id}: 检测到用户上传的大纲文件，使用大纲加载器图")
+            outline_graph = container_instance.get_outline_loader_graph_runnable_for_job(
+                task_id)
+        else:
+            logger.info(f"Task {task_id}: 未检测到用户上传的大纲文件，使用标准大纲生成图")
+            outline_graph = container_instance.get_outline_graph_runnable_for_job(
+                task_id)
+
         # 准备图的输入
         graph_input = {
             "job_id": task_id,
@@ -79,6 +93,7 @@ async def generate_outline_async(
             "initial_sources": initial_sources,  # 添加解析后的sources
             "style_guide_content": style_guide_content,
             "requirements": requirements,
+            "user_outline_file": user_outline_file,
             "user_data_reference_files": user_data_reference_files,
             "user_style_guide_content": user_style_guide_content,
             "user_requirements_content": user_requirements_content,

@@ -29,12 +29,14 @@ from doc_agent.graph.main_orchestrator.builder import (
     build_document_graph,
     build_main_orchestrator_graph,
     build_outline_graph,
+    build_outline_loader_graph,
 )
 from doc_agent.graph.main_orchestrator.nodes import (
     bibliography_node,
     fusion_editor_node,
     initial_research_node,
     outline_generation_node,
+    outline_loader_node,
     split_chapters_node,
 )
 from doc_agent.llm_clients import get_llm_client
@@ -215,6 +217,14 @@ class Container:
             outline_generation_node=main_outline_generation_node)
         logger.info("    - Outline Graph compiled successfully.")
 
+        # 编译大纲加载器图
+        main_outline_loader_node = partial(outline_loader_node,
+                                           llm_client=self.llm_client,
+                                           es_search_tool=self.es_search_tool)
+        self.outline_loader_graph = build_outline_loader_graph(
+            outline_loader_node=main_outline_loader_node)
+        logger.info("    - Outline Loader Graph compiled successfully.")
+
         # 编译文档生成图
         self.document_graph = build_document_graph(
             chapter_workflow_graph=self.chapter_graph,
@@ -333,6 +343,22 @@ class Container:
             {"callbacks": [redis_handler]})
         return configured_graph
 
+    def _get_genre_aware_outline_loader_graph(self, genre: str, redis_handler):
+        """
+        根据genre获取大纲加载器图的执行器
+        """
+        if genre not in self.genre_strategies:
+            logger.warning(f"Genre '{genre}' 不存在，使用默认genre")
+            genre = "default"
+        main_outline_loader_node = partial(outline_loader_node,
+                                           llm_client=self.llm_client,
+                                           es_search_tool=self.es_search_tool)
+        outline_loader_graph = build_outline_loader_graph(
+            outline_loader_node=main_outline_loader_node)
+        configured_graph = outline_loader_graph.with_config(
+            {"callbacks": [redis_handler]})
+        return configured_graph
+
     def _get_genre_aware_document_graph(self, genre: str, redis_handler):
         """
         根据genre获取文档生成图的执行器
@@ -392,6 +418,18 @@ class Container:
         configured_graph = self._get_genre_aware_outline_graph(
             genre, redis_handler)
         logger.info(f"为作业 {job_id} (genre: {genre}) 创建了大纲生成图执行器")
+        return configured_graph
+
+    def get_outline_loader_graph_runnable_for_job(self,
+                                                  job_id: str,
+                                                  genre: str = "default"):
+        """
+        为指定作业获取大纲加载器图的执行器
+        """
+        redis_handler = create_redis_callback_handler(job_id)
+        configured_graph = self._get_genre_aware_outline_loader_graph(
+            genre, redis_handler)
+        logger.info(f"为作业 {job_id} (genre: {genre}) 创建了大纲加载器图执行器")
         return configured_graph
 
     def get_document_graph_runnable_for_job(self,

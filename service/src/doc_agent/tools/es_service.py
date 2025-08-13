@@ -468,6 +468,86 @@ class ESService:
             logger.error(f"多索引搜索失败: {str(e)}")
             return []
 
+    async def search_by_file_token(self,
+                                   index: str,
+                                   file_token: str,
+                                   top_k: int = 100) -> list[ESSearchResult]:
+        """
+        根据file_token查询文档内容
+        
+        Args:
+            index: 索引名称
+            file_token: 文件token
+            top_k: 返回结果数量
+            
+        Returns:
+            List[ESSearchResult]: 搜索结果列表
+        """
+        logger.info(f"开始按file_token查询，索引: {index}, file_token: {file_token}")
+
+        await self._ensure_connected()
+
+        if not self._client:
+            logger.error("ES客户端未连接")
+            return []
+
+        try:
+            search_body = {
+                "size": top_k * 2,  # 设置更大的size
+                "query": {
+                    "term": {
+                        "doc_id": file_token
+                    }
+                }
+                # 移除排序，避免字段不存在的问题
+            }
+
+            logger.debug(f"file_token查询体: {search_body}")
+
+            # 执行搜索
+            response = await self._client.search(index=index, body=search_body)
+
+            # 解析结果
+            results = []
+            for hit in response['hits']['hits']:
+                doc_data = hit['_source']
+
+                # 获取原始内容和切分后的内容
+                original_content = (doc_data.get('content_view')
+                                    or doc_data.get('content')
+                                    or doc_data.get('text')
+                                    or doc_data.get('title') or '')
+
+                div_content = (doc_data.get('content') or doc_data.get('text')
+                               or doc_data.get('title') or '')
+
+                # 灵活获取来源字段
+                source = (doc_data.get('meta_data', {}).get('file_name')
+                          or doc_data.get('file_name') or doc_data.get('name')
+                          or '')
+
+                # 安全获取 doc_id
+                doc_id = doc_data.get('doc_id', "")
+
+                result = ESSearchResult(id=hit['_id'],
+                                        doc_id=doc_id,
+                                        file_token=doc_data.get(
+                                            'file_token', ""),
+                                        original_content=original_content,
+                                        div_content=div_content,
+                                        source=source,
+                                        score=hit['_score'],
+                                        metadata=doc_data.get('meta_data', {}),
+                                        alias_name=index)
+                results.append(result)
+
+            logger.info(f"file_token查询成功，返回 {len(results)} 个文档")
+            return results
+
+        except Exception as e:
+            logger.error(f"file_token查询失败: {str(e)}")
+            return []
+
     async def close(self):
         """关闭连接"""
         logger.info("开始关闭ES连接")
