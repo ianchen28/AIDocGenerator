@@ -564,7 +564,7 @@ class InternalLLMClient(LLMClient):
         try:
             # 获取可选参数
             temperature = kwargs.get("temperature", 0.7)
-            max_tokens = kwargs.get("max_tokens", 1000)
+            max_tokens = kwargs.get("max_tokens", 5000)
 
             # 构建请求数据
             data = {
