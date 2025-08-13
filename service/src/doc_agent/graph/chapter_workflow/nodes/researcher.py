@@ -122,10 +122,251 @@ async def async_researcher_node(
             "search_queries": search_queries,
             "description": f"开始信息收集，共需搜索{len(search_queries)}个查询"
         })
+    user_data_reference_files = state.get("user_data_reference_files", [])
+    user_style_guide_content = state.get("user_style_guide_content", [])
+    user_requirements_content = state.get("user_requirements_content", [])
 
     # 执行搜索
     for i, query in enumerate(search_queries, 1):
+        # 生成向量
+        if embedding_client:
+            embedding_response = embedding_client.invoke(query)
+            try:
+                embedding_data = json.loads(embedding_response)
+                if isinstance(embedding_data, list):
+                    if len(embedding_data) > 0 and isinstance(
+                            embedding_data[0], list):
+                        query_vector = embedding_data[0]
+                    else:
+                        query_vector = embedding_data
+                elif isinstance(embedding_data,
+                                dict) and 'data' in embedding_data:
+                    query_vector = embedding_data['data']
+                else:
+                    logger.warning(
+                        f"⚠️  无法解析embedding响应格式: {type(embedding_data)}")
+                    query_vector = None
+            except json.JSONDecodeError:
+                logger.warning("⚠️  JSON解析失败！无法进行 ES 检索")
+                query_vector = None
+
         logger.info(f"执行搜索查询 {i}/{len(search_queries)}: {query}")
+        # ============================
+        # 用户上传的文件搜索
+        # ============================
+        user_data_raw_results: list[RerankedSearchResult] = []
+        user_style_raw_results: list[RerankedSearchResult] = []
+        user_requirement_raw_results: list[RerankedSearchResult] = []
+        user_str_results = ""
+
+        # 检查是否有用户上传的文档
+        has_user_documents = (user_data_reference_files
+                              or user_style_guide_content
+                              or user_requirements_content)
+
+        if has_user_documents:
+            logger.info(
+                f"🔍 在用户上传文档范围内搜索，参考文档数量: {len(user_data_reference_files) if user_data_reference_files else 0}，风格指南数量: {len(user_style_guide_content) if user_style_guide_content else 0}，需求文档数量: {len(user_requirements_content) if user_requirements_content else 0}"
+            )
+
+            try:
+                # 在指定文档范围内执行ES搜索
+                user_data_es_results = []
+                user_style_es_results = []
+                user_requirement_es_results = []
+
+                if user_data_reference_files:
+                    logger.info(
+                        f"🔍 搜索用户参考文档，文档token: {user_data_reference_files[:3]}..."
+                    )
+                    user_data_es_results = await es_search_tool.search_within_documents(
+                        query=query,
+                        query_vector=query_vector,
+                        file_tokens=user_data_reference_files,
+                        top_k=initial_top_k,
+                        config={
+                            'min_score':
+                            complexity_config.get('min_score', 0.3)
+                        })
+
+                if user_style_guide_content:
+                    logger.info(
+                        f"🔍 搜索用户风格指南，文档token: {user_style_guide_content[:3]}..."
+                    )
+                    user_style_es_results = await es_search_tool.search_within_documents(
+                        query=query,
+                        query_vector=query_vector,
+                        file_tokens=user_style_guide_content,
+                        top_k=initial_top_k,
+                        config={
+                            'min_score':
+                            complexity_config.get('min_score', 0.3)
+                        })
+
+                if user_requirements_content:
+                    logger.info(
+                        f"🔍 搜索用户需求文档，文档token: {user_requirements_content[:3]}..."
+                    )
+                    user_requirement_es_results = await es_search_tool.search_within_documents(
+                        query=query,
+                        query_vector=query_vector,
+                        file_tokens=user_requirements_content,
+                        top_k=initial_top_k,
+                        config={
+                            'min_score':
+                            complexity_config.get('min_score', 0.3)
+                        })
+
+                # 对用户文档搜索结果进行重排序
+                if user_data_es_results and reranker_tool:
+                    logger.info(
+                        f"🔄 对用户文档搜索结果进行重排序，原始结果数: {len(user_data_es_results)}")
+
+                    # 转换为重排序工具需要的格式
+                    user_search_results = []
+                    for result in user_data_es_results:
+                        user_search_results.append({
+                            'content':
+                            result.original_content or result.div_content,
+                            'score':
+                            result.score,
+                            'metadata': {
+                                'source': result.source,
+                                'doc_id': result.doc_id,
+                                'file_token': result.file_token,
+                                'alias_name': result.alias_name
+                            }
+                        })
+
+                    # 执行重排序
+                    reranked_user_results = await reranker_tool.rerank(
+                        query=query,
+                        documents=user_search_results,
+                        top_k=final_top_k)
+
+                    # 转换为RerankedSearchResult格式
+                    for reranked_result in reranked_user_results:
+                        user_data_raw_results.append(
+                            RerankedSearchResult(
+                                content=reranked_result['content'],
+                                score=reranked_result['score'],
+                                metadata=reranked_result.get('metadata', {})))
+
+                    logger.info(
+                        f"✅ 用户文档重排序完成，结果数: {len(user_data_raw_results)}")
+
+                    # style 重排序
+                    if user_style_es_results and reranker_tool:
+                        logger.info(
+                            f"🔄 对用户风格指南搜索结果进行重排序，原始结果数: {len(user_style_es_results)}"
+                        )
+
+                        # 转换为重排序工具需要的格式
+                        user_style_search_results = []
+                        for result in user_style_es_results:
+                            user_style_search_results.append({
+                                'content':
+                                result.original_content or result.div_content,
+                                'score':
+                                result.score,
+                                'metadata': {
+                                    'source': result.source,
+                                    'doc_id': result.doc_id,
+                                    'file_token': result.file_token,
+                                    'alias_name': result.alias_name
+                                }
+                            })
+
+                        # 执行重排序
+                        reranked_user_style_results = await reranker_tool.rerank(
+                            query=query,
+                            documents=user_style_search_results,
+                            top_k=final_top_k)
+
+                        # 转换为RerankedSearchResult格式
+                        for reranked_result in reranked_user_style_results:
+                            user_style_raw_results.append(
+                                RerankedSearchResult(
+                                    content=reranked_result['content'],
+                                    score=reranked_result['score'],
+                                    metadata=reranked_result.get(
+                                        'metadata', {})))
+
+                    # requirement 重排序
+                    if user_requirement_es_results and reranker_tool:
+                        logger.info(
+                            f"🔄 对用户需求搜索结果进行重排序，原始结果数: {len(user_requirement_es_results)}"
+                        )
+
+                        # 转换为重排序工具需要的格式
+                        user_requirement_search_results = []
+                        for result in user_requirement_es_results:
+                            user_requirement_search_results.append({
+                                'content':
+                                result.original_content or result.div_content,
+                                'score':
+                                result.score,
+                                'metadata': {
+                                    'source': result.source,
+                                    'doc_id': result.doc_id,
+                                    'file_token': result.file_token,
+                                    'alias_name': result.alias_name
+                                }
+                            })
+
+                        # 执行重排序
+                        reranked_user_requirement_results = await reranker_tool.rerank(
+                            query=query,
+                            documents=user_requirement_search_results,
+                            top_k=final_top_k)
+
+                        # 转换为RerankedSearchResult格式
+                        for reranked_result in reranked_user_requirement_results:
+                            user_requirement_raw_results.append(
+                                RerankedSearchResult(
+                                    content=reranked_result['content'],
+                                    score=reranked_result['score'],
+                                    metadata=reranked_result.get(
+                                        'metadata', {})))
+                else:
+                    # 如果没有重排序工具，直接使用原始结果
+                    for result in user_data_es_results:
+                        user_data_raw_results.append(
+                            RerankedSearchResult(
+                                content=result.original_content
+                                or result.div_content,
+                                score=result.score,
+                                metadata={
+                                    'source': result.source,
+                                    'doc_id': result.doc_id,
+                                    'file_token': result.file_token,
+                                    'alias_name': result.alias_name
+                                }))
+                    logger.info(
+                        f"✅ 用户文档搜索完成，结果数: {len(user_data_raw_results)}")
+
+                # 格式化用户文档搜索结果
+                user_results_combined = []
+                if user_data_raw_results:
+                    user_results_combined.extend(user_data_raw_results)
+                if user_style_raw_results:
+                    user_results_combined.extend(user_style_raw_results)
+                if user_requirement_raw_results:
+                    user_results_combined.extend(user_requirement_raw_results)
+
+                if user_results_combined:
+                    user_str_results = format_search_results(
+                        user_results_combined, query)
+                    logger.info(
+                        f"📝 用户文档搜索结果格式化完成，总结果数: {len(user_results_combined)}，格式化长度: {len(user_str_results)}"
+                    )
+                else:
+                    logger.warning("⚠️ 未找到有效的用户文档搜索结果")
+
+            except Exception as e:
+                logger.error(f"❌ 用户文档搜索失败: {str(e)}")
+                user_data_raw_results = []
+                user_str_results = ""
 
         # ============================
         # ES搜索
@@ -133,97 +374,16 @@ async def async_researcher_node(
         es_raw_results: list[RerankedSearchResult] = []
         es_str_results = ""
         try:
-            if embedding_client:
-                # 尝试向量检索
-                try:
-                    embedding_response = embedding_client.invoke(query)
-                    try:
-                        embedding_data = json.loads(embedding_response)
-                        if isinstance(embedding_data, list):
-                            if len(embedding_data) > 0 and isinstance(
-                                    embedding_data[0], list):
-                                query_vector = embedding_data[0]
-                            else:
-                                query_vector = embedding_data
-                        elif isinstance(embedding_data,
-                                        dict) and 'data' in embedding_data:
-                            query_vector = embedding_data['data']
-                        else:
-                            logger.warning(
-                                f"⚠️  无法解析embedding响应格式: {type(embedding_data)}"
-                            )
-                            query_vector = None
-                    except json.JSONDecodeError:
-                        logger.warning("⚠️  JSON解析失败，使用文本搜索")
-                        query_vector = None
+            if query_vector and len(query_vector) == 1536:
+                logger.debug(
+                    f"✅ 向量维度: {len(query_vector)}，前5: {query_vector[:5]}")
+                # 使用新的搜索和重排序功能
+                search_query = query if query.strip() else "相关文档"
 
-                    if query_vector and len(query_vector) == 1536:
-                        logger.debug(
-                            f"✅ 向量维度: {len(query_vector)}，前5: {query_vector[:5]}"
-                        )
-                        # 使用新的搜索和重排序功能
-                        search_query = query if query.strip() else "相关文档"
-
-                        _, reranked_results, formatted_es_results = await search_and_rerank(
-                            es_search_tool=es_search_tool,
-                            query=search_query,
-                            query_vector=query_vector,
-                            reranker_tool=reranker_tool,
-                            initial_top_k=initial_top_k,
-                            final_top_k=final_top_k,
-                            config={
-                                'min_score':
-                                complexity_config.get('min_score', 0.3)
-                            })
-                        # 添加新的结果
-                        es_raw_results.extend(reranked_results)
-                        es_str_results = formatted_es_results
-                        logger.info(
-                            f"✅ 向量检索+重排序执行成功，结果长度: {len(formatted_es_results)}"
-                        )
-                    else:
-                        logger.warning("❌ 向量生成失败，使用文本搜索")
-                        # 回退到文本搜索
-                        _, reranked_results, formatted_es_results = await search_and_rerank(
-                            es_search_tool=es_search_tool,
-                            query=query,
-                            query_vector=None,
-                            reranker_tool=reranker_tool,
-                            initial_top_k=initial_top_k,
-                            final_top_k=final_top_k,
-                            config={
-                                'min_score':
-                                complexity_config.get('min_score', 0.3)
-                            })
-                        es_str_results = formatted_es_results
-                        logger.info(
-                            f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}"
-                        )
-                except Exception as e:
-                    logger.error(f"❌ 向量检索异常: {str(e)}，使用文本搜索")
-                    # 回退到文本搜索
-                    _, reranked_results, formatted_es_results = await search_and_rerank(
-                        es_search_tool=es_search_tool,
-                        query=query,
-                        query_vector=None,
-                        reranker_tool=reranker_tool,
-                        initial_top_k=initial_top_k,
-                        final_top_k=final_top_k,
-                        config={
-                            'min_score':
-                            complexity_config.get('min_score', 0.3)
-                        })
-                    es_str_results = formatted_es_results
-                    logger.info(
-                        f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
-            else:
-                # 没有embedding客户端，直接使用文本搜索
-                logger.info("📝 使用文本搜索")
-
-                _, reranked_results, formatted_es_results = await search_and_rerank(
+                _, reranked_es_results, formatted_es_results = await search_and_rerank(
                     es_search_tool=es_search_tool,
-                    query=query,
-                    query_vector=None,
+                    query=search_query,
+                    query_vector=query_vector,
                     reranker_tool=reranker_tool,
                     initial_top_k=initial_top_k,
                     final_top_k=final_top_k,
@@ -231,19 +391,21 @@ async def async_researcher_node(
                         'min_score': complexity_config.get('min_score', 0.3)
                     })
                 # 添加新的结果
-                es_raw_results.extend(reranked_results)
+                es_raw_results.extend(reranked_es_results)
                 es_str_results = formatted_es_results
                 logger.info(
-                    f"✅ 文本搜索+重排序执行成功，结果长度: {len(formatted_es_results)}")
-
+                    f"✅ 向量检索+重排序执行成功，结果长度: {len(formatted_es_results)}")
+            else:
+                # 报错返回
+                raise ValueError("向量维度不正确")
         except Exception as e:
-            logger.error(f"❌ ES搜索失败: {str(e)}")
-            es_str_results = f"ES搜索失败: {str(e)}"
+            logger.error(f"❌ 向量检索异常: {str(e)}！ 请检查embedding客户端配置")
+            raise e
 
         # ============================
         # 网络搜索
         # ============================
-        web_raw_results = []
+        web_raw_results: list[RerankedSearchResult] = []
         web_str_results = ""
         if is_online:
             try:
@@ -289,6 +451,29 @@ async def async_researcher_node(
             except Exception as e:
                 logger.error(f"❌ 解析网络搜索结果失败: {str(e)}")
 
+        # ============================
+        # 处理用户文档搜索结果
+        # ============================
+        user_data_sources = []
+        user_requirement_sources = []
+        user_style_sources = []
+
+        if user_str_results and user_str_results.strip():
+            try:
+                # 解析用户文档搜索结果，创建 Source 对象
+                user_data_sources = _parse_es_search_results(
+                    user_data_raw_results, query, source_id_counter)
+                user_requirement_sources = _parse_es_search_results(
+                    user_requirement_raw_results, query, 1)
+                user_style_sources = _parse_es_search_results(
+                    user_style_raw_results, query, 1)
+
+                all_sources.extend(user_data_sources)
+                source_id_counter += len(user_data_sources)
+                logger.info(f"✅ 从用户文档搜索中提取到 {len(user_data_sources)} 个源")
+            except Exception as e:
+                logger.error(f"❌ 解析用户文档搜索结果失败: {str(e)}")
+
     # 返回结构化的源列表
     old_source_count = len(existing_sources)
     new_source_count = len(all_sources)
@@ -311,16 +496,28 @@ async def async_researcher_node(
             [safe_serialize(source) for source in web_raw_results],
             "es_sources":
             [safe_serialize(source) for source in es_raw_results],
+            "user_data_reference_sources":
+            [safe_serialize(source) for source in user_data_sources],
+            "user_requirement_sources":
+            [safe_serialize(source) for source in user_requirement_sources],
+            "user_style_guide_sources":
+            [safe_serialize(source) for source in user_style_sources],
             "description":
-            f"信息收集完成，搜索到{len(all_sources)}个信息源，其中网络搜索结果 {len(web_raw_results)} 个，ES搜索结果 {len(es_raw_results)} 个"
+            f"信息收集完成，搜索到{len(all_sources)}个信息源，其中网络搜索结果 {len(web_raw_results)} 个，ES搜索结果 {len(es_raw_results)} 个，用户文档搜索结果 {len(user_data_sources)} 个"
         })
 
     logger.info(
-        f"🔍 信息收集完成，搜索到{len(all_sources)}个信息源，其中网络搜索结果 {len(web_raw_results)} 个，ES搜索结果 {len(es_raw_results)} 个"
+        f"🔍 信息收集完成，搜索到{len(all_sources)}个信息源，其中网络搜索结果 {len(web_raw_results)} 个，ES搜索结果 {len(es_raw_results)} 个，用户文档搜索结果 {len(user_data_sources)} 个"
     )
-    logger.info(f"搜索结果示例：{es_raw_results[0]}")
+    if es_raw_results:
+        logger.info(f"ES搜索结果示例：{es_raw_results[0]}")
+    if user_data_sources:
+        logger.info(f"用户文档搜索结果示例：{user_data_sources[0]}")
 
     return {
         "gathered_sources": all_sources,
-        "researcher_retry_count": new_retry_count
+        "researcher_retry_count": new_retry_count,
+        "user_requirement_sources": user_requirement_sources,
+        "user_style_guide_sources": user_style_sources,
+        "user_data_reference_sources": user_data_sources
     }

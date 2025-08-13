@@ -844,8 +844,16 @@ class FileProcessor:
 
                 # 提取文本内容
                 if file_type == "json":
-                    # JSON文件通常只有一个内容块
-                    text = parsed_content[0][1] if parsed_content else ""
+                    # JSON 文件可能被 _parse_json_file 分块，这里需要拼接所有内容块
+                    if parsed_content:
+                        try:
+                            text = "".join(chunk[1] for chunk in parsed_content
+                                           if len(chunk) > 1)
+                        except Exception:
+                            # 退化回第一块，尽量不抛出异常
+                            text = parsed_content[0][1]
+                    else:
+                        text = ""
                 else:
                     # 其他文件类型，保持分块结构，只提取文本内容
                     # 注意：这个方法主要用于 filetoken_to_text 等需要完整文本的场景

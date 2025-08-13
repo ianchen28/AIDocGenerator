@@ -68,45 +68,38 @@ def generate_initial_state(task_prompt: str,
     outline_file_token: 大纲文件的storage token
     """
     document_outline = file_processor.filetoken_to_outline(outline_file_token)
+    if not document_outline:
+        logger.error(
+            "解析大纲失败，file_token 无法转换为有效的 outline。token: {}",
+            outline_file_token,
+        )
+        raise ValueError("无效的大纲文件：解析失败或格式不正确")
     word_count = document_outline["word_count"]
     title = document_outline["title"]
     logger.info(f"word_count: {word_count}")
     logger.info(f"document_outline: {document_outline}")
     # 解析用户上传文件
-    user_data_reference_files: list[Source] = []  # 用户上传的数据参考文件
-    user_style_guide_content: list[Source] = []  # 用户上传的样式指南
-    user_requirements_content: list[Source] = []  # 用户上传的需求文档
-    initial_sources: list[Source] = []  # 用于搜索知识的sources
+    user_data_reference_files: list[str] = []  # 用户上传的数据参考文件
+    user_style_guide_content: list[str] = []  # 用户上传的样式指南
+    user_requirements_content: list[str] = []  # 用户上传的需求文档
+    initial_sources: list[str] = []  # 用于搜索知识的sources
 
     if context_files:
         logger.info(f"Job {task_id}: 开始解析 {len(context_files)} 个context_files")
         for file in context_files:
             try:
                 file_token = file.get("attachmentFileToken")
-                ocr_file_token = file.get("attachmentOCRResultToken")
                 if file_token:
-                    # 文件装载为 Source 对象
-                    sources = file_processor.filetoken_to_sources(
-                        file_token,
-                        ocr_file_token,
-                        title=
-                        f"Context File: {file.get('fileName', 'Unknown')}",
-                        chunk_size=2000,
-                        overlap=200)
-                    initial_sources.extend(sources)
-                    logger.info(
-                        f"Task {task_id}: 成功解析文件 {file_token}，生成 {len(sources)} 个sources"
-                    )
+                    if file.get("isContentRefer") == 1:
+                        user_data_reference_files.append(file_token)
+                    elif file.get("isStyleImitative") == 1:
+                        user_style_guide_content.append(file_token)
+                    elif file.get("isWritingRequirement") == 1:
+                        user_requirements_content.append(file_token)
                 else:
                     logger.warning(
                         f"Task {task_id}: 文件缺少attachmentFileToken: {file}")
 
-                if file.get("isContentRefer") == 1:
-                    user_data_reference_files.extend(sources)
-                elif file.get("isStyleImitative") == 1:
-                    user_style_guide_content.extend(sources)
-                elif file.get("isWritingRequirement") == 1:
-                    user_requirements_content.extend(sources)
             except Exception as e:
                 logger.error(f"Job {task_id}: 解析文件失败: {e}")
 

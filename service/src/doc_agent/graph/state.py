@@ -55,6 +55,8 @@ class ResearchState(TypedDict):
     # 源追踪
     sources: list[Source]  # 当前章节收集的所有信息源，章节生成后并入 all_sources
     all_sources: list[Source]  # 所有章节收集的所有信息源
+    user_requirement_sources: list[Source]  # 用户上传的需求源
+    user_style_guide_sources: list[Source]  # 用户上传的样式指南源
     current_citation_index: int = 1  # 当前章节引用源的索引编号
 
     # 全局引用源追踪 - 用于最终参考文献
@@ -63,9 +65,9 @@ class ResearchState(TypedDict):
 
     # 用户上传文件
     user_outline_file: str  # 用户上传的大纲文件
-    user_data_reference_files: list[Source]  # 用户上传的数据参考文件
-    user_style_guide_content: list[Source]  # 用户上传的样式指南
-    user_requirements_content: list[Source]  # 用户上传的需求文档
+    user_data_reference_files: list[str]  # 用户上传的数据参考文件
+    user_style_guide_content: list[str]  # 用户上传的样式指南
+    user_requirements_content: list[str]  # 用户上传的需求文档
 
     # 对话历史
     messages: Annotated[list, add_messages]

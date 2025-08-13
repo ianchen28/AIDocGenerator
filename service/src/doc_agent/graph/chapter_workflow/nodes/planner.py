@@ -80,7 +80,7 @@ def planner_node(state: ResearchState,
     complexity_config = settings.get_complexity_config()
     logger.info(f"🔧 使用复杂度级别: {complexity_config['level']}")
 
-    # 根据复杂度选择prompt
+    # 根据复杂度选择 prompt
     if complexity_config['use_simplified_prompts']:
         # 使用快速提示词 - 现在从prompts模块获取
         from doc_agent.prompts.planner import V3_FAST

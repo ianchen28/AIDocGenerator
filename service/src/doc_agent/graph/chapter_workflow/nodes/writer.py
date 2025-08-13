@@ -87,18 +87,15 @@ def writer_node(state: ResearchState,
 
     # 从状态中获取研究数据
     gathered_sources = state.get("gathered_sources", [])
-    user_data_reference_files = state.get("user_data_reference_files", [])
-    user_style_guide_content = state.get("user_style_guide_content", [])
-    user_requirements_content = state.get("user_requirements_content", [])
+    user_requirement_sources = state.get("user_requirement_sources", [])
+    user_style_guide_sources = state.get("user_style_guide_sources", [])
 
     # 添加调试日志
     logger.info(f"📚 gathered_sources 数量: {len(gathered_sources)}")
     logger.info(
-        f"📁 user_data_reference_files 数量: {len(user_data_reference_files)}")
+        f"🎨 user_style_guide_sources 数量: {len(user_style_guide_sources)}")
     logger.info(
-        f"🎨 user_style_guide_content 数量: {len(user_style_guide_content)}")
-    logger.info(
-        f"📋 user_requirements_content 数量: {len(user_requirements_content)}")
+        f"📋 user_requirement_sources 数量: {len(user_requirement_sources)}")
 
     # 构建上下文
     context_for_writing = _build_writing_context(completed_chapters)
@@ -129,9 +126,9 @@ def writer_node(state: ResearchState,
     prompt = _build_prompt(prompt_template, topic, chapter_title,
                            chapter_description, current_chapter_index,
                            chapters_to_process, previous_chapters_context,
-                           gathered_sources, user_data_reference_files,
-                           chapter_word_count, user_requirements_content,
-                           user_style_guide_content, context_for_writing,
+                           gathered_sources, user_requirement_sources,
+                           user_style_guide_sources, chapter_word_count,
+                           context_for_writing,
                            style_guide_content, sub_sections,
                            state.get("current_citation_index", 1))
 
@@ -359,10 +356,9 @@ def _build_prompt(prompt_template,
                   chapters_to_process,
                   previous_chapters_context,
                   gathered_sources,
-                  user_data_reference_files,
+                  user_requirement_sources,
+                  user_style_guide_sources,
                   chapter_word_count,
-                  user_requirements_content,
-                  user_style_guide_content,
                   context_for_writing,
                   style_guide_content,
                   sub_sections,
@@ -419,26 +415,25 @@ context_for_writing={context_for_writing}
     # 1. 处理可用信息源
     if gathered_sources:
         available_sources_text = _format_sources_to_text(
-            gathered_sources + user_data_reference_files, source_begin_idx)
+            gathered_sources, source_begin_idx)
 
         # 如果信息源内容过长，进行智能截断
         if len(available_sources_text) > sources_max_length:
             available_sources_text = _truncate_sources_text(
-                gathered_sources + user_data_reference_files,
-                sources_max_length)
+                gathered_sources, sources_max_length)
             logger.info(f"📚 信息源内容已截断至 {len(available_sources_text)} 字符")
 
     # 2. 处理用户要求内容
-    if user_requirements_content:
+    if user_requirement_sources:
         # 直接处理字符串列表，不依赖 _format_requirements_to_text
         prompt_requirements = _sample_format_source_list(
-            user_requirements_content, requirements_max_length)
+            user_requirement_sources, requirements_max_length)
 
     # 3. 处理样式指南内容
-    if user_style_guide_content:
+    if user_style_guide_sources:
         # 直接处理字符串列表，不依赖 _format_requirements_to_text
         style_requirements = _sample_format_source_list(
-            user_style_guide_content, style_max_length)
+            user_style_guide_sources, style_max_length)
 
     # 4. 处理样式指南内容（如果有）
     formatted_style_guide = ""

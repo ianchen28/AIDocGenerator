@@ -6,6 +6,7 @@
 
 import json
 import os
+import re
 import tempfile
 
 from doc_agent.common.prompt_selector import PromptSelector
@@ -155,8 +156,8 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
     chapters = document_outline['chapters']
 
     # 限制章节数量
-    if max_chapters > 0:
-        chapters = chapters[:max_chapters]
+    # if max_chapters > 0:
+    #     chapters = chapters[:max_chapters]
 
     publish_event(
         state.get("job_id", ""), "大纲解析", "document_generation", "RUNNING", {
@@ -286,16 +287,31 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
     plan_prompt = plan_prompt1 + plan_prompt2
     response = llm_client.invoke(plan_prompt, temperature=0.5, max_tokens=2000)
 
-    # 删除 ```json 和 ```
-    response = response.replace("```json", "").replace("```", "")
-
     logger.info(f"plan_prompt: {plan_prompt}")
     logger.info(f"response: {response}")
-    try:
-        plan_json = json.loads(response)
-    except Exception as e:
-        logger.error(f"解析计划失败: {e}")
-        plan_json = None
+    # 提取 json 内容
+    json_patterns = [
+        r'```json\s*(.*?)\s*```',  # ```json ... ```
+        r'```\s*(.*?)\s*```',  # ``` ... ``` r'\{.*\}',  # 任何JSON对象
+    ]
+
+    for pattern in json_patterns:
+        json_match = re.search(pattern, response, re.DOTALL)
+        if json_match:
+            try:
+                json_str = json_match.group(
+                    1) if pattern != r'\{.*\}' else json_match.group(0)
+                plan_json = json.loads(json_str)
+                logger.info(f"✅ 使用模式 {pattern} 成功解析JSON")
+                break
+            except json.JSONDecodeError:
+                logger.error(f"❌ 使用模式 {pattern} 解析JSON失败: {json_str}")
+                continue
+
+    if not plan_json:
+        logger.error("❌ 无法解析LLM响应为JSON")
+        raise ValueError("无法解析LLM响应为JSON")
+
     plan_str = plan_json.get("overview", "")
 
     logger.info(f"一句话研究计划：{plan_str}")

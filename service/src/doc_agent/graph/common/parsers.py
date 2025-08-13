@@ -278,6 +278,8 @@ def parse_web_search_results(web_raw_results: list[dict], query: str,
             site_name = meta_data.get('siteName', '')
 
             source = Source(id=source_id,
+                            doc_id=web_raw_result.get('_id',
+                                                      f'web_{source_id}'),
                             source_type=source_type,
                             title=title,
                             url=url,

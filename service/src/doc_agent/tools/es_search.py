@@ -297,6 +297,44 @@ class ESSearchTool:
             logger.error(f"file_token查询失败: {str(e)}")
             return []
 
+    async def search_within_documents(
+            self,
+            query: str,
+            query_vector: Optional[list[float]] = None,
+            file_tokens: Optional[list[str]] = None,
+            top_k: int = 10,
+            config: Optional[dict[str, Any]] = None) -> list[ESSearchResult]:
+        """
+        在指定文档范围内执行ES搜索
+        
+        Args:
+            query: 搜索查询字符串
+            query_vector: 查询向量（可选）
+            file_tokens: 文档token列表，限制搜索范围
+            top_k: 返回结果数量
+            config: 配置参数
+            
+        Returns:
+            List[ESSearchResult]: 搜索结果列表
+        """
+        logger.info(f"开始在指定文档范围内搜索，查询: {query[:50]}...")
+        logger.debug(f"文档范围搜索参数 - file_tokens: {file_tokens}, top_k: {top_k}")
+
+        if not file_tokens:
+            logger.warning("没有指定文档范围，返回空结果")
+            return []
+
+        # 构建文档范围过滤条件
+        filters = {"file_token": file_tokens}
+
+        # 使用现有的搜索方法，但添加文档范围过滤
+        return await self.search(query=query,
+                                 query_vector=query_vector,
+                                 top_k=top_k,
+                                 filters=filters,
+                                 use_multiple_indices=True,
+                                 config=config)
+
     async def get_available_indices(self) -> list[str]:
         """获取可用索引列表"""
         await self._ensure_initialized()
