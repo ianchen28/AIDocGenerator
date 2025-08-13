@@ -496,7 +496,7 @@ class ESService:
                 "size": top_k * 2,  # 设置更大的size
                 "query": {
                     "term": {
-                        "doc_id": file_token
+                        "file_token": file_token
                     }
                 }
                 # 移除排序，避免字段不存在的问题

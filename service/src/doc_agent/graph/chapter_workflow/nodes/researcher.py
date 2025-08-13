@@ -185,9 +185,9 @@ async def async_researcher_node(
                         file_tokens=user_data_reference_files,
                         top_k=initial_top_k,
                         config={
-                            'min_score':
-                            complexity_config.get('min_score', 0.3)
+                            'min_score': 0.0  # 临时设置为0，确保有内容返回
                         })
+                    logger.info(f"🔍 用户参考文档内容: {user_data_es_results}")
 
                 if user_style_guide_content:
                     logger.info(
@@ -199,9 +199,9 @@ async def async_researcher_node(
                         file_tokens=user_style_guide_content,
                         top_k=initial_top_k,
                         config={
-                            'min_score':
-                            complexity_config.get('min_score', 0.3)
+                            'min_score': 0.0  # 临时设置为0，确保有内容返回
                         })
+                    logger.info(f"🔍 用户风格指南内容: {user_style_es_results}")
 
                 if user_requirements_content:
                     logger.info(
@@ -213,9 +213,9 @@ async def async_researcher_node(
                         file_tokens=user_requirements_content,
                         top_k=initial_top_k,
                         config={
-                            'min_score':
-                            complexity_config.get('min_score', 0.3)
+                            'min_score': 0.0  # 临时设置为0，确保有内容返回
                         })
+                    logger.info(f"🔍 用户要求内容: {user_requirement_es_results}")
 
                 # 对用户文档搜索结果进行重排序
                 if user_data_es_results and reranker_tool:
@@ -319,6 +319,9 @@ async def async_researcher_node(
                             query=query,
                             documents=user_requirement_search_results,
                             top_k=final_top_k)
+                        logger.info(
+                            f"用户要求内容：重排序结果: {reranked_user_requirement_results}"
+                        )
 
                         # 转换为RerankedSearchResult格式
                         for reranked_result in reranked_user_requirement_results:
@@ -467,6 +470,9 @@ async def async_researcher_node(
                     user_requirement_raw_results, query, 1)
                 user_style_sources = _parse_es_search_results(
                     user_style_raw_results, query, 1)
+                logger.info(f"🔍 用户要求内容: {user_requirement_raw_results}")
+                logger.info(f"🔍 用户风格指南内容: {user_style_raw_results}")
+                logger.info(f"🔍 用户参考文档内容: {user_data_raw_results}")
 
                 all_sources.extend(user_data_sources)
                 source_id_counter += len(user_data_sources)
@@ -513,6 +519,10 @@ async def async_researcher_node(
         logger.info(f"ES搜索结果示例：{es_raw_results[0]}")
     if user_data_sources:
         logger.info(f"用户文档搜索结果示例：{user_data_sources[0]}")
+
+    logger.info(f"🔍 用户要求内容: {user_requirement_sources}")
+    logger.info(f"🔍 样式指南内容: {user_style_sources}")
+    logger.info(f"🔍 参考文档内容: {user_data_sources}")
 
     return {
         "gathered_sources": all_sources,

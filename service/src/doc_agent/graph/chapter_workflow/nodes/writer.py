@@ -89,6 +89,8 @@ def writer_node(state: ResearchState,
     gathered_sources = state.get("gathered_sources", [])
     user_requirement_sources = state.get("user_requirement_sources", [])
     user_style_guide_sources = state.get("user_style_guide_sources", [])
+    logger.info(f"🔍 用户要求内容: {user_requirement_sources}")
+    logger.info(f"🔍 样式指南内容: {user_style_guide_sources}")
 
     # 添加调试日志
     logger.info(f"📚 gathered_sources 数量: {len(gathered_sources)}")
@@ -428,12 +430,14 @@ context_for_writing={context_for_writing}
         # 直接处理字符串列表，不依赖 _format_requirements_to_text
         prompt_requirements = _sample_format_source_list(
             user_requirement_sources, requirements_max_length)
+        logger.info(f"📝 用户要求内容: {prompt_requirements}")
 
     # 3. 处理样式指南内容
     if user_style_guide_sources:
         # 直接处理字符串列表，不依赖 _format_requirements_to_text
         style_requirements = _sample_format_source_list(
             user_style_guide_sources, style_max_length)
+        logger.info(f"📝 样式指南内容: {style_requirements}")
 
     # 4. 处理样式指南内容（如果有）
     formatted_style_guide = ""
