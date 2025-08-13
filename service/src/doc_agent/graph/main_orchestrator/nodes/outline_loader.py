@@ -300,6 +300,8 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
         # 8. 验证大纲格式
         if not isinstance(outline_data, dict):
             raise ValueError("大纲数据格式错误")
+        if word_count > 0:
+            outline_data["estimated_total_words"] = word_count
 
         if "title" not in outline_data or "chapters" not in outline_data:
             raise ValueError("大纲缺少必要字段")
