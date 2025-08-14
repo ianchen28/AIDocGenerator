@@ -166,8 +166,18 @@ async def async_researcher_node(
 
         if has_user_documents:
             logger.info(
-                f"🔍 在用户上传文档范围内搜索，参考文档数量: {len(user_data_reference_files) if user_data_reference_files else 0}，风格指南数量: {len(user_style_guide_content) if user_style_guide_content else 0}，需求文档数量: {len(user_requirements_content) if user_requirements_content else 0}"
+                f"🔍 在用户上传文档范围内搜索，参考文档ID数量: {len(user_data_reference_files) if user_data_reference_files else 0}，风格指南ID数量: {len(user_style_guide_content) if user_style_guide_content else 0}，需求文档ID数量: {len(user_requirements_content) if user_requirements_content else 0}"
             )
+
+            # 验证用户文档ID的有效性
+            if user_data_reference_files:
+                logger.info(
+                    f"🔍 用户参考文档ID列表: {user_data_reference_files[:5]}...")
+            if user_style_guide_content:
+                logger.info(f"🔍 用户风格指南ID列表: {user_style_guide_content[:5]}...")
+            if user_requirements_content:
+                logger.info(
+                    f"🔍 用户需求文档ID列表: {user_requirements_content[:5]}...")
 
             try:
                 # 在指定文档范围内执行ES搜索
@@ -177,85 +187,73 @@ async def async_researcher_node(
 
                 if user_data_reference_files:
                     logger.info(
-                        f"🔍 搜索用户参考文档，文档token: {user_data_reference_files[:3]}..."
-                    )
+                        f"🔍 搜索用户参考文档，文档ID: {user_data_reference_files[:3]}...")
                     user_data_es_results = await es_search_tool.search_within_documents(
                         query=query,
                         query_vector=query_vector,
-                        file_tokens=user_data_reference_files,
+                        file_tokens=user_data_reference_files,  # 实际上是doc_id列表
                         top_k=initial_top_k,
                         config={
                             'min_score': 0.0  # 临时设置为0，确保有内容返回
                         })
-                    logger.info(f"🔍 用户参考文档内容: {user_data_es_results}")
+                    logger.info(
+                        f"🔍 用户参考文档搜索结果数量: {len(user_data_es_results) if user_data_es_results else 0}"
+                    )
 
                 if user_style_guide_content:
                     logger.info(
-                        f"🔍 搜索用户风格指南，文档token: {user_style_guide_content[:3]}..."
-                    )
+                        f"🔍 搜索用户风格指南，文档ID: {user_style_guide_content[:3]}...")
                     user_style_es_results = await es_search_tool.search_within_documents(
                         query=query,
                         query_vector=query_vector,
-                        file_tokens=user_style_guide_content,
+                        file_tokens=user_style_guide_content,  # 实际上是doc_id列表
                         top_k=initial_top_k,
                         config={
                             'min_score': 0.0  # 临时设置为0，确保有内容返回
                         })
-                    logger.info(f"🔍 用户风格指南内容: {user_style_es_results}")
+                    logger.info(
+                        f"🔍 用户风格指南搜索结果数量: {len(user_style_es_results) if user_style_es_results else 0}"
+                    )
 
                 if user_requirements_content:
                     logger.info(
-                        f"🔍 搜索用户需求文档，文档token: {user_requirements_content[:3]}..."
-                    )
+                        f"🔍 搜索用户需求文档，文档ID: {user_requirements_content[:3]}...")
                     user_requirement_es_results = await es_search_tool.search_within_documents(
                         query=query,
                         query_vector=query_vector,
-                        file_tokens=user_requirements_content,
+                        file_tokens=user_requirements_content,  # 实际上是doc_id列表
                         top_k=initial_top_k,
                         config={
                             'min_score': 0.0  # 临时设置为0，确保有内容返回
                         })
-                    logger.info(f"🔍 用户要求内容: {user_requirement_es_results}")
+                    logger.info(
+                        f"🔍 用户需求文档搜索结果数量: {len(user_requirement_es_results) if user_requirement_es_results else 0}"
+                    )
 
                 # 对用户文档搜索结果进行重排序
                 if user_data_es_results and reranker_tool:
                     logger.info(
                         f"🔄 对用户文档搜索结果进行重排序，原始结果数: {len(user_data_es_results)}")
 
-                    # 转换为重排序工具需要的格式
-                    user_search_results = []
+                    # 过滤有内容的结果
+                    valid_user_data_results = []
                     for result in user_data_es_results:
-                        user_search_results.append({
-                            'content':
-                            result.original_content or result.div_content,
-                            'score':
-                            result.score,
-                            'metadata': {
-                                'source': result.source,
-                                'doc_id': result.doc_id,
-                                'file_token': result.file_token,
-                                'alias_name': result.alias_name
-                            }
-                        })
+                        # 确保内容不为空
+                        content = result.original_content or result.div_content or ""
+                        if content.strip():  # 只添加有内容的结果
+                            valid_user_data_results.append(result)
+
+                    logger.info(
+                        f"🔄 有效用户文档搜索结果数: {len(valid_user_data_results)}")
 
                     # 执行重排序
-                    reranked_user_results = await reranker_tool.rerank(
+                    reranked_user_results = reranker_tool.rerank_search_results(
                         query=query,
-                        documents=user_search_results,
+                        search_results=valid_user_data_results,
                         top_k=final_top_k)
 
-                    # 转换为RerankedSearchResult格式
-                    for reranked_result in reranked_user_results:
-                        user_data_raw_results.append(
-                            RerankedSearchResult(
-                                id=reranked_result['id'],
-                                doc_id=reranked_result['doc_id'],
-                                index=reranked_result['index'],
-                                domain_id=reranked_result['domain_id'],
-                                doc_from=reranked_result['doc_from'],
-                                content=reranked_result['content'],
-                                score=reranked_result['score'],
-                                metadata=reranked_result.get('metadata', {})))
+                    # 重排序结果已经是RerankedSearchResult格式，直接使用
+                    user_data_raw_results.extend(reranked_user_results)
 
                     logger.info(
                         f"✅ 用户文档重排序完成，结果数: {len(user_data_raw_results)}")
@@ -266,41 +264,15 @@ async def async_researcher_node(
                             f"🔄 对用户风格指南搜索结果进行重排序，原始结果数: {len(user_style_es_results)}"
                         )
 
-                        # 转换为重排序工具需要的格式
-                        user_style_search_results = []
-                        for result in user_style_es_results:
-                            user_style_search_results.append({
-                                'content':
-                                result.original_content or result.div_content,
-                                'score':
-                                result.score,
-                                'metadata': {
-                                    'source': result.source,
-                                    'doc_id': result.doc_id,
-                                    'file_token': result.file_token,
-                                    'alias_name': result.alias_name
-                                }
-                            })
-
                         # 执行重排序
-                        reranked_user_style_results = await reranker_tool.rerank(
+                        reranked_user_style_results = reranker_tool.rerank_search_results(
                             query=query,
-                            documents=user_style_search_results,
+                            search_results=user_style_es_results,
                             top_k=final_top_k)
 
-                        # 转换为RerankedSearchResult格式
-                        for reranked_result in reranked_user_style_results:
-                            user_style_raw_results.append(
-                                RerankedSearchResult(
-                                    id=reranked_result['id'],
-                                    doc_id=reranked_result['doc_id'],
-                                    index=reranked_result['index'],
-                                    domain_id=reranked_result['domain_id'],
-                                    doc_from=reranked_result['doc_from'],
-                                    content=reranked_result['content'],
-                                    score=reranked_result['score'],
-                                    metadata=reranked_result.get(
-                                        'metadata', {})))
+                        # 重排序结果已经是RerankedSearchResult格式，直接使用
+                        user_style_raw_results.extend(
+                            reranked_user_style_results)
 
                     # requirement 重排序
                     if user_requirement_es_results and reranker_tool:
@@ -308,44 +280,18 @@ async def async_researcher_node(
                             f"🔄 对用户需求搜索结果进行重排序，原始结果数: {len(user_requirement_es_results)}"
                         )
 
-                        # 转换为重排序工具需要的格式
-                        user_requirement_search_results = []
-                        for result in user_requirement_es_results:
-                            user_requirement_search_results.append({
-                                'content':
-                                result.original_content or result.div_content,
-                                'score':
-                                result.score,
-                                'metadata': {
-                                    'source': result.source,
-                                    'doc_id': result.doc_id,
-                                    'file_token': result.file_token,
-                                    'alias_name': result.alias_name
-                                }
-                            })
-
                         # 执行重排序
-                        reranked_user_requirement_results = await reranker_tool.rerank(
+                        reranked_user_requirement_results = reranker_tool.rerank_search_results(
                             query=query,
-                            documents=user_requirement_search_results,
+                            search_results=user_requirement_es_results,
                             top_k=final_top_k)
                         logger.info(
                             f"用户要求内容：重排序结果: {reranked_user_requirement_results}"
                         )
 
-                        # 转换为RerankedSearchResult格式
-                        for reranked_result in reranked_user_requirement_results:
-                            user_requirement_raw_results.append(
-                                RerankedSearchResult(
-                                    id=reranked_result['id'],
-                                    doc_id=reranked_result['doc_id'],
-                                    index=reranked_result['index'],
-                                    domain_id=reranked_result['domain_id'],
-                                    doc_from=reranked_result['doc_from'],
-                                    content=reranked_result['content'],
-                                    score=reranked_result['score'],
-                                    metadata=reranked_result.get(
-                                        'metadata', {})))
+                        # 重排序结果已经是RerankedSearchResult格式，直接使用
+                        user_requirement_raw_results.extend(
+                            reranked_user_requirement_results)
                 else:
                     # 如果没有重排序工具，直接使用原始结果
                     for result in user_data_es_results:
@@ -356,7 +302,7 @@ async def async_researcher_node(
                                 index=result.index,
                                 domain_id=result.domain_id,
                                 doc_from=result.doc_from,
-                                content=result.original_content
+                                original_content=result.original_content
                                 or result.div_content,
                                 score=result.score,
                                 metadata={
@@ -365,8 +311,52 @@ async def async_researcher_node(
                                     'file_token': result.file_token,
                                     'alias_name': result.alias_name
                                 }))
+
+                    # 处理用户风格指南结果
+                    for result in user_style_es_results:
+                        user_style_raw_results.append(
+                            RerankedSearchResult(
+                                id=result.id,
+                                doc_id=result.doc_id,
+                                index=result.index,
+                                domain_id=result.domain_id,
+                                doc_from=result.doc_from,
+                                original_content=result.original_content
+                                or result.div_content,
+                                score=result.score,
+                                metadata={
+                                    'source': result.source,
+                                    'doc_id': result.doc_id,
+                                    'file_token': result.file_token,
+                                    'alias_name': result.alias_name
+                                }))
+
+                    # 处理用户需求文档结果
+                    for result in user_requirement_es_results:
+                        user_requirement_raw_results.append(
+                            RerankedSearchResult(
+                                id=result.id,
+                                doc_id=result.doc_id,
+                                index=result.index,
+                                domain_id=result.domain_id,
+                                doc_from=result.doc_from,
+                                original_content=result.original_content
+                                or result.div_content,
+                                score=result.score,
+                                metadata={
+                                    'source': result.source,
+                                    'doc_id': result.doc_id,
+                                    'file_token': result.file_token,
+                                    'alias_name': result.alias_name
+                                }))
+
                     logger.info(
                         f"✅ 用户文档搜索完成，结果数: {len(user_data_raw_results)}")
+                    logger.info(
+                        f"✅ 用户风格指南搜索完成，结果数: {len(user_style_raw_results)}")
+                    logger.info(
+                        f"✅ 用户需求文档搜索完成，结果数: {len(user_requirement_raw_results)}"
+                    )
 
                 # 格式化用户文档搜索结果
                 user_results_combined = []
@@ -485,19 +475,27 @@ async def async_researcher_node(
         if user_str_results and user_str_results.strip():
             try:
                 # 解析用户文档搜索结果，创建 Source 对象
+                # 只有用户参考文档会进入 gathered_sources（参考文献）
                 user_data_sources = _parse_es_search_results(
                     user_data_raw_results, query, source_id_counter)
+                source_id_counter += len(user_data_sources)
+
+                # 用户需求文档和风格指南单独处理，不进入参考文献，使用独立的ID序列
                 user_requirement_sources = _parse_es_search_results(
-                    user_requirement_raw_results, query, 1)
+                    user_requirement_raw_results, query, 1000)  # 使用1000开始的ID序列
+
                 user_style_sources = _parse_es_search_results(
-                    user_style_raw_results, query, 1)
+                    user_style_raw_results, query, 2000)  # 使用2000开始的ID序列
+
                 logger.info(f"🔍 用户要求内容: {user_requirement_raw_results}")
                 logger.info(f"🔍 用户风格指南内容: {user_style_raw_results}")
                 logger.info(f"🔍 用户参考文档内容: {user_data_raw_results}")
 
+                # 只有参考文档进入 gathered_sources
                 all_sources.extend(user_data_sources)
-                source_id_counter += len(user_data_sources)
-                logger.info(f"✅ 从用户文档搜索中提取到 {len(user_data_sources)} 个源")
+                logger.info(f"✅ 从用户文档搜索中提取到 {len(user_data_sources)} 个参考文档源")
+                logger.info(f"✅ 用户需求文档数量: {len(user_requirement_sources)} 个")
+                logger.info(f"✅ 用户风格指南数量: {len(user_style_sources)} 个")
             except Exception as e:
                 logger.error(f"❌ 解析用户文档搜索结果失败: {str(e)}")
 
@@ -519,8 +517,10 @@ async def async_researcher_node(
 
     publish_event(
         job_id, "信息收集", "document_generation", "SUCCESS", {
-            "web_sources": [safe_serialize(source) for source in web_sources],
-            "es_sources": [safe_serialize(source) for source in es_sources],
+            "web_sources":
+            [safe_serialize(source) for source in web_raw_results],
+            "es_sources":
+            [safe_serialize(source) for source in es_raw_results],
             "user_data_reference_sources":
             [safe_serialize(source) for source in user_data_sources],
             "user_requirement_sources":
@@ -539,9 +539,9 @@ async def async_researcher_node(
     if user_data_sources:
         logger.info(f"用户文档搜索结果示例：{user_data_sources[0]}")
 
-    logger.info(f"🔍 用户要求内容: {user_requirement_sources}")
-    logger.info(f"🔍 样式指南内容: {user_style_sources}")
-    logger.info(f"🔍 参考文档内容: {user_data_sources}")
+    logger.info(f"🔍 用户要求内容to state: {user_requirement_sources}")
+    logger.info(f"🔍 样式指南内容to state: {user_style_sources}")
+    logger.info(f"🔍 参考文档内容to state: {user_data_sources}")
 
     return {
         "gathered_sources": all_sources,

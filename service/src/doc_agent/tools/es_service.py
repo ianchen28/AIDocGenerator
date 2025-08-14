@@ -175,8 +175,8 @@ class ESService:
         if filters:
             logger.debug(f"过滤条件: {filters}")
 
-        # 验证索引是否在有效范围内
-        if index not in self.valid_indeces:
+        # 验证索引是否在有效范围内（允许通配符索引用于文档范围搜索）
+        if index != "*" and index not in self.valid_indeces:
             logger.warning(f"索引 {index} 不在有效索引范围内: {self.valid_indeces}")
             return []
 
@@ -573,8 +573,8 @@ class ESService:
         """
         logger.info(f"开始按file_token查询，索引: {index}, file_token: {file_token}")
 
-        # 验证索引是否在有效范围内
-        if index not in self.valid_indeces:
+        # 验证索引是否在有效范围内（允许通配符索引用于文档范围搜索）
+        if index != "*" and index not in self.valid_indeces:
             logger.warning(f"索引 {index} 不在有效索引范围内: {self.valid_indeces}")
             return []
 
