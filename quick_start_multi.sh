@@ -1,29 +1,43 @@
 #!/bin/bash
 
 # 一键启动多 Worker + 负载均衡器
-# 使用方法: ./quick_start_multi.sh <worker_num>
+# 使用方法: ./quick_start_multi.sh <worker_num> [lb_port]
+# 示例: ./quick_start_multi.sh 4 8082
 
 set -e
 
-# 默认配置
+# 默认配置 - 只需要修改这里的端口即可
 DEFAULT_WORKERS=2
 BASE_PORT=8000
-LB_PORT=8080
+LB_PORT=8081  # 负载均衡器端口，可以改为 8082, 8083, 9000 等
 UNIFIED_LOG="logs/app.log"
 
 # 获取参数
 NUM_WORKERS=${1:-$DEFAULT_WORKERS}
+LB_PORT=${2:-$LB_PORT}  # 支持命令行指定负载均衡器端口
 
 # 参数验证
 if ! [[ "$NUM_WORKERS" =~ ^[0-9]+$ ]]; then
     echo "❌ Worker 数量必须是整数"
-    echo "使用方法: ./quick_start_multi.sh <worker_num>"
-    echo "示例: ./quick_start_multi.sh 4"
+    echo "使用方法: ./quick_start_multi.sh <worker_num> [lb_port]"
+    echo "示例: ./quick_start_multi.sh 4 8082"
     exit 1
 fi
 
 if [ "$NUM_WORKERS" -lt 1 ] || [ "$NUM_WORKERS" -gt 20 ]; then
     echo "❌ Worker 数量必须在 1-20 之间"
+    exit 1
+fi
+
+if ! [[ "$LB_PORT" =~ ^[0-9]+$ ]]; then
+    echo "❌ 负载均衡器端口必须是整数"
+    echo "使用方法: ./quick_start_multi.sh <worker_num> [lb_port]"
+    echo "示例: ./quick_start_multi.sh 4 8082"
+    exit 1
+fi
+
+if [ "$LB_PORT" -lt 1024 ] || [ "$LB_PORT" -gt 65535 ]; then
+    echo "❌ 负载均衡器端口必须在 1024-65535 之间"
     exit 1
 fi
 
@@ -51,6 +65,15 @@ if ! redis-cli ping > /dev/null 2>&1; then
     exit 1
 fi
 echo "✅ Redis 服务正常运行"
+
+# 检查端口占用
+echo "🔵 检查端口占用..."
+if lsof -i :$LB_PORT > /dev/null 2>&1; then
+    echo "❌ 负载均衡器端口 $LB_PORT 已被占用"
+    echo "   请选择其他端口，例如: ./quick_start_multi.sh $NUM_WORKERS 8082"
+    exit 1
+fi
+echo "✅ 负载均衡器端口 $LB_PORT 可用"
 
 # 清理旧进程
 echo "🔵 清理旧进程..."
@@ -119,6 +142,7 @@ done
 echo "🔵 启动负载均衡器..."
 export LB_BASE_PORT=$BASE_PORT
 export LB_NUM_WORKERS=$NUM_WORKERS
+export LB_PORT=$LB_PORT
 
 nohup python load_balancer.py >> "$UNIFIED_LOG" 2>&1 &
 LB_PID=$!

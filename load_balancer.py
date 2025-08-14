@@ -253,8 +253,11 @@ async def proxy_request(request: Request, path: str):
 
 if __name__ == "__main__":
     # 启动负载均衡器
+    import os
+    lb_port = int(os.getenv("LB_PORT", "8081"))
+
     uvicorn.run("load_balancer:app",
                 host="0.0.0.0",
-                port=8080,
+                port=lb_port,
                 reload=False,
                 log_level="info")

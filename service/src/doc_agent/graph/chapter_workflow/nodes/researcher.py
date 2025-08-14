@@ -519,8 +519,7 @@ async def async_researcher_node(
         job_id, "信息收集", "document_generation", "SUCCESS", {
             "web_sources":
             [safe_serialize(source) for source in web_raw_results],
-            "es_sources":
-            [safe_serialize(source) for source in es_raw_results],
+            "es_sources": [safe_serialize(source) for source in all_sources],
             "user_data_reference_sources":
             [safe_serialize(source) for source in user_data_sources],
             "user_requirement_sources":
