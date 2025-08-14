@@ -248,6 +248,11 @@ async def async_researcher_node(
                     for reranked_result in reranked_user_results:
                         user_data_raw_results.append(
                             RerankedSearchResult(
+                                id=reranked_result['id'],
+                                doc_id=reranked_result['doc_id'],
+                                index=reranked_result['index'],
+                                domain_id=reranked_result['domain_id'],
+                                doc_from=reranked_result['doc_from'],
                                 content=reranked_result['content'],
                                 score=reranked_result['score'],
                                 metadata=reranked_result.get('metadata', {})))
@@ -287,6 +292,11 @@ async def async_researcher_node(
                         for reranked_result in reranked_user_style_results:
                             user_style_raw_results.append(
                                 RerankedSearchResult(
+                                    id=reranked_result['id'],
+                                    doc_id=reranked_result['doc_id'],
+                                    index=reranked_result['index'],
+                                    domain_id=reranked_result['domain_id'],
+                                    doc_from=reranked_result['doc_from'],
                                     content=reranked_result['content'],
                                     score=reranked_result['score'],
                                     metadata=reranked_result.get(
@@ -327,6 +337,11 @@ async def async_researcher_node(
                         for reranked_result in reranked_user_requirement_results:
                             user_requirement_raw_results.append(
                                 RerankedSearchResult(
+                                    id=reranked_result['id'],
+                                    doc_id=reranked_result['doc_id'],
+                                    index=reranked_result['index'],
+                                    domain_id=reranked_result['domain_id'],
+                                    doc_from=reranked_result['doc_from'],
                                     content=reranked_result['content'],
                                     score=reranked_result['score'],
                                     metadata=reranked_result.get(
@@ -336,6 +351,11 @@ async def async_researcher_node(
                     for result in user_data_es_results:
                         user_data_raw_results.append(
                             RerankedSearchResult(
+                                id=result.id,
+                                doc_id=result.doc_id,
+                                index=result.index,
+                                domain_id=result.domain_id,
+                                doc_from=result.doc_from,
                                 content=result.original_content
                                 or result.div_content,
                                 score=result.score,
@@ -398,6 +418,7 @@ async def async_researcher_node(
                 es_str_results = formatted_es_results
                 logger.info(
                     f"✅ 向量检索+重排序执行成功，结果长度: {len(formatted_es_results)}")
+                logger.info(f"🔍 向量检索+重排序结果: {reranked_es_results}")
             else:
                 # 报错返回
                 raise ValueError("向量维度不正确")
@@ -498,10 +519,8 @@ async def async_researcher_node(
 
     publish_event(
         job_id, "信息收集", "document_generation", "SUCCESS", {
-            "web_sources":
-            [safe_serialize(source) for source in web_raw_results],
-            "es_sources":
-            [safe_serialize(source) for source in es_raw_results],
+            "web_sources": [safe_serialize(source) for source in web_sources],
+            "es_sources": [safe_serialize(source) for source in es_sources],
             "user_data_reference_sources":
             [safe_serialize(source) for source in user_data_sources],
             "user_requirement_sources":

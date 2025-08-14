@@ -36,6 +36,9 @@ class Source(BaseModel):
     # === 基础字段 ===
     id: int = Field(..., description="唯一顺序标识符，用于引用（如 1, 2, 3...）")
     doc_id: str = Field(..., description="文档ID", alias="docId")
+    doc_from: str = Field(..., description="文档来源", alias="docFrom")
+    domain_id: str = Field(..., description="文档域ID", alias="domainId")
+    index: str = Field(..., description="文档索引", alias="index")
     source_type: str = Field(
         ...,
         alias="sourceType",
@@ -190,12 +193,16 @@ class Source(BaseModel):
                         source_dict.get("id"),
                         "docId":
                         source_dict.get("docId", ""),
+                        "docFrom":
+                        source_dict.get("docFrom", ""),
+                        "domainId":
+                        source_dict.get("domainId", ""),
+                        "index":
+                        source_dict.get("index", ""),
                         "title":
                         source_dict.get("title", ""),
                         "fileToken":
                         source_dict.get("fileToken", ""),
-                        "domainId":
-                        source_dict.get("domainId", "document"),
                         "isFeishuSource":
                         source_dict.get("isFeishuSource", False),
                         "valid":

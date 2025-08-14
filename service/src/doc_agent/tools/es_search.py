@@ -327,13 +327,16 @@ class ESSearchTool:
         # 构建文档范围过滤条件
         filters = {"file_token": file_tokens}
 
-        # 使用现有的搜索方法，但添加文档范围过滤
-        return await self.search(query=query,
-                                 query_vector=query_vector,
-                                 top_k=top_k,
-                                 filters=filters,
-                                 use_multiple_indices=True,
-                                 config=config)
+        # 对于文档范围搜索，使用通配符索引以确保能找到所有相关文档
+        logger.info("🔍 使用通配符索引进行文档范围搜索，确保覆盖所有索引")
+
+        # 直接调用ES服务进行搜索，使用通配符索引
+        return await self._es_service.search(
+            index="*",  # 使用通配符索引
+            query=query,
+            top_k=top_k,
+            query_vector=query_vector,
+            filters=filters)
 
     async def get_available_indices(self) -> list[str]:
         """获取可用索引列表"""

@@ -18,6 +18,9 @@ class RerankedSearchResult:
     """重排序后的搜索结果"""
     id: str
     doc_id: str
+    index: str
+    domain_id: str
+    doc_from: str
     original_content: str
     div_content: str = ""
     source: str = ""
@@ -147,6 +150,9 @@ class RerankerTool:
                     reranked_result = RerankedSearchResult(
                         id=original_result.id,
                         doc_id=original_result.doc_id,
+                        index=original_result.index,
+                        domain_id=original_result.domain_id,
+                        doc_from=original_result.doc_from,
                         original_content=original_result.original_content,
                         div_content=original_result.div_content,
                         source=original_result.source,

@@ -5,6 +5,7 @@ Elasticsearch 底层服务模块
 
 import asyncio
 from dataclasses import dataclass
+from tkinter import W
 from typing import Any, Optional
 
 from elasticsearch import AsyncElasticsearch
@@ -16,8 +17,11 @@ from doc_agent.core.logger import logger
 class ESSearchResult:
     """ES搜索结果"""
     id: str
-    doc_id: str
-    file_token: str
+    doc_id: str  # file_token
+    index: str  # 索引
+    domain_id: str  # index 映射之后的 domain_id
+    doc_from: str  # 来源 self/data_platform （用户上传为 self， 其他为 data_platform）
+    file_token: str  # file_token (大概率没有值)
     original_content: str  # 原始内容
     div_content: str = ""  # 切分后的内容
     source: str = ""
@@ -54,6 +58,21 @@ class ESService:
         self._client: Optional[AsyncElasticsearch] = None
         self._initialized = False
         logger.info("初始化ES服务")
+        self.domain_index_map = {
+            "documentUploadAnswer": "personal_knowledge_base",
+            "standard": "standard_index_prod",
+            "thesis": "thesis_index_prod",
+            "book": "book_index_prod",
+            "other": "other_index_prod",
+            "internal": "internal_index_prod_v2",
+            "policy": "hdy_knowledge_prod_v2",
+            "executivevoice": "hdy_knowledge_prod_v2",
+            "corporatenews": "hdy_knowledge_prod_v2",
+            "announcement": "hdy_knowledge_prod_v2"
+        }
+        self.index_aliases = {}
+        self.augmented_index_domain_map = {}
+        self.valid_indeces = []
 
     async def connect(self) -> bool:
         """连接ES服务"""
@@ -77,6 +96,44 @@ class ESService:
             # 测试连接
             await self._client.ping()
             logger.info("ES连接成功")
+
+            # 获取索引别名
+            aliases_info = await self._client.indices.get_alias(index="*")
+            for index_name, info in aliases_info.items():
+                if 'aliases' in info:
+                    self.index_aliases[index_name] = list(
+                        info['aliases'].keys())
+                else:
+                    self.index_aliases[index_name] = []
+            logger.info(f"成功获取索引别名映射，共 {len(self.index_aliases)} 个索引")
+
+            # 构建索引到别名的映射
+            for index_name, info in aliases_info.items():
+                if 'aliases' in info:
+                    self.index_aliases[index_name] = list(
+                        info['aliases'].keys())
+                else:
+                    self.index_aliases[index_name] = []
+
+            logger.info(f"成功获取索引别名映射，共 {len(self.index_aliases)} 个索引")
+
+            for idx, alias_list in self.index_aliases.items():
+                print(f"{idx}: {alias_list}")
+                for domain_id, domain_idx in self.domain_index_map.items():
+                    if (domain_idx == idx or domain_idx in alias_list):
+                        self.augmented_index_domain_map[idx] = domain_id
+                        for alias_idx in alias_list:
+                            self.augmented_index_domain_map[
+                                alias_idx] = domain_id
+                    # 排除个人知识库索引
+                    if (idx == "personal_knowledge_base"
+                            or "personal_knowledge_base" in alias_list):
+                        self.valid_indeces.append(idx)
+                        self.valid_indeces.extend(alias_list)
+            logger.info(f"🔍 索引别名: {self.index_aliases}")
+            logger.info(f"扩展映射表: {self.augmented_index_domain_map}")
+            logger.info(f"有效索引: {self.valid_indeces}")
+
             self._initialized = True
             return True
 
@@ -118,6 +175,11 @@ class ESService:
         if filters:
             logger.debug(f"过滤条件: {filters}")
 
+        # 验证索引是否在有效范围内
+        if index not in self.valid_indeces:
+            logger.warning(f"索引 {index} 不在有效索引范围内: {self.valid_indeces}")
+            return []
+
         await self._ensure_connected()
 
         if not self._client:
@@ -154,9 +216,15 @@ class ESService:
 
                 # 安全获取 doc_id，如果不存在则使用 _id
                 doc_id = doc_data.get('doc_id', "")
+                index = hit["_index"]
+                domain_id = self.augmented_index_domain_map.get(index, "")
+                doc_from = "self" if domain_id == "documentUploadAnswer" else "data_platform"
 
                 result = ESSearchResult(id=hit['_id'],
                                         doc_id=doc_id,
+                                        index=hit['_index'],
+                                        domain_id=domain_id,
+                                        doc_from=doc_from,
                                         file_token=doc_data.get(
                                             'file_token', ""),
                                         original_content=original_content,
@@ -401,6 +469,18 @@ class ESService:
             logger.warning("索引列表为空")
             return []
 
+        # 过滤出有效的索引
+        valid_indices = [idx for idx in indices if idx in self.valid_indeces]
+        if not valid_indices:
+            logger.warning(f"所有索引都不在有效范围内: {indices}")
+            return []
+
+        if len(valid_indices) != len(indices):
+            invalid_indices = [
+                idx for idx in indices if idx not in self.valid_indeces
+            ]
+            logger.warning(f"过滤掉无效索引: {invalid_indices}")
+
         await self._ensure_connected()
 
         if not self._client:
@@ -413,7 +493,7 @@ class ESService:
             search_body = self._build_search_body(query, query_vector, filters,
                                                   top_k)
 
-            for index in indices:
+            for index in valid_indices:
                 msearch_body.append({"index": index})
                 msearch_body.append(search_body)
 
@@ -448,17 +528,25 @@ class ESService:
 
                         # 安全获取 doc_id，如果不存在则使用 _id
                         doc_id = doc_data.get('doc_id', "")
+                        index = hit["_index"]
+                        domain_id = self.augmented_index_domain_map.get(
+                            index, "")
+                        doc_from = "self" if domain_id == "documentUploadAnswer" else "data_platform"
 
                         result = ESSearchResult(
                             id=hit["_id"],
                             doc_id=doc_id,
+                            index=index,
+                            domain_id=domain_id,
+                            doc_from=doc_from,
                             file_token=doc_data.get('file_token', ""),
                             original_content=original_content,
                             div_content=div_content,
                             source=source,
                             score=hit["_score"],
                             metadata=doc_data.get('meta_data', {}),
-                            alias_name=indices[i] if i < len(indices) else "")
+                            alias_name=valid_indices[i]
+                            if i < len(valid_indices) else "")
                         all_results.append(result)
 
             logger.info(f"多索引搜索成功，返回 {len(all_results)} 个文档")
@@ -484,6 +572,11 @@ class ESService:
             List[ESSearchResult]: 搜索结果列表
         """
         logger.info(f"开始按file_token查询，索引: {index}, file_token: {file_token}")
+
+        # 验证索引是否在有效范围内
+        if index not in self.valid_indeces:
+            logger.warning(f"索引 {index} 不在有效索引范围内: {self.valid_indeces}")
+            return []
 
         await self._ensure_connected()
 
@@ -528,9 +621,15 @@ class ESService:
 
                 # 安全获取 doc_id
                 doc_id = doc_data.get('doc_id', "")
+                index = hit["_index"]
+                domain_id = self.augmented_index_domain_map.get(index, "")
+                doc_from = "self" if domain_id == "documentUploadAnswer" else "data_platform"
 
                 result = ESSearchResult(id=hit['_id'],
                                         doc_id=doc_id,
+                                        index=index,
+                                        domain_id=domain_id,
+                                        doc_from=doc_from,
                                         file_token=doc_data.get(
                                             'file_token', ""),
                                         original_content=original_content,
@@ -586,6 +685,12 @@ class ESService:
     async def get_index_mapping(self, index: str) -> Optional[dict[str, Any]]:
         """获取索引映射"""
         logger.debug(f"获取索引 {index} 的映射信息")
+
+        # 验证索引是否在有效范围内
+        if index not in self.valid_indeces:
+            logger.warning(f"索引 {index} 不在有效索引范围内: {self.valid_indeces}")
+            return None
+
         await self._ensure_connected()
 
         if not self._client:
@@ -599,6 +704,14 @@ class ESService:
         except Exception as e:
             logger.error(f"获取索引映射失败: {str(e)}")
             return None
+
+    def get_valid_indices(self) -> list[str]:
+        """获取有效索引列表"""
+        return self.valid_indeces.copy()
+
+    def is_valid_index(self, index: str) -> bool:
+        """检查索引是否有效"""
+        return index in self.valid_indeces
 
     async def __aenter__(self):
         logger.debug("进入ES服务异步上下文")

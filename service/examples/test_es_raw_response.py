@@ -84,6 +84,57 @@ async def test_es_raw_response():
         try:
             # 直接调用ES服务获取原始结果
             await es_search_tool._ensure_initialized()
+            domain_index_map = {
+                "documentUploadAnswer": "personal_knowledge_base",
+                "standard": "standard_index_prod",
+                "thesis": "thesis_index_prod",
+                "book": "book_index_prod",
+                "other": "other_index_prod",
+                "internal": "internal_index_prod_v2",
+                "policy": "hdy_knowledge_prod_v2",
+                "executivevoice": "hdy_knowledge_prod_v2",
+                "corporatenews": "hdy_knowledge_prod_v2",
+                "announcement": "hdy_knowledge_prod_v2"
+            }
+            index_aliases = {}
+            augmented_index_domain_map = {}
+            valid_indeces = []
+
+            # 获取 aliases
+            aliases_info = await es_search_tool._es_service._client.indices.get_alias(
+                index="*")
+            # 构建索引到别名的映射
+            for index_name, info in aliases_info.items():
+                if 'aliases' in info:
+                    index_aliases[index_name] = list(info['aliases'].keys())
+                else:
+                    index_aliases[index_name] = []
+
+            index_aliases = index_aliases
+            logger.info(f"成功获取索引别名映射，共 {len(index_aliases)} 个索引")
+
+            for idx, alias_list in index_aliases.items():
+                if idx == "personal_knowledge_base" or "personal_knowledge_base" in alias_list:
+                    logger.info(f"🔍 个人知识库索引: {idx}")
+                    logger.info(f"🔍 个人知识库别名: {alias_list}")
+                for domain_id, domain_idx in domain_index_map.items():
+                    if (domain_idx == idx or domain_idx in alias_list):
+                        if idx == "personal_knowledge_base" or "personal_knowledge_base" in alias_list:
+                            logger.info(f"🔍 个人知识库索引: {idx}")
+                            logger.info(f"🔍 个人知识库别名: {alias_list}")
+                        augmented_index_domain_map[idx] = domain_id
+                        for alias_idx in alias_list:
+                            augmented_index_domain_map[alias_idx] = domain_id
+                        valid_indeces.append(idx)
+                        valid_indeces.extend(alias_list)
+
+            # 打印
+            # index_aliases
+            # augmented_index_domain_map
+            # valid_indeces
+            logger.info(f"🔍 索引别名: {index_aliases}")
+            logger.info(f"扩展映射表: {augmented_index_domain_map}")
+            logger.info(f"有效索引: {valid_indeces}")
 
             # 获取原始ES响应
             if es_search_tool._indices_list:
