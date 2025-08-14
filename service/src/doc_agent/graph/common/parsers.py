@@ -221,38 +221,6 @@ def parse_web_search_results(web_raw_results: list[dict], query: str,
         list[Source]: Source 对象列表
     """
 
-    # web_raw_result 结构示例:
-    # {
-    #     'url': 'https://example.com',
-    #     'doc_id': '文档标题',
-    #     'doc_type': 'text',
-    #     'domain_ids': ['web'],
-    #     'meta_data': {
-    #         'docName': '文档名称',
-    #         'materialTitle': '材料标题',
-    #         'materialContent': '材料内容',
-    #         'materialText': '材料文本',
-    #         'materialType': 'html',
-    #         'datePublished': '发布日期',
-    #         'siteName': '网站名称',
-    #         'url': 'URL',
-    #         'source': 'web',
-    #         'sourceSite': '来源网站',
-    #         'score': None,
-    #         'sourceDiff': 'exterior',
-    #         'webIcon': None,
-    #         'collected': None,
-    #         'knowledgeType': None,
-    #         'sourceType': None,
-    #         'full_content_fetched': False,
-    #         'file_name': '文件名'
-    #     },
-    #     'text': '实际文本内容',
-    #     '_id': '唯一ID',
-    #     'rank': '排名',
-    #     'full_content_fetched': False
-    # }
-
     sources = []
 
     for index, web_raw_result in enumerate(web_raw_results):

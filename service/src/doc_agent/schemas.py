@@ -166,7 +166,7 @@ class Source(BaseModel):
                 # 使用 model_dump() 自动处理 alias 转换
                 source_dict = source.model_dump(by_alias=True)
 
-                if source.source_type == "webpage":
+                if source.source_type == "web":
                     # 网页类型 -> webs 格式
                     web_dict = {
                         "id":
