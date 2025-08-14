@@ -222,7 +222,7 @@ class ESService:
 
                 result = ESSearchResult(id=hit['_id'],
                                         doc_id=doc_id,
-                                        index=hit['_index'],
+                                        index=index,
                                         domain_id=domain_id,
                                         doc_from=doc_from,
                                         file_token=doc_data.get(
@@ -233,6 +233,8 @@ class ESService:
                                         score=hit['_score'],
                                         metadata=doc_data.get('meta_data', {}),
                                         alias_name=index)
+                # 修改 metadata.source = doc_from
+                result.metadata["source"] = doc_from
                 results.append(result)
 
             logger.info(f"ES搜索成功，返回 {len(results)} 个文档")
@@ -547,6 +549,8 @@ class ESService:
                             metadata=doc_data.get('meta_data', {}),
                             alias_name=valid_indices[i]
                             if i < len(valid_indices) else "")
+                        # 修改 metadata.source = doc_from
+                        result.metadata["source"] = doc_from
                         all_results.append(result)
 
             logger.info(f"多索引搜索成功，返回 {len(all_results)} 个文档")
@@ -638,6 +642,8 @@ class ESService:
                                         score=hit['_score'],
                                         metadata=doc_data.get('meta_data', {}),
                                         alias_name=index)
+                # 修改 metadata.source = doc_from
+                result.metadata["source"] = doc_from
                 results.append(result)
 
             logger.info(f"file_token查询成功，返回 {len(results)} 个文档")
