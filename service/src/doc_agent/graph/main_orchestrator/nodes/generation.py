@@ -87,6 +87,7 @@ def outline_generation_node(state: ResearchState,
 
         logger.info(
             f"✅ Job {job_id} 大纲生成完成，包含 {len(outline.get('chapters', []))} 个章节")
+        logger.info(f"生成大纲内容： {outline}")
 
         # 将大纲保存为文件并上传到存储服务
         file_token = None
@@ -586,13 +587,13 @@ def _parse_outline_response(response: str, complexity_config) -> dict:
             outline = json.loads(json_match.group(0))
 
             # 验证和修复大纲结构
-            outline = _validate_and_fix_outline_structure(
-                outline, complexity_config)
+            # outline = _validate_and_fix_outline_structure(
+            #     outline, complexity_config)
 
             # 根据复杂度限制章节数量
-            max_chapters = complexity_config.get('max_chapters', -1)
-            if max_chapters > 0 and 'chapters' in outline:
-                outline['chapters'] = outline['chapters'][:max_chapters]
+            # max_chapters = complexity_config.get('max_chapters', -1)
+            # if max_chapters > 0 and 'chapters' in outline:
+            #     outline['chapters'] = outline['chapters'][:max_chapters]
 
             return outline
     except Exception as e:

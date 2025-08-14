@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from doc_agent.core.logger import logger
-from doc_agent.core.redis_health_check import init_redis_pool, close_redis_pool
 
 from api.endpoints import router
+from doc_agent.core.logger import logger
+from doc_agent.core.redis_health_check import close_redis_pool, init_redis_pool
 
 
 @asynccontextmanager
