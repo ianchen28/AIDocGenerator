@@ -127,10 +127,17 @@ class ESService:
                             alias_idx] = matched_domain_id
 
                 # 检查是否为个人知识库索引
-                if (idx == "personal_knowledge_base"
-                        or "personal_knowledge_base" in alias_list):
-                    self.valid_indeces.append(idx)
-                    self.valid_indeces.extend(alias_list)
+                # if (idx == "personal_knowledge_base"
+                #         or "personal_knowledge_base" in alias_list):
+                #     continue
+
+                # 添加所有匹配domain_index_map的索引到有效索引列表
+                if matched_domain_id:
+                    if idx not in self.valid_indeces:
+                        self.valid_indeces.append(idx)
+                    for alias_idx in alias_list:
+                        if alias_idx not in self.valid_indeces:
+                            self.valid_indeces.append(alias_idx)
 
             logger.info(f"🔍 索引别名: {self.index_aliases}")
             logger.info(f"扩展映射表: {self.augmented_index_domain_map}")
