@@ -99,8 +99,27 @@ if [ -f "logs/load_balancer.pid" ]; then
 fi
 
 # 清理残留进程
+echo "   - 清理残留进程..."
 pkill -f "uvicorn.*api.main:app" 2>/dev/null || true
+pkill -f "uvicorn api.main:app" 2>/dev/null || true
 pkill -f "load_balancer.py" 2>/dev/null || true
+pkill -f "load_balancer:app" 2>/dev/null || true
+
+# 如果进程仍然存在，使用更强力的终止
+sleep 3
+if pgrep -f "uvicorn.*api.main:app\|uvicorn api.main:app\|api.main:app" > /dev/null 2>&1; then
+    echo "     🔴 强制终止 Worker 进程..."
+    pkill -9 -f "uvicorn.*api.main:app" 2>/dev/null || true
+    pkill -9 -f "uvicorn api.main:app" 2>/dev/null || true
+    pkill -9 -f "api.main:app" 2>/dev/null || true
+fi
+
+if pgrep -f "load_balancer.py\|load_balancer:app" > /dev/null 2>&1; then
+    echo "     🔴 强制终止负载均衡器进程..."
+    pkill -9 -f "load_balancer.py" 2>/dev/null || true
+    pkill -9 -f "load_balancer:app" 2>/dev/null || true
+fi
+
 sleep 2
 
 # 启动 Worker 进程
