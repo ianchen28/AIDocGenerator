@@ -105,31 +105,33 @@ class ESService:
                         info['aliases'].keys())
                 else:
                     self.index_aliases[index_name] = []
-            logger.info(f"成功获取索引别名映射，共 {len(self.index_aliases)} 个索引")
-
-            # 构建索引到别名的映射
-            for index_name, info in aliases_info.items():
-                if 'aliases' in info:
-                    self.index_aliases[index_name] = list(
-                        info['aliases'].keys())
-                else:
-                    self.index_aliases[index_name] = []
 
             logger.info(f"成功获取索引别名映射，共 {len(self.index_aliases)} 个索引")
 
+            # 构建索引到域名的映射
             for idx, alias_list in self.index_aliases.items():
                 print(f"{idx}: {alias_list}")
+
+                # 查找匹配的域名
+                matched_domain_id = None
                 for domain_id, domain_idx in self.domain_index_map.items():
                     if (domain_idx == idx or domain_idx in alias_list):
-                        self.augmented_index_domain_map[idx] = domain_id
-                        for alias_idx in alias_list:
-                            self.augmented_index_domain_map[
-                                alias_idx] = domain_id
-                    # 排除个人知识库索引
-                    if (idx == "personal_knowledge_base"
-                            or "personal_knowledge_base" in alias_list):
-                        self.valid_indeces.append(idx)
-                        self.valid_indeces.extend(alias_list)
+                        matched_domain_id = domain_id
+                        break
+
+                # 如果找到匹配的域名，添加到映射表
+                if matched_domain_id:
+                    self.augmented_index_domain_map[idx] = matched_domain_id
+                    for alias_idx in alias_list:
+                        self.augmented_index_domain_map[
+                            alias_idx] = matched_domain_id
+
+                # 检查是否为个人知识库索引
+                if (idx == "personal_knowledge_base"
+                        or "personal_knowledge_base" in alias_list):
+                    self.valid_indeces.append(idx)
+                    self.valid_indeces.extend(alias_list)
+
             logger.info(f"🔍 索引别名: {self.index_aliases}")
             logger.info(f"扩展映射表: {self.augmented_index_domain_map}")
             logger.info(f"有效索引: {self.valid_indeces}")
@@ -218,7 +220,27 @@ class ESService:
                 doc_id = doc_data.get('doc_id', "")
                 index = hit["_index"]
                 domain_id = self.augmented_index_domain_map.get(index, "")
+
+                # 如果找不到domain_id，尝试从索引名称推断
+                if not domain_id:
+                    # 尝试从索引名称推断域名
+                    for known_domain, known_index in self.domain_index_map.items(
+                    ):
+                        if index == known_index or index in self.index_aliases.get(
+                                known_index, []):
+                            domain_id = known_domain
+                            break
+
+                    # 如果还是找不到，使用索引名称作为domain_id
+                    if not domain_id:
+                        domain_id = index
+                        logger.debug(f"未找到索引 {index} 的域名映射，使用索引名称作为domain_id")
+
                 doc_from = "self" if domain_id == "documentUploadAnswer" else "data_platform"
+
+                logger.debug(
+                    f"搜索结果 - 索引: {index}, domain_id: {domain_id}, doc_from: {doc_from}"
+                )
 
                 result = ESSearchResult(id=hit['_id'],
                                         doc_id=doc_id,
@@ -533,7 +555,28 @@ class ESService:
                         index = hit["_index"]
                         domain_id = self.augmented_index_domain_map.get(
                             index, "")
+
+                        # 如果找不到domain_id，尝试从索引名称推断
+                        if not domain_id:
+                            # 尝试从索引名称推断域名
+                            for known_domain, known_index in self.domain_index_map.items(
+                            ):
+                                if index == known_index or index in self.index_aliases.get(
+                                        known_index, []):
+                                    domain_id = known_domain
+                                    break
+
+                            # 如果还是找不到，使用索引名称作为domain_id
+                            if not domain_id:
+                                domain_id = index
+                                logger.debug(
+                                    f"未找到索引 {index} 的域名映射，使用索引名称作为domain_id")
+
                         doc_from = "self" if domain_id == "documentUploadAnswer" else "data_platform"
+
+                        logger.debug(
+                            f"多索引搜索结果 - 索引: {index}, domain_id: {domain_id}, doc_from: {doc_from}"
+                        )
 
                         result = ESSearchResult(
                             id=hit["_id"],
@@ -627,7 +670,27 @@ class ESService:
                 doc_id = doc_data.get('doc_id', "")
                 index = hit["_index"]
                 domain_id = self.augmented_index_domain_map.get(index, "")
+
+                # 如果找不到domain_id，尝试从索引名称推断
+                if not domain_id:
+                    # 尝试从索引名称推断域名
+                    for known_domain, known_index in self.domain_index_map.items(
+                    ):
+                        if index == known_index or index in self.index_aliases.get(
+                                known_index, []):
+                            domain_id = known_domain
+                            break
+
+                    # 如果还是找不到，使用索引名称作为domain_id
+                    if not domain_id:
+                        domain_id = index
+                        logger.debug(f"未找到索引 {index} 的域名映射，使用索引名称作为domain_id")
+
                 doc_from = "self" if domain_id == "documentUploadAnswer" else "data_platform"
+
+                logger.debug(
+                    f"file_token查询结果 - 索引: {index}, domain_id: {domain_id}, doc_from: {doc_from}"
+                )
 
                 result = ESSearchResult(id=hit['_id'],
                                         doc_id=doc_id,
