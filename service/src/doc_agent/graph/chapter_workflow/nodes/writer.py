@@ -16,10 +16,9 @@ logger = get_logger(__name__)
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.config import settings
 from doc_agent.graph.callbacks import TokenStreamCallbackHandler
-from doc_agent.graph.common import (format_sources_to_text as
-                                    _format_sources_to_text,
-                                    format_requirements_to_text as
-                                    _format_requirements_to_text)
+from doc_agent.graph.common import (
+    format_requirements_to_text as _format_requirements_to_text, )
+from doc_agent.graph.common import format_sources_to_text as _format_sources_to_text
 from doc_agent.graph.common import (
     get_or_create_source_id, )
 from doc_agent.graph.state import ResearchState

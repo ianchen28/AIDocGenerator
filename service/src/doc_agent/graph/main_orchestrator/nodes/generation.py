@@ -325,11 +325,12 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
         logger.error(
             f"章节字数分配不一致，章节数不一致, {len(chapter_word_counts)} != {len(chapters_to_process)}"
         )
+        # 默认分配80%的字数，因为总字数一般都超
         chapter_word_counts = [{
             "title":
             chapter["chapter_title"],
             "word_count":
-            int(state.get("word_count", 0) / len(chapters_to_process))
+            int(state.get("word_count", 0) / len(chapters_to_process) * 0.8)
         } for chapter in chapters_to_process]
     else:
         for (word_count, chapter) in zip(chapter_word_counts,
