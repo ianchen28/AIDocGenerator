@@ -440,6 +440,7 @@ async def async_researcher_node(
                 web_str_results = ""
 
         # 处理ES搜索结果
+        logger.info(f"🔍 ES搜索结果: {es_raw_results}")
         if es_str_results and es_str_results.strip():
             try:
                 # 解析ES搜索结果，创建 Source 对象
@@ -451,6 +452,7 @@ async def async_researcher_node(
                 logger.info(f"✅ 从ES搜索中提取到 {len(es_sources)} 个源")
             except Exception as e:
                 logger.error(f"❌ 解析ES搜索结果失败: {str(e)}")
+        logger.info(f"🔍 ES搜索结果解析后: {es_sources}")
 
         # 处理网络搜索结果
         if web_str_results and web_str_results.strip():

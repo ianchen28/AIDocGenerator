@@ -39,6 +39,10 @@ def example_alias_conversion():
     print("\n=== Alias 转换示例 ===")
 
     source = Source(id=1,
+                    doc_id="example_doc_1",
+                    doc_from="self",
+                    domain_id="documentUploadAnswer",
+                    index="personal_knowledge_base",
                     source_type="es_result",
                     title="测试文档",
                     content="内容",
@@ -107,6 +111,10 @@ def example_serialization():
     print("\n=== 序列化示例 ===")
 
     source = Source(id=1,
+                    doc_id="example_doc_1",
+                    doc_from="self",
+                    domain_id="documentUploadAnswer",
+                    index="personal_knowledge_base",
                     source_type="es_result",
                     title="测试文档",
                     content="这是一个测试文档的内容，用于演示序列化功能。",

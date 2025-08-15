@@ -192,6 +192,9 @@ class RerankerTool:
             fallback_result = RerankedSearchResult(
                 id=result.id,
                 doc_id=result.doc_id,
+                index=result.index,
+                domain_id=result.domain_id,
+                doc_from=result.doc_from,
                 original_content=result.original_content,
                 div_content=result.div_content,
                 source=result.source,

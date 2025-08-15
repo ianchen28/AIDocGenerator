@@ -46,29 +46,16 @@ async def generate_outline_async(
                     ocr_file_token = file.get("attachmentOCRResultToken")
                     # 用户上传大纲文件，单独处理
                     if file.get("attachmentType") == 0:
-                        user_outline_file = file_token
-                    if file_token:
-                        # 使用file_processor解析文件为sources
-                        sources = file_processor.filetoken_to_sources(
-                            file_token,
-                            ocr_file_token,
-                            title=
-                            f"Context File: {file.get('fileName', 'Unknown')}",
-                            chunk_size=2000,
-                            overlap=200)
-                        initial_sources.extend(sources)
-                        logger.info(
-                            f"Task {task_id}: 成功解析文件 {file_token}，生成 {len(sources)} 个sources"
-                        )
+                        user_outline_file = ocr_file_token if ocr_file_token != "" else file_token
                     else:
                         logger.warning(
                             f"Task {task_id}: 文件缺少attachmentFileToken: {file}")
                     if file.get("attachmentType") == 1:
-                        user_data_reference_files.extend(sources)
+                        user_data_reference_files.append(file)
                     elif file.get("attachmentType") == 2:
-                        user_style_guide_content.extend(sources)
+                        user_style_guide_content.append(file)
                     elif file.get("attachmentType") == 3:
-                        user_requirements_content.extend(sources)
+                        user_requirements_content.append(file)
                 except Exception as e:
                     logger.error(f"Task {task_id}: 解析文件失败: {e}")
 
@@ -90,7 +77,7 @@ async def generate_outline_async(
             "job_id": task_id,
             "task_prompt": task_prompt,  # 将task_prompt映射到topic
             "is_online": is_online,
-            "initial_sources": initial_sources,  # 添加解析后的sources
+            # "initial_sources": initial_sources,  # 添加解析后的sources
             "style_guide_content": style_guide_content,
             "requirements": requirements,
             "user_outline_file": user_outline_file,

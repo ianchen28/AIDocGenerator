@@ -599,11 +599,19 @@ class FileProcessor:
         for idx, chunk in enumerate(chunks, start=1):
             source = Source(
                 id=idx,
-                sourceType=source_type,
+                doc_id=f"text_{title[:8] if title else 'unknown'}",
+                doc_from="self",
+                domain_id="documentUploadAnswer",
+                index="personal_knowledge_base",
+                source_type=source_type,
                 title=f"{title} - 切片 {idx}",
                 url=url,
                 content=chunk,
-            )
+                metadata={
+                    "file_name": f"{title} - 切片 {idx}",
+                    "locations": [],
+                    "source": "self"  # 文件上传默认为 self
+                })
             # 应用 source_info 覆盖
             if source_info:
                 for key, value in source_info.items():
@@ -682,11 +690,19 @@ class FileProcessor:
                     if len(content) > 1:
                         source = Source(
                             id=idx + 1,
-                            sourceType="documentUploadAnswer",
+                            doc_id=f"file_{target_token[:8]}",
+                            doc_from="self",
+                            domain_id="documentUploadAnswer",
+                            index="personal_knowledge_base",
+                            source_type="documentUploadAnswer",
                             title=f"{final_title} - 切片 {idx + 1}",
                             url=None,
                             content=content[1],
-                        )
+                            metadata={
+                                "file_name": f"{final_title} - 切片 {idx + 1}",
+                                "locations": [],
+                                "source": "self"  # 文件上传默认为 self
+                            })
                         # 应用 source_info 覆盖
                         if source_info:
                             for key, value in source_info.items():

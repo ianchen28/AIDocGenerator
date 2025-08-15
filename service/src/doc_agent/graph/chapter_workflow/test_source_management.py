@@ -27,6 +27,10 @@ def create_test_source(source_id: int,
                        content: str = "测试内容") -> Source:
     """创建测试用的信源对象"""
     return Source(id=source_id,
+                  doc_id=f"test_doc_{source_id}",
+                  doc_from="web",
+                  domain_id="web_search",
+                  index="web_pages",
                   source_type="webpage",
                   title=title,
                   url=url,

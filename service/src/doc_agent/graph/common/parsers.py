@@ -292,14 +292,20 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
     """
 
     # RerankedSearchResult
-    # id: str
-    # original_content: str
-    # div_content: str = ""
-    # source: str = ""
-    # score: float = 0.0
-    # rerank_score: float = 0.0  # 重排序评分
-    # metadata: dict[str, Any] = None
-    # alias_name: str = ""
+    # id='bFEcIJYBwBkB_JLNVi-q',
+    # doc_id='5938a73882a4f00515b3614b03dc419d',
+    # index='personal_knowledge_base',
+    # domain_id='documentUploadAnswer',
+    # doc_from='self',
+    # original_content='文本内容',
+    # score=1.6947638,
+    # rerank_score=3.2050650119781494,
+    # metadata={
+    # 	'file_name': '深圳市城市轨道交通工程无人机使用及实景建模要求（V1.0）.pdf',
+    # 	'locations': [],
+    # 	'source': 'self'
+    # },
+    # alias_name='personal_knowledge_base'
 
     sources = []
 
@@ -315,6 +321,7 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
                 'url', '') if es_raw_result.metadata else ''
             content = es_raw_result.original_content or ''
             locations = es_raw_result.metadata.get('locations', [])
+            source = es_raw_result.doc_from
 
             # 截断内容到500字符
             if len(content) > 500:
@@ -326,6 +333,15 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
             author = metadata.get('author', '')
             file_token = metadata.get('file_token', '')
             page_number = metadata.get('page_number')
+
+            # 保留原有的 metadata，只添加必要的字段
+            metadata = es_raw_result.metadata or {}
+            # metadata.update({
+            #     "file_name": title,
+            #     "locations": locations,
+            #     # 统一使用 doc_from 作为 source 值
+            #     "source": es_raw_result.doc_from
+            # })
 
             source = Source(id=source_id,
                             doc_id=es_raw_result.doc_id,
@@ -340,11 +356,7 @@ def parse_es_search_results(es_raw_results: list[RerankedSearchResult],
                             author=author,
                             file_token=file_token,
                             page_number=page_number,
-                            metadata={
-                                "file_name": title,
-                                "locations": locations,
-                                "source": "es_search"
-                            })
+                            metadata=metadata)
 
             sources.append(source)
             logger.debug(f"✅ 成功创建ES源: {source_id} - {title}")

@@ -137,6 +137,16 @@ class Source(BaseModel):
                 "source":
                 "data_platform"
             }
+        elif len(self.metadata) == 0:
+            # 如果 metadata 是空字典，添加默认字段但不设置 source
+            # 让调用者自己设置 source 字段
+            self.metadata.update({
+                "file_name":
+                self.title or "",
+                "locations": ([{
+                    "pagenum": self.page_number
+                }] if self.page_number is not None else []),
+            })
 
         return self
 

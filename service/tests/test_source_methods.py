@@ -9,6 +9,10 @@ from doc_agent.schemas import Source
 def test_source_basic_creation():
     """测试基本的 Source 创建"""
     source = Source(id=1,
+                    doc_id="test_doc_1",
+                    doc_from="self",
+                    domain_id="documentUploadAnswer",
+                    index="personal_knowledge_base",
                     source_type="es_result",
                     title="测试文档",
                     content="这是一个测试文档的内容")
@@ -22,6 +26,10 @@ def test_source_basic_creation():
 def test_source_alias_conversion():
     """测试 alias 转换功能"""
     source = Source(id=1,
+                    doc_id="test_doc_1",
+                    doc_from="self",
+                    domain_id="documentUploadAnswer",
+                    index="personal_knowledge_base",
                     source_type="es_result",
                     title="测试文档",
                     content="内容",
@@ -93,6 +101,10 @@ def test_source_document_creation():
 def test_source_metadata_auto_population():
     """测试元数据自动填充"""
     source = Source(id=4,
+                    doc_id="test_doc_4",
+                    doc_from="self",
+                    domain_id="documentUploadAnswer",
+                    index="personal_knowledge_base",
                     source_type="es_result",
                     title="带页码的文档",
                     content="文档内容",
@@ -112,6 +124,10 @@ def test_source_content_length_limit():
     long_content = "很长的内容" * 200  # 创建很长的内容
 
     source = Source(id=5,
+                    doc_id="test_doc_5",
+                    doc_from="self",
+                    domain_id="documentUploadAnswer",
+                    index="personal_knowledge_base",
                     source_type="es_result",
                     title="长内容文档",
                     content=long_content)
@@ -152,7 +168,14 @@ def test_batch_to_redis_fe():
 
 def test_source_to_dict_methods():
     """测试 to_dict 和 to_json 方法"""
-    source = Source(id=6, source_type="es_result", title="测试文档", content="内容")
+    source = Source(id=6,
+                    doc_id="test_doc_6",
+                    doc_from="self",
+                    domain_id="documentUploadAnswer",
+                    index="personal_knowledge_base",
+                    source_type="es_result",
+                    title="测试文档",
+                    content="内容")
 
     # 测试 to_dict
     source_dict = source.to_dict()
@@ -173,6 +196,10 @@ def test_source_to_dict_methods():
 def test_source_extra_fields():
     """测试额外字段支持"""
     source = Source(id=7,
+                    doc_id="test_doc_7",
+                    doc_from="self",
+                    domain_id="documentUploadAnswer",
+                    index="personal_knowledge_base",
                     source_type="es_result",
                     title="测试文档",
                     content="内容",
