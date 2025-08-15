@@ -55,8 +55,8 @@ class RedisStreamPublisher:
             #                                   fields,
             #                                   id=custom_id)
 
-            # 5. 设置过期时间
-            self.redis_client.expire(stream_name, 24 * 60 * 60)
+            # 5. 设置过期时间（使用实际存储数据的 key）
+            self.redis_client.expire(job_id_str, 24 * 60 * 60)
 
             logger.info(
                 f"事件发布成功: job_id={job_id_str}, event_id={event_id}, event_type={event_data.get('eventType', 'unknown')}, i={i}"
