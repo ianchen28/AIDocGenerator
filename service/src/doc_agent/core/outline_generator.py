@@ -3,10 +3,9 @@
 from typing import Any
 
 from doc_agent.core.container import container
+from doc_agent.core.file_parser import parse_context_files
 from doc_agent.core.logger import logger
 from doc_agent.graph.callbacks import publish_event
-from doc_agent.schemas import Source
-from doc_agent.tools.file_module import file_processor
 
 
 async def generate_outline_async(
@@ -25,42 +24,12 @@ async def generate_outline_async(
     logger.info(f"  is_online: {is_online}, session_id: {session_id}")
 
     try:
-        # 获取编译好的图（Graph）
-        # 为每个作业创建专门的图执行器
+        # 获取容器实例
         container_instance = container()
 
-        # 解析用户上传的context_files为sources
-        initial_sources = []
-        user_data_reference_files: list[Source] = []  # 用户上传的数据参考文件
-        user_style_guide_content: list[Source] = []  # 用户上传的样式指南
-        user_requirements_content: list[Source] = []  # 用户上传的需求文档
-        user_outline_file: str = ""
-
-        # 先解析context_files来获取user_outline_file
-        if context_files:
-            logger.info(
-                f"Task {task_id}: 开始解析 {len(context_files)} 个context_files")
-            for file in context_files:
-                try:
-                    file_token = file.get("attachmentFileToken")
-                    ocr_file_token = file.get("attachmentOCRResultToken")
-                    # 用户上传大纲文件，单独处理
-                    if file.get("attachmentType") == 0:
-                        user_outline_file = ocr_file_token if ocr_file_token != "" else file_token
-                    else:
-                        logger.warning(
-                            f"Task {task_id}: 文件缺少attachmentFileToken: {file}")
-                    if file.get("attachmentType") == 1:
-                        user_data_reference_files.append(file)
-                    elif file.get("attachmentType") == 2:
-                        user_style_guide_content.append(file)
-                    elif file.get("attachmentType") == 3:
-                        user_requirements_content.append(file)
-                except Exception as e:
-                    logger.error(f"Task {task_id}: 解析文件失败: {e}")
-
-            logger.info(
-                f"Task {task_id}: 总共解析出 {len(initial_sources)} 个sources")
+        # 解析用户上传的context_files
+        user_data_reference_files, user_style_guide_content, user_requirements_content, user_outline_file = parse_context_files(
+            context_files or [], task_id, "outline")
 
         # 根据是否有用户上传的大纲文件来决定使用哪个图
         if user_outline_file:
@@ -75,9 +44,8 @@ async def generate_outline_async(
         # 准备图的输入
         graph_input = {
             "job_id": task_id,
-            "task_prompt": task_prompt,  # 将task_prompt映射到topic
+            "task_prompt": task_prompt,
             "is_online": is_online,
-            # "initial_sources": initial_sources,  # 添加解析后的sources
             "style_guide_content": style_guide_content,
             "requirements": requirements,
             "user_outline_file": user_outline_file,
@@ -86,14 +54,14 @@ async def generate_outline_async(
             "user_requirements_content": user_requirements_content,
         }
 
+        # 发布开始事件
         publish_event(task_id,
                       "大纲生成",
                       "outline_generation",
                       "START", {},
                       task_finished=False)
 
-        # 以流式方式调用图并获取结果，这样可以处理过程中的事件
-        # config 用于设置会话ID，以便使用对话记忆
+        # 以流式方式调用图并获取结果
         async for event in outline_graph.astream(graph_input,
                                                  config={
                                                      "configurable": {
@@ -102,9 +70,15 @@ async def generate_outline_async(
                                                          "job_id": task_id
                                                      }
                                                  }):
-            # 在后台任务中，我们主要关心日志，所以可以打印出每个步骤的完成情况
             for key, _value in event.items():
                 logger.info(f"Task {task_id} - 大纲生成步骤: '{key}' 已完成。")
+
+        # 发布完成事件
+        publish_event(task_id,
+                      "大纲生成",
+                      "outline_generation",
+                      "SUCCESS", {"description": "大纲生成已完成"},
+                      task_finished=True)
 
         logger.success(f"Task {task_id}: 后台大纲生成任务成功完成。")
 
