@@ -21,26 +21,51 @@
 # Redis 服务配置
 # ================================================
 redis:
-  host: "10.215.149.74"
-  port: 26379
-  db: 0
-  password: "xJrhp*4mnHxbBWN2grqq"
-
-
-
-# ================================================
-# Logging 服务配置
-# ================================================
-
-logging:
-  level: "DEBUG"  # 开发时用 DEBUG，生产时改为 INFO
-  file_path: "logs/app.log" # 日志文件存放路径
-  rotation: "10 MB" # 每个日志文件的最大尺寸
-  retention: "7 days" # 日志文件保留时间
-
-# ================================================
-# 模型服务配置
-# ================================================
+  # 连接模式: "single" | "cluster"
+  mode: "single"
+  
+  # 单节点配置 (mode: "single"
+  single:
+    host: "10.215.149.74"
+    port: 26379
+    db: 0
+    password: "xJrhp*4mnHxbBWN2grqq"
+  
+  # 集群配置 (mode: "single"
+  cluster:
+    nodes:
+      - "10.215.149.74:6380"
+      - "10.215.149.75:6380"
+      - "10.215.149.76:6380"
+      - "10.215.149.77:6380"
+      - "10.215.149.78:6380"
+      - "10.215.149.79:6380"
+    max_redirects: 3
+    password: "xJrhp*4mnHxbBWN2grqq"
+    timeout: 35000
+    
+    # 连接池配置
+    pool:
+      max_active: 20
+      max_idle: 10
+      min_idle: 2
+      max_wait: 5000
+    
+    # 集群刷新配置
+    refresh:
+      adaptive: true
+      period: 30000
+    
+    # 关闭超时
+    shutdown_timeout: 10000
+    
+    # 重试配置
+    retry:
+      attempts: 3
+      interval: 5000
+    
+    # 并发配置
+    concurrency: 1
 supported_models:
   # 企业内网部署的模型
   hdy_model:

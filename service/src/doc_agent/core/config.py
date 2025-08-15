@@ -395,10 +395,13 @@ class AppSettings(BaseSettings):
             else:
                 # 默认配置
                 self._redis_config = {
-                    'host': '127.0.0.1',
-                    'port': 6379,
-                    'db': 0,
-                    'password': ''
+                    'mode': 'single',
+                    'single': {
+                        'host': '127.0.0.1',
+                        'port': 6379,
+                        'db': 0,
+                        'password': ''
+                    }
                 }
         return self._redis_config
 
@@ -406,15 +409,35 @@ class AppSettings(BaseSettings):
     def redis_url(self) -> str:
         """获取Redis URL"""
         redis_config = self.redis_config
-        host = redis_config.get('host', '127.0.0.1')
-        port = redis_config.get('port', 6379)
-        db = redis_config.get('db', 0)
-        password = redis_config.get('password', '')
+        mode = redis_config.get('mode', 'single')
 
-        if password:
-            return f"redis://:{password}@{host}:{port}/{db}"
+        if mode == 'cluster':
+            # 集群模式 - 返回第一个节点作为主连接点
+            cluster_config = redis_config.get('cluster', {})
+            nodes = cluster_config.get('nodes', [])
+            if nodes:
+                # 使用第一个节点作为连接点
+                first_node = nodes[0]
+                password = cluster_config.get('password', '')
+                if password:
+                    return f"redis://:{password}@{first_node}/0"
+                else:
+                    return f"redis://{first_node}/0"
+            else:
+                # 如果没有节点配置，回退到默认
+                return "redis://127.0.0.1:6379/0"
         else:
-            return f"redis://{host}:{port}/{db}"
+            # 单节点模式
+            single_config = redis_config.get('single', {})
+            host = single_config.get('host', '127.0.0.1')
+            port = single_config.get('port', 6379)
+            db = single_config.get('db', 0)
+            password = single_config.get('password', '')
+
+            if password:
+                return f"redis://:{password}@{host}:{port}/{db}"
+            else:
+                return f"redis://{host}:{port}/{db}"
 
 
 # 创建全局settings实例

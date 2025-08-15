@@ -13,12 +13,12 @@ async def lifespan(app: FastAPI):
     # 启动
     logger.info("FastAPI应用正在启动...")
     # 初始化Redis连接池
-    await init_redis_pool()
+    init_redis_pool()
     yield
     # 关闭
     logger.info("FastAPI应用正在关闭...")
     # 关闭Redis连接池
-    await close_redis_pool()
+    close_redis_pool()
 
 
 # 创建FastAPI应用实例

@@ -34,6 +34,9 @@ service/logs/
 service/data/
 service/cache/
 
+# Configuration backup files
+**/config.yaml.backup.*
+
 # Test and temp files
 *.tmp
 *.bak

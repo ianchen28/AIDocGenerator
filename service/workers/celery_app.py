@@ -51,24 +51,44 @@ for name in logging.root.manager.loggerDict.keys():
 
 
 def build_redis_url():
-    """动态构建 Redis URL，支持密码"""
+    """动态构建 Redis URL，支持密码和集群模式"""
     from doc_agent.core.config import settings
 
     # 从 config.yaml 中读取 Redis 配置
     if hasattr(settings, '_yaml_config') and settings._yaml_config:
         redis_config = settings._yaml_config.get('redis', {})
-        redis_host = redis_config.get('host', 'localhost')
-        redis_port = redis_config.get('port', 6379)
-        redis_db = redis_config.get('db', 0)
-        redis_password = redis_config.get('password', None)
+        mode = redis_config.get('mode', 'single')
 
-        # 按照要求的逻辑构建 URL
-        if redis_password:
-            redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+        if mode == 'cluster':
+            # 集群模式 - 使用第一个节点作为连接点
+            cluster_config = redis_config.get('cluster', {})
+            nodes = cluster_config.get('nodes', [])
+            if nodes:
+                first_node = nodes[0]
+                password = cluster_config.get('password', '')
+                if password:
+                    redis_url = f"redis://:{password}@{first_node}/0"
+                else:
+                    redis_url = f"redis://{first_node}/0"
+                return redis_url
+            else:
+                # 如果没有节点配置，回退到默认
+                return "redis://127.0.0.1:6379/0"
         else:
-            redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+            # 单节点模式
+            single_config = redis_config.get('single', {})
+            redis_host = single_config.get('host', 'localhost')
+            redis_port = single_config.get('port', 6379)
+            redis_db = single_config.get('db', 0)
+            redis_password = single_config.get('password', None)
 
-        return redis_url
+            # 按照要求的逻辑构建 URL
+            if redis_password:
+                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+            else:
+                redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
+
+            return redis_url
 
     # 如果无法从 YAML 读取，使用环境变量中的 URL
     import os
