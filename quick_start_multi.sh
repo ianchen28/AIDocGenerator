@@ -262,7 +262,7 @@ for ((i=0; i<NUM_WORKERS; i++)); do
     
     # 启动 worker 进程
 echo "   - 启动 Worker $((i+1))..."
-(cd service && nohup uvicorn api.main:app --host 0.0.0.0 --port $WORKER_PORT --workers 1 >> "../$UNIFIED_LOG" 2>&1) &
+(cd service && nohup uvicorn api.main:app --host 0.0.0.0 --port $WORKER_PORT --workers 1 --reload >> "../$UNIFIED_LOG" 2>&1) &
 WORKER_PID=$!
 WORKER_PIDS+=($WORKER_PID)
     
