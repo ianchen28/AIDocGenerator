@@ -47,7 +47,6 @@ class RedisStreamPublisher:
             counter_key = f"job_counter:{job_id_str}"
             i = self.redis_client.incr(counter_key)
 
-            stream_name = f"job:{job_id_str}"
             # 使用时间戳作为ID的一部分，确保唯一性
             timestamp = int(time.time() * 1000)
             custom_id = f"{timestamp}-{i}"

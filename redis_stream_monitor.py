@@ -56,13 +56,62 @@ class RedisStreamMonitor:
         """连接Redis"""
         try:
             self._print_colored("🔍 检查Redis连接...", "blue")
-            self.client = redis.Redis(host=self.host,
-                                      port=self.port,
-                                      password=self.password,
-                                      db=self.db,
-                                      decode_responses=True,
-                                      socket_connect_timeout=5,
-                                      socket_timeout=5)
+
+            # 尝试从配置文件读取Redis配置
+            try:
+                import sys
+                import os
+                sys.path.append('service/src')
+                from doc_agent.core.config import settings
+                redis_config = settings.redis_config
+                mode = redis_config.get('mode', 'single')
+
+                if mode == 'cluster':
+                    # 集群模式
+                    from redis.cluster import RedisCluster, ClusterNode
+                    cluster_config = redis_config.get('cluster', {})
+
+                    # 构建集群连接参数
+                    startup_nodes = []
+                    for node in cluster_config.get('nodes', []):
+                        host, port = node.split(':')
+                        startup_nodes.append(ClusterNode(host, int(port)))
+
+                    self.client = RedisCluster(
+                        startup_nodes=startup_nodes,
+                        decode_responses=True,
+                        password=cluster_config.get('password'),
+                        skip_full_coverage_check=True)
+                    self._print_colored("🌐 使用Redis集群模式", "blue")
+                else:
+                    # 单节点模式
+                    single_config = redis_config.get('single', {})
+                    host = single_config.get('host', '127.0.0.1')
+                    port = single_config.get('port', 6379)
+                    password = single_config.get('password', '')
+                    db = single_config.get('db', 0)
+
+                    self.client = redis.Redis(
+                        host=host,
+                        port=port,
+                        password=password if password else None,
+                        db=db,
+                        decode_responses=True,
+                        socket_connect_timeout=5,
+                        socket_timeout=5)
+                    self._print_colored("🏠 使用Redis单节点模式", "blue")
+
+            except Exception as config_error:
+                # 如果无法读取配置，使用命令行参数
+                self._print_colored(f"⚠️  无法读取配置文件，使用命令行参数: {config_error}",
+                                    "yellow")
+                self.client = redis.Redis(host=self.host,
+                                          port=self.port,
+                                          password=self.password,
+                                          db=self.db,
+                                          decode_responses=True,
+                                          socket_connect_timeout=5,
+                                          socket_timeout=5)
 
             # 测试连接
             self.client.ping()
@@ -182,22 +231,50 @@ class RedisStreamMonitor:
         self._print_colored("按 Ctrl+C 停止监控", "yellow")
         print()
 
-        # 获取所有流 - 查找job:前缀的流
+        # 获取所有流
         try:
-            # 查找所有job:前缀的流
+            # 查找所有流 - 在集群模式下需要特殊处理
             all_keys = []
-            for key in self.client.keys("*"):
-                # 检查是否是job:前缀的流
-                if key.startswith("job:"):
-                    all_keys.append(key)
+
+            if hasattr(self.client, 'cluster_nodes'):
+                # 集群模式：使用SCAN命令查找流
+                self._print_colored("🌐 集群模式：扫描所有节点查找流...", "blue")
+                cursor = 0
+                while True:
+                    cursor, keys = self.client.scan(cursor, count=100)
+                    for key in keys:
+                        try:
+                            # 检查是否是有效的Stream
+                            info = self.client.xinfo_stream(key)
+                            if info:
+                                all_keys.append(key)
+                        except:
+                            # 不是Stream，跳过
+                            pass
+                    if cursor == 0:
+                        break
+            else:
+                # 单节点模式：直接查找
+                self._print_colored("🏠 单节点模式：查找所有流...", "blue")
+                for key in self.client.keys("*"):
+                    try:
+                        # 检查是否是有效的Stream
+                        info = self.client.xinfo_stream(key)
+                        if info:
+                            all_keys.append(key)
+                    except:
+                        # 不是Stream，跳过
+                        pass
 
             if not all_keys:
                 self._print_colored("⚠️  没有找到任何流", "yellow")
                 return
 
-            self._print_colored("📋 监控的流:", "green")
-            for key in all_keys:
+            self._print_colored(f"📋 找到 {len(all_keys)} 个流:", "green")
+            for key in all_keys[:10]:  # 只显示前10个
                 print(f"  {key}")
+            if len(all_keys) > 10:
+                print(f"  ... 还有 {len(all_keys) - 10} 个流")
             print()
 
             # 构建流参数

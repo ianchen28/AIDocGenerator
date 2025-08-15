@@ -179,14 +179,23 @@ case $choice in
 EOF
         
         # 替换redis配置部分
-        sed -i '' '/redis:/,/^[^ ]/ {
-            /redis:/,/^[^ ]/ {
-                /redis:/!d
-            }
-        }' "$CONFIG_FILE"
-        
-        sed -i '' '/redis:/r /tmp/redis_cluster_config.yaml' "$CONFIG_FILE"
-        rm /tmp/redis_cluster_config.yaml
+        # 使用awk来安全地替换redis配置部分
+        awk '
+        BEGIN { in_redis = 0; printed = 0 }
+        /^redis:/ { 
+            in_redis = 1
+            print "redis:"
+            system("cat /tmp/redis_cluster_config.yaml")
+            printed = 1
+            next
+        }
+        /^[a-zA-Z]/ && in_redis { 
+            in_redis = 0 
+        }
+        !in_redis { 
+            print 
+        }
+        ' "$CONFIG_FILE" > /tmp/config_temp.yaml && mv /tmp/config_temp.yaml "$CONFIG_FILE"
         
         echo "✅ 已切换到Redis集群配置"
         ;;

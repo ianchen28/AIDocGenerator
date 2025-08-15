@@ -22,16 +22,16 @@
 # ================================================
 redis:
   # 连接模式: "single" | "cluster"
-  mode: "single"
+  mode: "cluster"
   
-  # 单节点配置 (mode: "single"
+  # 单节点配置 (mode: "single" 时使用)
   single:
-    host: "10.215.149.74"
-    port: 26379
+    host: "127.0.0.1"
+    port: 6379
     db: 0
-    password: "xJrhp*4mnHxbBWN2grqq"
+    password: ""
   
-  # 集群配置 (mode: "single"
+  # 集群配置 (mode: "cluster" 时使用)
   cluster:
     nodes:
       - "10.215.149.74:6380"
@@ -41,7 +41,7 @@ redis:
       - "10.215.149.78:6380"
       - "10.215.149.79:6380"
     max_redirects: 3
-    password: "xJrhp*4mnHxbBWN2grqq"
+    password: "a20pNGJons"
     timeout: 35000
     
     # 连接池配置

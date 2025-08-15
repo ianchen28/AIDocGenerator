@@ -13,6 +13,7 @@ setup_environment()
 # 导入 doc_agent 模块
 import redis  # 导入同步 redis
 import redis.asyncio as aredis
+from redis.cluster import ClusterNode
 
 from doc_agent.common.prompt_selector import PromptSelector
 from doc_agent.core.redis_stream_publisher import RedisStreamPublisher
@@ -115,20 +116,51 @@ class Container:
 
         # --- 1. 初始化 Redis 客户端和发布器 ---
         logger.info("  - Initializing Redis connections...")
-        redis_url = settings.redis_url
+        redis_config = settings.redis_config
+        mode = redis_config.get('mode', 'single')
         stream_name = "default"
 
-        # 为 SSE 端点创建异步客户端
-        self.async_redis_client = aredis.from_url(redis_url,
-                                                  encoding="utf-8",
-                                                  decode_responses=True)
-        logger.info("    - Asynchronous Redis client created.")
+        if mode == 'cluster':
+            # 集群模式
+            logger.info("    - Initializing Redis Cluster connections...")
+            cluster_config = redis_config.get('cluster', {})
 
-        # 为回调处理器创建同步客户端
-        self.sync_redis_client = redis.from_url(redis_url,
-                                                encoding="utf-8",
-                                                decode_responses=True)
-        logger.info("    - Synchronous Redis client created.")
+            # 构建集群连接参数
+            startup_nodes = []
+            for node in cluster_config.get('nodes', []):
+                host, port = node.split(':')
+                startup_nodes.append(ClusterNode(host, int(port)))
+
+            # 为 SSE 端点创建异步集群客户端
+            self.async_redis_client = aredis.RedisCluster(
+                startup_nodes=startup_nodes,
+                decode_responses=True,
+                password=cluster_config.get('password'))
+            logger.info("    - Asynchronous Redis Cluster client created.")
+
+            # 为回调处理器创建同步集群客户端
+            self.sync_redis_client = redis.RedisCluster(
+                startup_nodes=startup_nodes,
+                decode_responses=True,
+                password=cluster_config.get('password'),
+                skip_full_coverage_check=True)
+            logger.info("    - Synchronous Redis Cluster client created.")
+        else:
+            # 单节点模式
+            logger.info("    - Initializing Redis Single Node connections...")
+            redis_url = settings.redis_url
+
+            # 为 SSE 端点创建异步客户端
+            self.async_redis_client = aredis.from_url(redis_url,
+                                                      encoding="utf-8",
+                                                      decode_responses=True)
+            logger.info("    - Asynchronous Redis client created.")
+
+            # 为回调处理器创建同步客户端
+            self.sync_redis_client = redis.from_url(redis_url,
+                                                    encoding="utf-8",
+                                                    decode_responses=True)
+            logger.info("    - Synchronous Redis client created.")
 
         # 创建并存储同步的 RedisStreamPublisher 实例
         self.redis_publisher = RedisStreamPublisher(
