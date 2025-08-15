@@ -29,6 +29,10 @@ from doc_agent.tools.ai_editing_tool import AIEditingTool
 # 导入Celery任务
 from workers import tasks
 
+# 并发控制
+MAX_CONCURRENT_TASKS = 3  # 最大并发任务数
+task_semaphore = asyncio.Semaphore(MAX_CONCURRENT_TASKS)
+
 # 创建API路由器实例
 # router = APIRouter()
 router = APIRouter(tags=["Generation Jobs & Tasks"])
@@ -57,16 +61,20 @@ async def generate_outline_endpoint(request: OutlineGenerationRequest,
     logger.info(f"收到大纲生成请求，正在添加到后台任务。SessionId: {request.session_id}")
     task_id = generate_task_id()
 
-    background_tasks.add_task(
-        generate_outline_async,
-        task_id=str(task_id),
-        session_id=request.session_id,
-        task_prompt=request.task_prompt,
-        is_online=request.is_online,
-        context_files=request.context_files,
-        style_guide_content=request.style_guide_content,
-        requirements=request.requirements,
-    )
+    # 使用信号量控制并发，避免资源竞争
+    async def run_with_semaphore():
+        async with task_semaphore:
+            await generate_outline_async(
+                task_id=str(task_id),
+                session_id=request.session_id,
+                task_prompt=request.task_prompt,
+                is_online=request.is_online,
+                context_files=request.context_files,
+                style_guide_content=request.style_guide_content,
+                requirements=request.requirements,
+            )
+
+    asyncio.create_task(run_with_semaphore())
 
     logger.success(f"大纲生成任务 {task_id} 已提交到后台。")
     return TaskCreationResponse(
@@ -93,13 +101,17 @@ async def generate_document_endpoint(request: DocumentGenerationRequest,
     context_files = request.context_files
     is_online = request.is_online
 
-    background_tasks.add_task(generate_document_sync,
-                              task_id=str(task_id),
-                              task_prompt=task_prompt,
-                              session_id=session_id,
-                              outline_file_token=outline_json_file,
-                              context_files=context_files,
-                              is_online=is_online)
+    # 使用信号量控制并发，避免资源竞争
+    async def run_with_semaphore():
+        async with task_semaphore:
+            await generate_document_sync(task_id=str(task_id),
+                                         task_prompt=task_prompt,
+                                         session_id=session_id,
+                                         outline_file_token=outline_json_file,
+                                         context_files=context_files,
+                                         is_online=is_online)
+
+    asyncio.create_task(run_with_semaphore())
 
     logger.success(f"文档生成任务 {task_id} 已提交到后台。")
     return TaskCreationResponse(

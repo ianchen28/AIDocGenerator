@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class LoadBalancerConfig(BaseModel):
     workers: List[str]  # worker 地址列表
     health_check_interval: int = 30  # 健康检查间隔（秒）
-    timeout: int = 30  # 请求超时时间（秒）
+    timeout: int = 300  # 请求超时时间（秒）- 增加到5分钟
 
 
 class SimpleLoadBalancer:
@@ -70,8 +70,9 @@ class SimpleLoadBalancer:
 
         for worker in self.workers:
             try:
-                async with self.session.get(f"{worker}/",
-                                            timeout=5) as response:
+                # 使用健康检查端点
+                async with self.session.get(f"{worker}/health",
+                                            timeout=3) as response:
                     if response.status == 200:
                         healthy_workers.append(worker)
                         logger.debug(f"Worker {worker} 健康")
@@ -171,7 +172,7 @@ def create_load_balancer_config(base_port: int = 8000,
 
     return LoadBalancerConfig(workers=workers,
                               health_check_interval=30,
-                              timeout=30)
+                              timeout=300)
 
 
 @app.on_event("startup")

@@ -36,3 +36,10 @@ async def root():
     """根端点 - 健康检查"""
     logger.info("根端点被访问")
     return {"message": "AI文档生成器API服务", "status": "运行中", "version": "1.0.0"}
+
+
+@app.get("/health")
+async def health():
+    """健康检查端点"""
+    logger.info("健康检查端点被访问")
+    return {"status": "healthy", "service": "AI文档生成器API"}
