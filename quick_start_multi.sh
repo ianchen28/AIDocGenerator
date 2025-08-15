@@ -141,7 +141,7 @@ setup_log_rotation() {
     # 检查当前日志文件大小
     if [ -f "$log_file" ]; then
         local current_size=$(stat -f%z "$log_file" 2>/dev/null || stat -c%s "$log_file" 2>/dev/null)
-        max_size_bytes
+        local max_size_bytes
         if [[ "$max_size" == *K ]]; then
             max_size_bytes=$(echo "$max_size" | sed 's/K$//' | awk '{print $1 * 1024}')
         elif [[ "$max_size" == *M ]]; then
@@ -311,7 +311,7 @@ echo "   - 启动日志轮转监控进程..."
         sleep 30  # 每30秒检查一次
         if [ -f "$UNIFIED_LOG" ]; then
             current_size=$(stat -f%z "$UNIFIED_LOG" 2>/dev/null || stat -c%s "$UNIFIED_LOG" 2>/dev/null)
-            max_size_bytes
+            local max_size_bytes
             if [[ "$LOG_SIZE" == *K ]]; then
                 max_size_bytes=$(echo "$LOG_SIZE" | sed 's/K$//' | awk '{print $1 * 1024}')
             elif [[ "$LOG_SIZE" == *M ]]; then
