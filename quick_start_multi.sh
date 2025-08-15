@@ -311,7 +311,6 @@ echo "   - 启动日志轮转监控进程..."
         sleep 30  # 每30秒检查一次
         if [ -f "$UNIFIED_LOG" ]; then
             current_size=$(stat -f%z "$UNIFIED_LOG" 2>/dev/null || stat -c%s "$UNIFIED_LOG" 2>/dev/null)
-            local max_size_bytes
             if [[ "$LOG_SIZE" == *K ]]; then
                 max_size_bytes=$(echo "$LOG_SIZE" | sed 's/K$//' | awk '{print $1 * 1024}')
             elif [[ "$LOG_SIZE" == *M ]]; then
