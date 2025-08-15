@@ -111,7 +111,7 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
         logger.info(f"🔍 从ES中查询大纲文件内容...")
         es_results = await es_search_tool.search_by_file_token(
             file_token=user_outline_file,
-            top_k=100  # 获取足够的内容
+            top_k=1000  # 获取足够的内容
         )
 
         if not es_results:
@@ -125,8 +125,12 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
             logger.error("❌ 未找到大纲文件内容")
             raise ValueError("未找到大纲文件内容")
 
-        # 直接使用第一个结果的content
-        outline_content = es_results[0].original_content
+        # 拼接所有结果
+        logger.info(f"📝 大纲文件内容: {es_results} ")
+        # 用 metadata.slice_id 为顺序排序后拼接
+        es_results.sort(key=lambda x: x.metadata.get("slice_id", 0))
+        outline_content = "\n".join(
+            [result.original_content for result in es_results])
         logger.info(f"📝 大纲文件内容长度: {len(outline_content)} 字符")
         logger.info(f"📝 大纲文件内容预览: {outline_content[:200]}...")
 
