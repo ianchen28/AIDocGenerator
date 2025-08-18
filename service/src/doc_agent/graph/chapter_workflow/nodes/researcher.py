@@ -193,9 +193,7 @@ async def async_researcher_node(
                         query_vector=query_vector,
                         file_tokens=user_data_reference_files,  # 实际上是doc_id列表
                         top_k=initial_top_k,
-                        config={
-                            'min_score': 0.0  # 临时设置为0，确保有内容返回
-                        })
+                        min_score=0.0)  # 临时设置为0，确保有内容返回
                     logger.info(
                         f"🔍 用户参考文档搜索结果数量: {len(user_data_es_results) if user_data_es_results else 0}"
                     )
@@ -208,9 +206,7 @@ async def async_researcher_node(
                         query_vector=query_vector,
                         file_tokens=user_style_guide_content,  # 实际上是doc_id列表
                         top_k=initial_top_k,
-                        config={
-                            'min_score': 0.0  # 临时设置为0，确保有内容返回
-                        })
+                        min_score=0.0)  # 临时设置为0，确保有内容返回
                     logger.info(
                         f"🔍 用户风格指南搜索结果数量: {len(user_style_es_results) if user_style_es_results else 0}"
                     )
@@ -223,9 +219,7 @@ async def async_researcher_node(
                         query_vector=query_vector,
                         file_tokens=user_requirements_content,  # 实际上是doc_id列表
                         top_k=initial_top_k,
-                        config={
-                            'min_score': 0.0  # 临时设置为0，确保有内容返回
-                        })
+                        min_score=0.0)  # 临时设置为0，确保有内容返回
                     logger.info(
                         f"🔍 用户需求文档搜索结果数量: {len(user_requirement_es_results) if user_requirement_es_results else 0}"
                     )

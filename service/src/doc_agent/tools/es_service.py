@@ -133,8 +133,8 @@ class ESService:
 
                 # 添加所有匹配domain_index_map的索引到有效索引列表
                 if matched_domain_id:
-                    if idx not in self.valid_indeces:
-                        self.valid_indeces.append(idx)
+                    # if idx not in self.valid_indeces:
+                    # self.valid_indeces.append(idx)
                     for alias_idx in alias_list:
                         if alias_idx not in self.valid_indeces:
                             self.valid_indeces.append(alias_idx)
@@ -188,6 +188,8 @@ class ESService:
         if index != "*" and index not in self.valid_indeces:
             logger.warning(f"索引 {index} 不在有效索引范围内: {self.valid_indeces}")
             return []
+        if index == "*":
+            index = self.valid_indeces
 
         await self._ensure_connected()
 
@@ -342,38 +344,58 @@ class ESService:
         # 如果有文本查询，使用混合搜索
         if query:
             logger.debug("构建混合搜索查询")
+            # search_body = {
+            #     "size": top_k,
+            #     "_source": {
+            #         "excludes": ["content"]
+            #     },
+            #     "query": {
+            #         "script_score": {
+            #             "query": {
+            #                 "bool": {
+            #                     "should": [{
+            #                         "multi_match": {
+            #                             "query":
+            #                             query,
+            #                             "fields": [
+            #                                 "content^2", "file_name",
+            #                                 "title^2", "text^2", "name"
+            #                             ],
+            #                             "type":
+            #                             "best_fields"
+            #                         }
+            #                     }],
+            #                     "minimum_should_match":
+            #                     1
+            #                 }
+            #             },
+            #             "script": {
+            #                 "source":
+            #                 "cosineSimilarity(params.query_vector, 'context_vector') + 1.0",
+            #                 "params": {
+            #                     "query_vector": query_vector
+            #                 }
+            #             }
+            #         }
+            #     }
+            # }
             search_body = {
                 "size": top_k,
-                "_source": {
-                    "excludes": ["content"]
+                "knn": {
+                    "field": "context_vector",
+                    "query_vector": query_vector,
+                    "k": top_k * 3,  # 扩大候选池
+                    "num_candidates": top_k * 10  # 增加候选数量
                 },
                 "query": {
-                    "script_score": {
-                        "query": {
-                            "bool": {
-                                "should": [{
-                                    "multi_match": {
-                                        "query":
-                                        query,
-                                        "fields": [
-                                            "content^2", "file_name",
-                                            "title^2", "text^2", "name"
-                                        ],
-                                        "type":
-                                        "best_fields"
-                                    }
-                                }],
-                                "minimum_should_match":
-                                1
+                    "bool": {
+                        "filter": [{
+                            "multi_match": {
+                                "query": query,
+                                "fields": ["content", "title", "text"],
+                                "type": "best_fields"
                             }
-                        },
-                        "script": {
-                            "source":
-                            "cosineSimilarity(params.query_vector, 'context_vector') + 1.0",
-                            "params": {
-                                "query_vector": query_vector
-                            }
-                        }
+                        }]
                     }
                 }
             }

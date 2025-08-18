@@ -70,106 +70,69 @@ class ESSearchTool:
                 logger.error(f"ES搜索工具初始化失败: {str(e)}")
                 self._initialized = True  # 即使失败也标记为已初始化，避免重复尝试
 
-    async def search(
-            self,
-            query: str,
-            query_vector: Optional[list[float]] = None,
-            top_k: int = 10,
-            filters: Optional[dict[str, Any]] = None,
-            use_multiple_indices: bool = True,
-            config: Optional[dict[str, Any]] = None) -> list[ESSearchResult]:
+    async def search(self,
+                     query: str,
+                     query_vector: list[float],
+                     top_k: int = 10,
+                     min_score: float = 0.3,
+                     filters=None) -> list[ESSearchResult]:
         """
-        执行Elasticsearch搜索
+        执行Elasticsearch向量检索（简化版本）
 
         Args:
-            query: 搜索查询字符串
-            query_vector: 查询向量（可选）
+            query_vector: 查询向量
             top_k: 返回结果数量
-            filters: 过滤条件
-            use_multiple_indices: 是否使用多索引搜索
+            min_score: 最小相似度分数
 
         Returns:
             List[ESSearchResult]: 搜索结果列表
         """
-        logger.info(f"开始ES搜索，查询: {query[:50]}...")
-        logger.debug(
-            f"搜索参数 - top_k: {top_k}, use_multiple_indices: {use_multiple_indices}"
+        logger.info(
+            f"开始向量检索，向量维度: {len(query_vector)}, top_k: {top_k}, min_score: {min_score}"
         )
-        if query_vector:
-            logger.debug(f"查询向量维度: {len(query_vector)}")
-        if filters:
-            logger.debug(f"过滤条件: {filters}")
 
         try:
             # 确保已初始化
             await self._ensure_initialized()
 
-            # 如果没有可用索引，返回空列表
-            if not self._indices_list:
-                logger.warning("没有可用的知识库索引")
-                return []
+            # # 检查索引
+            # if not self._indices_list:
+            #     logger.warning("没有可用的知识库索引")
+            #     return []
 
-            # 准备查询向量
-            if query_vector is not None:
-                if len(query_vector) != self._vector_dims:
-                    # 调整向量维度
-                    if len(query_vector) > self._vector_dims:
-                        query_vector = query_vector[:self._vector_dims]
-                    else:
-                        query_vector.extend(
-                            [0.0] * (self._vector_dims - len(query_vector)))
-                    logger.info(f"调整向量维度到 {self._vector_dims}")
+            # 调整向量维度
+            if len(query_vector) != self._vector_dims:
+                if len(query_vector) > self._vector_dims:
+                    query_vector = query_vector[:self._vector_dims]
+                    logger.info(f"截断向量维度到 {self._vector_dims}")
+                else:
+                    query_vector.extend(
+                        [0.0] * (self._vector_dims - len(query_vector)))
+                    logger.info(f"扩展向量维度到 {self._vector_dims}")
 
-            # 使用配置参数或默认值
-            if config:
-                vector_recall_size = config.get('vector_recall_size', top_k)
-                min_score = config.get('min_score', 0.3)
-                logger.debug(
-                    f"使用配置参数 - vector_recall_size: {vector_recall_size}, min_score: {min_score}"
-                )
-            else:
-                vector_recall_size = top_k
-                min_score = 0.3
+            # # 使用第一个索引进行搜索
+            # index_to_use = self._indices_list[0]
+            # logger.info(f"使用索引: {index_to_use}")
 
-            # 执行搜索
-            if use_multiple_indices and len(self._indices_list) > 1:
-                # 多索引搜索
-                logger.info(f"执行多索引搜索，索引数量: {len(self._indices_list)}")
-                results = await self._es_service.search_multiple_indices(
-                    indices=self._indices_list,
-                    query=query,
-                    top_k=vector_recall_size,
-                    query_vector=query_vector,
-                    filters=filters)
-            else:
-                # 单索引搜索
-                index_to_use = self._current_index or self._indices_list[
-                    0] if self._indices_list else None
-                if not index_to_use:
-                    logger.warning("没有可用的索引")
-                    return []
-
-                logger.info(f"执行单索引搜索，索引: {index_to_use}")
-                results = await self._es_service.search(
-                    index=index_to_use,
-                    query=query,
-                    top_k=vector_recall_size,
-                    query_vector=query_vector,
-                    filters=filters)
+            # 执行向量搜索
+            results = await self._es_service.search(
+                index="*",
+                query=query,  # 空查询，只使用向量
+                top_k=top_k,
+                query_vector=query_vector,
+                filters=None)
 
             # 根据最小分数过滤结果
             if min_score > 0:
                 original_count = len(results)
                 results = [r for r in results if r.score >= min_score]
-                logger.info(
-                    f"根据最小分数 {min_score} 过滤后，剩余 {len(results)} 个结果（原始: {original_count}）"
-                )
+                logger.info(f"分数过滤: {original_count} -> {len(results)} 个结果")
 
-            logger.info(f"ES搜索完成，返回 {len(results)} 个结果")
+            logger.info(f"向量检索完成，返回 {len(results)} 个结果")
             return results
 
         except Exception as e:
-            logger.error(f"ES搜索失败: {str(e)}")
+            logger.error(f"向量检索失败: {str(e)}")
             return []
 
     async def search_with_hybrid(
@@ -201,11 +164,11 @@ class ESSearchTool:
         if not query_vector:
             # 如果没有向量，回退到普通搜索
             logger.info("没有查询向量，回退到普通搜索")
-            return await self.search(query,
-                                     None,
-                                     top_k,
-                                     filters,
-                                     config=config)
+            return await self.search(
+                query,
+                query_vector,
+                top_k,
+                min_score=config.get('min_score', 0.3) if config else 0.3)
 
         try:
             await self._ensure_initialized()
@@ -300,29 +263,27 @@ class ESSearchTool:
     async def search_within_documents(
             self,
             query: str,
-            query_vector: Optional[list[float]] = None,
-            file_tokens: Optional[list[str]] = None,
+            query_vector: list[float],
+            file_tokens: list[str],
             top_k: int = 10,
-            config: Optional[dict[str, Any]] = None) -> list[ESSearchResult]:
+            min_score: float = 0.3) -> list[ESSearchResult]:
         """
-        在指定文档范围内执行ES搜索
+        在指定文档范围内执行ES搜索（简化版本）
         
         Args:
             query: 搜索查询字符串
-            query_vector: 查询向量（可选）
+            query_vector: 查询向量
             file_tokens: 文档token列表，限制搜索范围
             top_k: 返回结果数量
-            config: 配置参数
+            min_score: 最小相似度分数
             
         Returns:
             List[ESSearchResult]: 搜索结果列表
         """
         logger.info(f"开始在指定文档范围内搜索，查询: {query[:50]}...")
-        logger.debug(f"文档范围搜索参数 - file_tokens: {file_tokens}, top_k: {top_k}")
-
-        if not file_tokens:
-            logger.warning("没有指定文档范围，返回空结果")
-            return []
+        logger.info(
+            f"文档范围搜索参数 - file_tokens数量: {len(file_tokens)}, top_k: {top_k}, min_score: {min_score}"
+        )
 
         # 构建文档范围过滤条件
         filters = {"doc_id": file_tokens}
@@ -330,13 +291,22 @@ class ESSearchTool:
         # 对于文档范围搜索，使用通配符索引以确保能找到所有相关文档
         logger.info("🔍 使用通配符索引进行文档范围搜索，确保覆盖所有索引")
 
-        # 直接调用ES服务进行搜索，使用通配符索引
-        return await self._es_service.search(
+        # 执行搜索
+        results = await self._es_service.search(
             index="*",  # 使用通配符索引
             query=query,
             top_k=top_k,
             query_vector=query_vector,
             filters=filters)
+
+        # 根据最小分数过滤结果
+        if min_score > 0:
+            original_count = len(results)
+            results = [r for r in results if r.score >= min_score]
+            logger.info(f"分数过滤: {original_count} -> {len(results)} 个结果")
+
+        logger.info(f"文档范围搜索完成，返回 {len(results)} 个结果")
+        return results
 
     async def get_available_indices(self) -> list[str]:
         """获取可用索引列表"""

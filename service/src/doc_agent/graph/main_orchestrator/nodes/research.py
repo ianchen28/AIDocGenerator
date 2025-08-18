@@ -383,15 +383,18 @@ JSON
                             f"✅ 向量检索+重排序执行成功，结果长度: {len(es_raw_results)}")
                     else:
                         # 回退到文本搜索
-                        es_raw_results = await es_search_tool.search(query)
+                        es_raw_results = await es_search_tool.search(
+                            query, query_vector or [0.0] * 1536)
                         logger.info(f"✅ 文本搜索执行成功，结果长度: {len(es_raw_results)}")
 
                 except Exception as e:
                     logger.warning(f"⚠️  向量检索失败，使用文本搜索: {str(e)}")
-                    es_raw_results = await es_search_tool.search(query)
+                    es_raw_results = await es_search_tool.search(
+                        query, query_vector or [0.0] * 1536)
             else:
                 # 直接使用文本搜索
-                es_raw_results = await es_search_tool.search(query)
+                es_raw_results = await es_search_tool.search(
+                    query, query_vector or [0.0] * 1536)
 
         except Exception as e:
             logger.error(f"ES搜索失败: {str(e)}")
@@ -443,7 +446,10 @@ JSON
     logger.info(
         f"🔍 信息收集完成，搜索到{len(all_sources)}个信息源，其中网络搜索结果 {len(web_raw_results)} 个，ES搜索结果 {len(es_raw_results)} 个"
     )
-    logger.info(f"搜索结果示例：{es_raw_results[0]}")
+    if es_raw_results and len(es_raw_results) > 0:
+        logger.info(f"搜索结果示例：{es_raw_results[0]}")
+    else:
+        logger.info("ES搜索结果为空")
 
     return {
         "initial_sources": all_sources,

@@ -206,11 +206,11 @@ async def search_and_rerank(
 
     # 执行搜索
     logger.info(f"执行搜索: {query}")
-    search_results = await es_search_tool.search(query=query,
-                                                 query_vector=query_vector,
-                                                 top_k=initial_top_k,
-                                                 filters=filters,
-                                                 config=config)
+    search_results = await es_search_tool.search(
+        query=query,
+        query_vector=query_vector,
+        top_k=initial_top_k,
+        min_score=config.get('min_score', 0.3) if config else 0.3)
 
     logger.info(f"搜索完成，获得 {len(search_results)} 个原始结果")
 

@@ -78,7 +78,9 @@ class TestESSearchTool:
                                    timeout=30)
 
         # 执行搜索
-        results = await search_tool.search("人工智能", top_k=3)
+        results = await search_tool.search("人工智能",
+                                           query_vector=[0.1] * 1536,
+                                           top_k=3)
 
         # 验证结果
         assert len(results) == 3
@@ -329,8 +331,9 @@ class TestESSearchTool:
 
         # 执行带配置的搜索
         results = await search_tool.search(query="机器学习",
-                                           config=config,
-                                           top_k=3)
+                                           query_vector=[0.1] * 1536,
+                                           top_k=3,
+                                           min_score=0.5)
 
         # 验证结果
         assert len(results) == 3
