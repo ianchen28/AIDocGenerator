@@ -82,7 +82,9 @@ supported_models:
     model_id: "hdy_model"
     # model_id: "Qwen3-235B-A22B"
     # url: ${ONE_API_BASE}
-    url: "http://10.238.130.28:10004/v1"
+    # url: "http://nginx-lb.hdec-copilot.svc.cluster.local:30002"
+    url: "http://10.238.130.30:11242/v1"
+    # url: "http://10.238.130.28:10004/v1"
     reasoning: "True"
     description: "千问 235b 最强推理模型量化版"
     # api_key: "${ONE_API_KEY}"

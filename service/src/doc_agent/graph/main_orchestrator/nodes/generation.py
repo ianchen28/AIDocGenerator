@@ -238,6 +238,7 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
     }
   ]
 }
+```
 
 示例学习：
 
@@ -250,6 +251,7 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
 - 【全文字数】: 5000
 
 输出：
+```json
 {
   "overview": "我将为您撰写一篇文章来分析人工智能技术的发展趋势，包括基本概念、发展历程、技术现状、机器学习与深度学习、应用场景等，为后续章节的深入分析奠定基础。",
   "chapter_word_counts": [
@@ -263,6 +265,7 @@ def split_chapters_node(state: ResearchState, llm_client: LLMClient) -> dict:
     }
   ]
 }
+```
 
 """
 
