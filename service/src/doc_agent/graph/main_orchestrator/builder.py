@@ -303,10 +303,16 @@ def finalize_document_node(state: ResearchState) -> dict:
 
     # 从新的 completed_chapters 结构中提取内容
     completed_chapters_content = []
-    for chapter in completed_chapters:
+    logger.info(f"📊 finalize_document_node: completed_chapters 数量: {len(completed_chapters)}")
+    
+    for i, chapter in enumerate(completed_chapters):
         if isinstance(chapter, dict):
-            completed_chapters_content.append(chapter.get("content", ""))
+            content = chapter.get("content", "")
+            title = chapter.get("title", f"第{i+1}章")
+            logger.info(f"📖 finalize_document_node: 第{i+1}章 '{title}' 内容长度: {len(content)} 字符")
+            completed_chapters_content.append(content)
         else:
+            logger.warning(f"⚠️ finalize_document_node: 第{i+1}章格式异常: {type(chapter)}")
             completed_chapters_content.append(str(chapter))
 
     # 构建最终文档

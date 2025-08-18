@@ -403,38 +403,79 @@ def bibliography_node(state: ResearchState) -> dict:
     # 获取现有的 final_document
     final_document = state.get("final_document", "")
 
+    # 检查 completed_chapters 状态
+    completed_chapters = state.get("completed_chapters", [])
+    logger.info(f"📊 completed_chapters 数量: {len(completed_chapters)}")
+
+    for i, chapter in enumerate(completed_chapters):
+        if isinstance(chapter, dict):
+            content = chapter.get("content", "")
+            title = chapter.get("title", f"第{i+1}章")
+            logger.info(f"📖 第{i+1}章 '{title}' 内容长度: {len(content)} 字符")
+            if len(content) < 50:
+                logger.warning(f"⚠️ 第{i+1}章内容过短: {content[:100]}...")
+        else:
+            logger.warning(f"⚠️ 第{i+1}章格式异常: {type(chapter)}")
+
+    # 检查 final_document 是否为空或内容不完整
+    if not final_document or len(final_document.strip()) < 100:
+        logger.warning(
+            f"⚠️ final_document 内容可能不完整，长度: {len(final_document)} 字符")
+        logger.warning(f"final_document 前100字符: {final_document[:100]}")
+    else:
+        logger.info(f"✅ final_document 内容完整，长度: {len(final_document)} 字符")
+
     # 将参考文献添加到最终文档中
     updated_final_document = final_document + bibliography
 
     logger.info(f"📚 已将参考文献添加到最终文档中，总长度: {len(updated_final_document)} 字符")
 
-    # 保存文档到本地文件
+    # 检查 updated_final_document 的内容
+    if len(updated_final_document) < 200:
+        logger.error(
+            f"❌ updated_final_document 内容过短，可能有问题，长度: {len(updated_final_document)} 字符"
+        )
+        logger.error(f"updated_final_document 内容: {updated_final_document}")
+    else:
+        logger.info(
+            f"✅ updated_final_document 内容正常，长度: {len(updated_final_document)} 字符"
+        )
+        # 显示文档的前200字符和后200字符用于调试
+        logger.info(f"文档开头: {updated_final_document[:200]}...")
+        logger.info(f"文档结尾: ...{updated_final_document[-200:]}")
+
+    # 保存文档到根目录的 test.md 文件
     try:
         import os
-        from datetime import datetime
 
-        # 创建输出目录
-        output_dir = "output"
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        # 获取项目根目录（service 目录的上级目录）
+        current_dir = os.getcwd()
+        if current_dir.endswith('service'):
+            # 如果在 service 目录中，回到上级目录
+            root_dir = os.path.dirname(current_dir)
+        else:
+            # 如果已经在根目录，直接使用
+            root_dir = current_dir
 
-        # 生成文件名
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        title = state.get("document_outline", {}).get("title", "未命名文档")
-        # 清理文件名中的特殊字符
-        safe_title = "".join(c for c in title
-                             if c.isalnum() or c in (' ', '-', '_')).rstrip()
-        filename = f"{timestamp}_{safe_title}.md"
-        filepath = os.path.join(output_dir, filename)
+        # 保存到根目录的 test.md
+        test_md_path = os.path.join(root_dir, "test.md")
 
         # 保存文档
-        with open(filepath, "w", encoding="utf-8") as f:
+        with open(test_md_path, "w", encoding="utf-8") as f:
             f.write(updated_final_document)
 
-        logger.info(f"💾 文档已保存到本地: {filepath}")
+        logger.info(f"💾 文档已保存到根目录: {test_md_path}")
+        logger.info(f"📄 文件大小: {len(updated_final_document)} 字符")
 
     except Exception as e:
-        logger.error(f"保存文档失败: {e}")
+        logger.error(f"保存文档到 test.md 失败: {e}")
+        # 尝试保存到当前目录作为备用
+        try:
+            with open("test.md", "w", encoding="utf-8") as f:
+                f.write(updated_final_document)
+            logger.info(f"💾 备用保存成功: test.md")
+        except Exception as e2:
+            logger.error(f"备用保存也失败: {e2}")
 
     # 返回更新后的 final_document
     return {"final_document": updated_final_document}

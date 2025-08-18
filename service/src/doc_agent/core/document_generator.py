@@ -111,7 +111,8 @@ async def generate_document_sync(task_id: str,
 
         logger.info(f"Job {task_id}: 开始执行文档生成图...")
 
-        # 以流式方式执行图
+        # 以流式方式执行图并获取最终结果
+        final_state = None
         async for event in document_graph.astream(initial_state,
                                                   config={
                                                       "configurable": {
@@ -120,8 +121,20 @@ async def generate_document_sync(task_id: str,
                                                           "job_id": task_id
                                                       }
                                                   }):
-            for key, _value in event.items():
+            for key, value in event.items():
                 logger.info(f"Job {task_id} - 文档生成步骤: '{key}' 已完成。")
+                final_state = value  # 保存最终状态
+
+        # 检查是否成功生成了文档
+        if final_state and hasattr(final_state, 'get'):
+            final_document = final_state.get("final_document", "")
+            if final_document:
+                logger.info(
+                    f"Job {task_id}: 文档生成成功，文档长度: {len(final_document)} 字符")
+            else:
+                logger.warning(f"Job {task_id}: 文档生成完成，但未找到最终文档内容")
+        else:
+            logger.warning(f"Job {task_id}: 文档生成完成，但未获取到最终状态")
 
         # 发布完成事件
         publish_event(task_id,

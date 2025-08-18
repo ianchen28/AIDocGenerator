@@ -180,34 +180,36 @@ def writer_node(state: ResearchState,
         chapter_number = current_chapter_index + 1
 
         # 确保响应格式正确
-        if not response.strip():
-            response = f"## {chapter_number}. {chapter_title}\n\n无法生成章节内容。"
-        elif not response.startswith("##"):
-            # 如果没有二级标题，添加章节标题
-            response = f"## {chapter_number}. {chapter_title}\n\n{response}"
-        else:
-            # 如果已经有二级标题，确保格式正确
-            lines = response.split('\n')
-            if lines and lines[0].startswith(
-                    '## ') and not lines[0].startswith('### '):
-                # 这是章节标题，确保包含编号
-                if not lines[0].strip().startswith(f"## {chapter_number}."):
-                    lines[0] = f"## {chapter_number}. {chapter_title}"
-                    response = '\n'.join(lines)
+        # if not response.strip():
+        #     response = f"## {chapter_number}. {chapter_title}\n\n无法生成章节内容。"
+        # elif not response.startswith("##"):
+        #     # 如果没有二级标题，添加章节标题
+        #     response = f"## {chapter_number}. {chapter_title}\n\n{response}"
+        # else:
+        #     # 如果已经有二级标题，确保格式正确
+        #     lines = response.split('\n')
+        #     if lines and lines[0].startswith(
+        #             '## ') and not lines[0].startswith('### '):
+        #         # 这是章节标题，确保包含编号
+        #         if not lines[0].strip().startswith(f"## {chapter_number}."):
+        #             lines[0] = f"## {chapter_number}. {chapter_title}"
+        #             response = '\n'.join(lines)
 
         # 处理引用标记
-        _update_cited_sources_inplace(response, gathered_sources)
+        # _update_cited_sources_inplace(response, gathered_sources)
 
         # 后处理
-        final_document = _response_postprocess(response)
+        # final_document = _response_postprocess(response)
 
         # 根据引用标记，对相关文献进行标记，并更新状态
         cited_sources = [source for source in gathered_sources if source.cited]
         logger.info(f"✅ 章节生成完成，引用了 {len(cited_sources)} 个信息源")
 
+        previous_document = state.get("final_document", "")
+
         # 返回当前章节的内容和引用源
         return {
-            "final_document": final_document,
+            "final_document": previous_document + response,
             "cited_sources_in_chapter": cited_sources
         }
 
