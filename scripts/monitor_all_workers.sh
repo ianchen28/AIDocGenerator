@@ -93,7 +93,7 @@ case $MONITOR_MODE in
         echo "   按 Ctrl+C 停止监控"
         echo ""
         
-        # 构建所有日志文件列表
+        # 构建所有日志文件列表（包括备份文件）
         log_files=""
         if [ -f "$UNIFIED_LOG" ]; then
             log_files="$UNIFIED_LOG"
@@ -103,17 +103,30 @@ case $MONITOR_MODE in
         fi
         for ((i=1; i<=NUM_WORKERS; i++)); do
             WORKER_LOG="${WORKER_LOG_PREFIX}_${i}.log"
+            # 添加当前日志文件
             if [ -f "$WORKER_LOG" ]; then
                 log_files="$log_files $WORKER_LOG"
             fi
+            # 添加最近的备份文件（最多3个）
+            for j in 1 2 3; do
+                BACKUP_LOG="${WORKER_LOG_PREFIX}_${i}.log.${j}"
+                if [ -f "$BACKUP_LOG" ]; then
+                    log_files="$log_files $BACKUP_LOG"
+                fi
+            done
         done
         
         if [ -n "$log_files" ]; then
             echo "📖 开始实时监控以下文件:"
             echo "$log_files" | tr ' ' '\n' | while read -r file; do
-                echo "   - $file"
+                if [[ "$file" == *.log.[0-9] ]]; then
+                    echo "   - $file (备份文件)"
+                else
+                    echo "   - $file (当前文件)"
+                fi
             done
             echo ""
+            echo "💡 提示: 包含备份文件以确保不遗漏轮转的日志"
             echo "🔄 实时日志输出:"
             echo "=================================================="
             tail -f $log_files
