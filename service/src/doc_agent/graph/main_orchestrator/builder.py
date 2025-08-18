@@ -303,16 +303,21 @@ def finalize_document_node(state: ResearchState) -> dict:
 
     # 从新的 completed_chapters 结构中提取内容
     completed_chapters_content = []
-    logger.info(f"📊 finalize_document_node: completed_chapters 数量: {len(completed_chapters)}")
-    
+    logger.info(
+        f"📊 finalize_document_node: completed_chapters 数量: {len(completed_chapters)}"
+    )
+
     for i, chapter in enumerate(completed_chapters):
         if isinstance(chapter, dict):
             content = chapter.get("content", "")
             title = chapter.get("title", f"第{i+1}章")
-            logger.info(f"📖 finalize_document_node: 第{i+1}章 '{title}' 内容长度: {len(content)} 字符")
+            logger.info(
+                f"📖 finalize_document_node: 第{i+1}章 '{title}' 内容长度: {len(content)} 字符"
+            )
             completed_chapters_content.append(content)
         else:
-            logger.warning(f"⚠️ finalize_document_node: 第{i+1}章格式异常: {type(chapter)}")
+            logger.warning(
+                f"⚠️ finalize_document_node: 第{i+1}章格式异常: {type(chapter)}")
             completed_chapters_content.append(str(chapter))
 
     # 构建最终文档
@@ -361,7 +366,12 @@ def finalize_document_node(state: ResearchState) -> dict:
     logger.info(f"✅ 最终文档生成完成，总长度: {len(final_document)} 字符")
     logger.info(f"📖 包含 {len(completed_chapters_content)} 个章节")
 
-    return {"final_document": final_document}
+    # 获取 cited_sources 并传递给下一个节点
+    cited_sources = state.get("cited_sources", [])
+    logger.info(
+        f"📚 finalize_document_node: 传递 cited_sources，数量: {len(cited_sources)}")
+
+    return {"final_document": final_document, "cited_sources": cited_sources}
 
 
 def _clean_chapter_content(content: str,

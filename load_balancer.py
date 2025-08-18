@@ -117,6 +117,9 @@ class SimpleLoadBalancer:
         if request.query_params:
             target_url += f"?{request.query_params}"
 
+        # 添加转发日志
+        logger.info(f"🔄 转发请求: {request.method} {path} -> {target_url}")
+
         # 准备请求头
         headers = dict(request.headers)
         # 移除一些不应该转发的头
@@ -128,6 +131,7 @@ class SimpleLoadBalancer:
 
         try:
             # 转发请求
+            logger.info(f"📤 开始转发到 worker: {worker}")
             async with self.session.request(
                     method=request.method,
                     url=target_url,
@@ -140,6 +144,11 @@ class SimpleLoadBalancer:
                 # 构建响应头
                 response_headers = dict(response.headers)
                 response_headers.pop("content-length", None)  # 让 FastAPI 重新计算
+
+                # 添加响应日志
+                logger.info(
+                    f"📥 收到 worker 响应: {response.status} (内容长度: {len(content)} 字节)"
+                )
 
                 # 直接返回原始响应
                 from fastapi.responses import Response

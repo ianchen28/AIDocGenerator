@@ -196,10 +196,11 @@ def writer_node(state: ResearchState,
         #             response = '\n'.join(lines)
 
         # 处理引用标记
-        # _update_cited_sources_inplace(response, gathered_sources)
+        # 处理引用标记
+        _update_cited_sources_inplace(response, gathered_sources)
 
         # 后处理
-        # final_document = _response_postprocess(response)
+        final_document = _response_postprocess(response)
 
         # 根据引用标记，对相关文献进行标记，并更新状态
         cited_sources = [source for source in gathered_sources if source.cited]

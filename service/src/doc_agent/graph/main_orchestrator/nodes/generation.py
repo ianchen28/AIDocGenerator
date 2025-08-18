@@ -417,6 +417,20 @@ def bibliography_node(state: ResearchState) -> dict:
         else:
             logger.warning(f"⚠️ 第{i+1}章格式异常: {type(chapter)}")
 
+    # 检查 cited_sources 状态
+    cited_sources = state.get("cited_sources", [])
+    logger.info(f"📚 bibliography_node: cited_sources 数量: {len(cited_sources)}")
+
+    if cited_sources:
+        for i, source in enumerate(cited_sources[:5]):  # 只显示前5个
+            logger.info(
+                f"📚 引用源 {i+1}: {getattr(source, 'title', '无标题')} (ID: {getattr(source, 'id', '无ID')})"
+            )
+        if len(cited_sources) > 5:
+            logger.info(f"📚 ... 还有 {len(cited_sources) - 5} 个引用源")
+    else:
+        logger.warning("⚠️ bibliography_node: cited_sources 为空！")
+
     # 检查 final_document 是否为空或内容不完整
     if not final_document or len(final_document.strip()) < 100:
         logger.warning(
