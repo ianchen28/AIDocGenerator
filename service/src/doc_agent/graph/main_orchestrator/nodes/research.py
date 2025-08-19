@@ -207,8 +207,8 @@ JSON 输出:
         word_count = 5000  # 默认值
     if word_count < 0:
         word_count = 5000  # 默认值
-    if other_requirements:
-        other_requirements = other_requirements.split("\n")
+    # if other_requirements:
+    #     other_requirements = other_requirements.split("\n")
 
     # 获取复杂度配置
     complexity_config = settings.get_complexity_config()

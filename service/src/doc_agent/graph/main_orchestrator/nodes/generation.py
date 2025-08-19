@@ -42,6 +42,7 @@ def outline_generation_node(state: ResearchState,
     initial_sources = state.get("initial_sources", [])
     job_id = state.get("job_id", "")
     word_count = state.get("word_count", -1)
+    prompt_requirements = state.get("prompt_requirements", "")
 
     if not topic:
         raise ValueError("主题不能为空")
@@ -56,9 +57,9 @@ def outline_generation_node(state: ResearchState,
     else:
         initial_gathered_data = state.get("initial_gathered_data", "")
 
-    if not initial_gathered_data:
-        logger.warning("没有初始研究数据，使用默认大纲")
-        return _generate_default_outline(topic, complexity_config)
+    if not initial_gathered_data and not prompt_requirements:
+        logger.warning("没有初始研究数据，也没有用户要求")
+        # return _generate_default_outline(topic, complexity_config)
 
     # 获取提示词模板
     prompt_template = _get_outline_prompt_template(complexity_config,
@@ -67,6 +68,7 @@ def outline_generation_node(state: ResearchState,
     # 构建提示词
     prompt = prompt_template.format(
         topic=topic,
+        prompt_requirements=prompt_requirements,
         word_count=word_count,
         initial_gathered_data=initial_gathered_data[:10000]  # 限制长度
     )

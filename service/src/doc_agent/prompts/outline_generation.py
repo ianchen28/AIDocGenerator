@@ -243,9 +243,133 @@ V3_WITH_SUBSECTIONS = """
 
 # 快速版本的大纲生成prompt（来自fast_prompts）
 V4_FAST = """
+## Role: AI Document Architect**
+你的唯一任务是基于输入数据，生成一个结构化的文档大纲JSON。严格遵循所有规则，不要输出任何额外内容。
+
+## Input Data
+
+- Topic: {topic}
+
+- User Requirements: {prompt_requirements}
+
+- Target Word Count: {word_count}
+
+- Initial Research Data: {initial_gathered_data}
+
+## Core Task & Rules
+
+1. 最高优先级: 严格遵循 `User Requirements` 和 `Target Word Count`。
+
+2. 内容来源: 使用 `Initial Research Data` 填充大纲的具体内容 (`description`, `key_points`)。
+
+3. 动态结构 (必须遵守):
+
+    - 如果 `Target Word Count` > 1000 或未指定 (-1): 大纲必须包含 `chapters` 和 `sections` 两个层级。
+    - 如果 `Target Word Count` <= 1000: 大纲只包含 `chapters` 层级，且每个 `chapter` 对象中的 `sections` 字段必须是一个空数组 []。
+
+4. 内容约束:
+
+    - `summary` 长度约为 50-100 字。
+    - `key_points` 数组应包含 2-4 个最核心的要点。
+
+5. 绝对规则:
+
+    - 只输出一个单一、完整、语法正确的 JSON 对象。
+    - 禁止输出任何 JSON 之外的文本、注释或标记。
+
+## Output JSON Schema
+
+```json
+{{
+    "title": "文档标题",
+    "summary": "文档的简短摘要",
+    "chapters": [
+        {{
+            "number": 1,
+            "title": "章节标题",
+            "description": "章节的简要描述",
+            "sections": [
+                {{
+                    "number": 1.1,
+                    "title": "小节标题",
+                    "description": "小节的简要描述",
+                    "key_points": ["核心要点1", "核心要点2"]
+                }}
+            ]
+        }}
+    ],
+    "total_chapters": 1,
+    "estimated_total_words": 5000
+}}
+```
+
+### Examples
+示例 1: 字数 <= 1000 (无 sections)
+
+- 输入: `Target Word Count`: 800
+- 输出结构:
+
+```json
+{{
+    "title": "...",
+    "summary": "...",
+    "chapters": [
+        {{
+            "number": 1,
+            "title": "第一章...",
+            "description": "...",
+            "sections": []
+        }},
+        {{
+            "number": 2,
+            "title": "第二章...",
+            "description": "...",
+            "sections": []
+        }}
+    ],
+    "total_chapters": 2,
+    "estimated_total_words": 800
+}}
+```
+
+示例 2: 字数 > 1000 (有 sections)
+
+- 输入: Target Word Count: 1500
+- 输出结构:
+
+```json
+{{
+    "title": "...",
+    "summary": "...",
+    "chapters": [
+        {{
+            "number": 1,
+            "title": "第一章...",
+            "description": "...",
+            "sections": [
+                {{
+                    "number": 1.1,
+                    "title": "第一节...",
+                    "description": "...",
+                    "key_points": ["要点A", "要点B"]
+                }}
+            ]
+        }}
+    ],
+    "total_chapters": 1,
+    "estimated_total_words": 1500
+}}
+```
+
+"""
+
+V4_FAST_OLD = """
 你是一位专业的文档结构设计专家。基于提供的初始研究数据，为主题生成一个简化的文档大纲。
 
 **主题**: {topic}
+
+**用户要求**:
+{prompt_requirements}
 
 **目标字数**：{word_count}
 

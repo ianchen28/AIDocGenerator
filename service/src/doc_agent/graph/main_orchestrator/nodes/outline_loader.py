@@ -6,13 +6,13 @@
 
 import json
 import os
+import re
 import tempfile
 
 from doc_agent.core.logger import logger
 from doc_agent.graph.callbacks import publish_event
 from doc_agent.graph.state import ResearchState
 from doc_agent.llm_clients.base import LLMClient
-from doc_agent.schemas import Source
 from doc_agent.tools.es_search import ESSearchTool
 from doc_agent.tools.file_module import FileProcessor
 
@@ -37,15 +37,11 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
     job_id = state.get("job_id", "")
     task_prompt = state.get("task_prompt", "")
 
-    # 获取topic，如果没有则从task_prompt中提取
-    topic = state.get("topic", "")
-    word_count = state.get("word_count", -1)
-
     if not user_outline_file:
         raise ValueError("用户大纲文件token不能为空")
 
     # 如果没有topic，尝试从task_prompt中提取
-    if not topic and task_prompt:
+    if task_prompt:
         logger.info("🔍 从task_prompt中提取topic...")
         prompt = f"""
 你是一个专业的任务分析引擎。你的唯一目标是解析用户提供的文本，并从中提取关键的任务要求。
@@ -72,15 +68,18 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
             response = llm_client.invoke(prompt)
             logger.info(f"🔍 任务分析响应: {response}")
 
-            # 去除 ```json 和 ```
-            response = response.replace("```json", "").replace("```", "")
+            # 提取 ```json ``` 内的 json 部分
+            json_pattern = r'```json\s*(.*?)\s*```'
+            json_match = re.search(json_pattern, response, re.DOTALL)
+            if json_match:
+                response = json_match.group(1)
             response_data = json.loads(response)
             topic = response_data.get("topic", "")
             extracted_word_count = response_data.get("word_count", "-1")
             other_requirements = response_data.get("other_requirements", "")
 
             if not topic:
-                raise ValueError("从task_prompt中提取的主题为空")
+                logger.warning("从task_prompt中提取的主题为空")
 
             try:
                 word_count = int(extracted_word_count)
@@ -95,7 +94,7 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
 
         except Exception as e:
             logger.warning(f"⚠️ 从task_prompt提取topic失败: {str(e)}")
-            topic = "文档大纲生成"  # 默认主题
+            topic = prompt
             word_count = 5000
 
     # 如果仍然没有topic，使用默认值
@@ -108,7 +107,7 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
 
     try:
         # 1. 从ES中获取大纲文件内容
-        logger.info(f"🔍 从ES中查询大纲文件内容...")
+        logger.info("🔍 从ES中查询大纲文件内容...")
         es_results = await es_search_tool.search_by_file_token(
             file_token=user_outline_file,
             top_k=1000  # 获取足够的内容
@@ -231,8 +230,10 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
 3. 为每个章节和小节添加合适的描述
 4. 章节编号从1开始，子节编号使用小数点格式（如1.1, 1.2, 1.3）
 5. 目标总字数为{word_count}字左右
+6. 尽量使用用户提供主题，若用户主题为空或未定义，则使用大纲文件内容中的主题
 
 用户主题：{topic}
+
 用户大纲文件内容：
 {outline_content}
 
@@ -251,8 +252,6 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
         try:
             # 使用invoke方法调用LLM
             logger.info("🔄 开始调用LLM...")
-            logger.info(f"🔄 LLM客户端类型: {type(llm_client)}")
-            logger.info(f"🔄 LLM客户端方法: {dir(llm_client)}")
 
             response = llm_client.invoke(prompt)
             logger.info("✅ LLM调用完成")
@@ -276,7 +275,6 @@ async def outline_loader_node(state: ResearchState, llm_client: LLMClient,
         except json.JSONDecodeError:
             # 如果直接解析失败，尝试提取JSON部分
             logger.warning("直接JSON解析失败，尝试提取JSON部分")
-            import re
 
             # 尝试多种JSON提取模式
             json_patterns = [
