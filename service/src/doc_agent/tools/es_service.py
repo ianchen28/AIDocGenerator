@@ -5,7 +5,6 @@ Elasticsearch 底层服务模块
 
 import asyncio
 from dataclasses import dataclass
-from tkinter import W
 from typing import Any, Optional
 
 from elasticsearch import AsyncElasticsearch
@@ -126,17 +125,11 @@ class ESService:
                         self.augmented_index_domain_map[
                             alias_idx] = matched_domain_id
 
-                # 检查是否为个人知识库索引
-                # if (idx == "personal_knowledge_base"
-                #         or "personal_knowledge_base" in alias_list):
-                #     continue
-
                 # 添加所有匹配domain_index_map的索引到有效索引列表
                 if matched_domain_id:
-                    # if idx not in self.valid_indeces:
-                    # self.valid_indeces.append(idx)
                     for alias_idx in alias_list:
-                        if alias_idx not in self.valid_indeces:
+                        if (alias_idx not in self.valid_indeces
+                                and alias_idx != "personal_knowledge_base"):
                             self.valid_indeces.append(alias_idx)
 
             logger.info(f"🔍 索引别名: {self.index_aliases}")
